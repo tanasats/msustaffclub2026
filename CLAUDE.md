@@ -114,7 +114,7 @@ docker-compose.yml      # postgres + garage สำหรับ dev
 - สร้าง migration: `pnpm --filter api migrate create ชื่อ-migration`
 - รัน migration: `pnpm --filter api migrate up`
 - ย้อน migration ล่าสุด (dev เท่านั้น): `pnpm --filter api migrate down`
-- seed ผู้ดูแลระบบสูงสุด: `pnpm --filter api seed:super-admin`
+- seed ผู้ดูแลระบบสูงสุด: `pnpm --filter api seed:super-admin` (เจ้าของ `INITIAL_SUPER_ADMIN_EMAIL` ต้อง login ด้วย Google 1 ครั้งก่อน)
 
 ## 6. มาตรฐานการเขียนโค้ด
 - ชื่อตัวแปร/ฟังก์ชันเป็นภาษาอังกฤษ camelCase, ชื่อ component เป็น PascalCase
@@ -233,6 +233,9 @@ Role และ permission เฉพาะระบบนี้ (**เริ่�
 - ข้อมูลตั้งต้น (roles, permissions) ใส่ใน migration แบบ idempotent
 - การลบคอลัมน์/ตาราง หรือเปลี่ยนชนิดข้อมูล ต้องถามผู้ใช้ก่อนเสมอ
 - ก่อนสรุปว่าเสร็จ ให้ลองรัน `up` และ `down` บน `app_dev`
+- ไฟล์ migration เป็น `.sql` แบ่งส่วนด้วยคอมเมนต์ `-- Up Migration` และ `-- Down Migration` (สร้างด้วย `pnpm --filter api migrate create ชื่อ`)
+- `id` ใช้ `uuid DEFAULT uuidv7()` และทุกตารางที่มี `updated_at` ต้องผูก trigger `set_updated_at()`
+- ฐาน `app_test` ถูก migrate อัตโนมัติตอนเริ่ม `pnpm test` (หรือรันเองด้วย `pnpm --filter api migrate:test up`)
 
 ## 13. ความปลอดภัย
 - ห้ามใส่ secret (Google client secret, S3 key, DB password) ในโค้ดหรือ commit

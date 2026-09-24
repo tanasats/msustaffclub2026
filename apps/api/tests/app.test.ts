@@ -1,14 +1,9 @@
-import { afterAll, describe, expect, it } from 'vitest';
+import { describe, expect, it } from 'vitest';
 import request from 'supertest';
 import { createApp } from '../src/app.js';
 import { config } from '../src/config/index.js';
-import { pool } from '../src/db/pool.js';
 
 const app = createApp();
-
-afterAll(async () => {
-  await pool.end();
-});
 
 describe('GET /health', () => {
   it('คืน 200 เมื่อเชื่อมต่อฐานข้อมูลได้', async () => {
