@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { LogoutButton } from '@/components/LogoutButton';
 import { ProfileCard } from '@/components/ProfileCard';
@@ -8,7 +9,9 @@ export default async function HomePage() {
   if (!current) {
     redirect('/login');
   }
-  const { user, roles, profile } = current;
+  const { user, roles, profile, permissions } = current;
+  // ซ่อน/แสดงเมนูเพื่อ UX เท่านั้น (API ตรวจสิทธิ์จริงทุกครั้ง)
+  const canManageRoles = roles.includes('super_admin') || permissions.includes('user_role:assign');
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-10 sm:py-16">
@@ -30,6 +33,15 @@ export default async function HomePage() {
       </section>
 
       <ProfileCard profile={profile} />
+
+      {canManageRoles && (
+        <nav className="mt-4 rounded-lg border border-slate-200 bg-white p-4 sm:p-6">
+          <h2 className="font-semibold">ผู้ดูแลระบบ</h2>
+          <Link href="/admin/users" className="mt-2 inline-block text-blue-700 underline">
+            จัดการสิทธิ์ผู้ใช้
+          </Link>
+        </nav>
+      )}
     </main>
   );
 }
