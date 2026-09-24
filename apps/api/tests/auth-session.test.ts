@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from 'vitest';
-import request from 'supertest';
+import { request } from './helpers/http.js';
 import { createApp } from '../src/app.js';
 import { config } from '../src/config/index.js';
 import { pool } from '../src/db/pool.js';

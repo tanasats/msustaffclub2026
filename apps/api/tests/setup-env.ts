@@ -7,6 +7,8 @@ process.env.NODE_ENV = 'test';
 
 // ปิด pool เมื่อจบไฟล์ (import ทีหลังเพื่อให้ config อ่าน env ที่ตั้งไว้ข้างบน)
 afterAll(async () => {
+  const { closeTestServers } = await import('./helpers/http.js');
+  await closeTestServers();
   const { pool } = await import('../src/db/pool.js');
   await pool.end();
 });

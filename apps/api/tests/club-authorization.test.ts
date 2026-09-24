@@ -1,6 +1,6 @@
 import express from 'express';
 import cookieParser from 'cookie-parser';
-import request from 'supertest';
+import { request } from './helpers/http.js';
 import { beforeEach, describe, expect, it } from 'vitest';
 import { pool } from '../src/db/pool.js';
 import { loadSession, requireClubPermission } from '../src/middlewares/auth.js';

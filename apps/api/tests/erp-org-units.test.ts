@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
-import request from 'supertest';
+import { request } from './helpers/http.js';
 import { createApp } from '../src/app.js';
 import { pool } from '../src/db/pool.js';
 import type { ErpStaffInfo } from '../src/services/erp-hr-client.js';

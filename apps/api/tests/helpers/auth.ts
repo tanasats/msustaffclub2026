@@ -1,6 +1,7 @@
 import { randomUUID } from 'node:crypto';
 import type { Express } from 'express';
-import request, { type Response } from 'supertest';
+import type { Response } from 'supertest';
+import { request } from './http.js';
 import { vi } from 'vitest';
 import { config } from '../../src/config/index.js';
 import { pool } from '../../src/db/pool.js';
