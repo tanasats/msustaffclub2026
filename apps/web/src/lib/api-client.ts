@@ -25,3 +25,15 @@ export async function apiSend(method: 'POST' | 'PUT' | 'PATCH', path: string, bo
     return { ok: false, errorMessage: 'เชื่อมต่อระบบไม่ได้ กรุณาลองใหม่' };
   }
 }
+
+/**
+ * GET JSON จาก API ฝั่ง browser (เช่น ค้นหาผู้ใช้ขณะพิมพ์) คืน null ถ้าไม่สำเร็จ
+ */
+export async function apiGetClient<T>(path: string): Promise<T | null> {
+  try {
+    const res = await fetch(`${publicEnv.apiUrl}${path}`, { credentials: 'include' });
+    return res.ok ? ((await res.json()) as T) : null;
+  } catch {
+    return null;
+  }
+}

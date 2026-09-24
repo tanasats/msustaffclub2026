@@ -1,0 +1,114 @@
+import type { ApplicationDetail } from '@/lib/club-application-types';
+import { CONSENT_LABELS } from '@/lib/club-application-types';
+
+function Row({ label, children }: { label: string; children: React.ReactNode }) {
+  return (
+    <div className="grid gap-0.5 py-2 sm:grid-cols-4 sm:gap-4">
+      <dt className="text-sm text-slate-600">{label}</dt>
+      <dd className="text-sm sm:col-span-3">{children || '-'}</dd>
+    </div>
+  );
+}
+
+// มุมมองอ่านอย่างเดียว (ที่ปรึกษา / เจ้าหน้าที่ / นายกสโมสร / ผู้ยื่นเมื่อแก้ไม่ได้แล้ว)
+export function ApplicationSummary({ application: a }: { application: ApplicationDetail }) {
+  return (
+    <div className="grid gap-4">
+      <section className="rounded-lg border border-slate-200 bg-white p-4 sm:p-6">
+        <h2 className="font-semibold">ข้อมูลชมรม</h2>
+        <dl className="mt-2 divide-y divide-slate-100">
+          <Row label="ประเภท">
+            {a.category?.nameTh}
+            {a.categoryDetail ? ` (${a.categoryDetail})` : ''}
+          </Row>
+          <Row label="วัตถุประสงค์">
+            {a.objectives.length > 0 && (
+              <ol className="list-decimal pl-5">
+                {a.objectives.map((o, i) => (
+                  <li key={i}>{o}</li>
+                ))}
+              </ol>
+            )}
+          </Row>
+          <Row label="คำขวัญ">{a.motto}</Row>
+          <Row label="ความหมายของตรา">{a.logoMeaning}</Row>
+          <Row label="ประวัติชมรม">{a.history && <p className="whitespace-pre-line">{a.history}</p>}</Row>
+          <Row label="สถานที่ทำการ">{a.officeLocation}</Row>
+          <Row label="ติดต่อ">{[a.contactPhone, a.contactEmail].filter(Boolean).join(' · ')}</Row>
+        </dl>
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-4 sm:p-6">
+        <h2 className="font-semibold">ที่ปรึกษาชมรม</h2>
+        <ul className="mt-2 grid gap-1 text-sm">
+          {a.advisors.map((adv) => (
+            <li key={adv.email}>
+              {adv.sortOrder}. {adv.user?.name ?? adv.email} — {CONSENT_LABELS[adv.consentStatus]}
+            </li>
+          ))}
+          {a.advisors.length === 0 && <li className="text-slate-600">-</li>}
+        </ul>
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-4 sm:p-6">
+        <h2 className="font-semibold">คณะกรรมการบริหาร ({a.committee.length} คน)</h2>
+        <ul className="mt-2 divide-y divide-slate-100 text-sm">
+          {a.committee.map((c) => (
+            <li key={c.user.id} className="py-2">
+              <span className="font-medium">{c.positionTitle}</span>: {c.user.name ?? c.user.email}
+              <span className="block text-xs text-slate-500">
+                {[c.user.orgUnitName, c.workLocation, c.contactPhone].filter(Boolean).join(' · ')}
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-4 sm:p-6">
+        <h2 className="font-semibold">สมาชิกตั้งต้นเพิ่มเติม ({a.members.length} คน)</h2>
+        <ul className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
+          {a.members.map((m) => (
+            <li key={m.id}>
+              {m.name ?? m.email} <span className="text-xs text-slate-500">{m.orgUnitName}</span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <section className="rounded-lg border border-slate-200 bg-white p-4 sm:p-6">
+        <h2 className="font-semibold">แผนงานกิจกรรมประจำปี</h2>
+        {a.activities.length === 0 ? (
+          <p className="mt-2 text-sm text-slate-600">-</p>
+        ) : (
+          <div className="mt-2 overflow-x-auto">
+            <table className="w-full text-left text-sm">
+              <thead className="text-slate-600">
+                <tr>
+                  <th className="py-1 pr-3 font-normal">วันที่</th>
+                  <th className="py-1 pr-3 font-normal">เวลา</th>
+                  <th className="py-1 pr-3 font-normal">กิจกรรม</th>
+                  <th className="py-1 font-normal">หมายเหตุ</th>
+                </tr>
+              </thead>
+              <tbody>
+                {a.activities.map((act, i) => (
+                  <tr key={i} className="border-t border-slate-100">
+                    <td className="py-1 pr-3">{act.activityDate ?? '-'}</td>
+                    <td className="py-1 pr-3">{act.activityTime ?? '-'}</td>
+                    <td className="py-1 pr-3">{act.title}</td>
+                    <td className="py-1">{act.note ?? '-'}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </section>
+
+      <details className="rounded-lg border border-slate-200 bg-white p-4 sm:p-6">
+        <summary className="cursor-pointer font-semibold">ระเบียบข้อบังคับของชมรม</summary>
+        <pre className="mt-3 whitespace-pre-wrap font-sans text-sm leading-relaxed">{a.regulationText}</pre>
+      </details>
+    </div>
+  );
+}

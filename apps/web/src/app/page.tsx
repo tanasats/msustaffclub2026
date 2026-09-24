@@ -11,7 +11,11 @@ export default async function HomePage() {
   }
   const { user, roles, profile, permissions } = current;
   // ซ่อน/แสดงเมนูเพื่อ UX เท่านั้น (API ตรวจสิทธิ์จริงทุกครั้ง)
-  const canManageRoles = roles.includes('super_admin') || permissions.includes('user_role:assign');
+  const has = (permission: string) => roles.includes('super_admin') || permissions.includes(permission);
+  const canManageRoles = has('user_role:assign');
+  const canApply = has('club_application:create');
+  const canWorkQueue = has('club_application:review') || has('club_application:approve') || has('club:read_all');
+  const isStaff = profile.type === 'staff';
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-10 sm:py-16">
@@ -33,6 +37,34 @@ export default async function HomePage() {
       </section>
 
       <ProfileCard profile={profile} />
+
+      <nav className="mt-4 rounded-lg border border-slate-200 bg-white p-4 sm:p-6">
+        <h2 className="font-semibold">ชมรม</h2>
+        <ul className="mt-2 grid gap-2">
+          {canApply && (
+            <li>
+              <Link href="/club-applications" className="text-blue-700 underline">
+                ยื่นคำขอจัดตั้งชมรม / คำขอของฉัน
+              </Link>
+            </li>
+          )}
+          {isStaff && (
+            <li>
+              <Link href="/club-applications/advisor-requests" className="text-blue-700 underline">
+                คำขอที่เสนอชื่อฉันเป็นที่ปรึกษา
+              </Link>
+            </li>
+          )}
+          {canWorkQueue && (
+            <li>
+              <Link href="/club-applications/queue" className="text-blue-700 underline">
+                คำขอที่รอตรวจ/อนุมัติ
+              </Link>
+            </li>
+          )}
+          {!canApply && !isStaff && !canWorkQueue && <li className="text-sm text-slate-600">ยังไม่มีเมนูสำหรับบัญชีของคุณ</li>}
+        </ul>
+      </nav>
 
       {canManageRoles && (
         <nav className="mt-4 rounded-lg border border-slate-200 bg-white p-4 sm:p-6">
