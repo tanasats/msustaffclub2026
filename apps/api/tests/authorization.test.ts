@@ -91,7 +91,7 @@ describe('requirePermission', () => {
   });
 
   it('permission ที่ยังไม่ผูกกับ role ใด ใช้ได้เฉพาะ super_admin (ค่าเริ่มต้นคือปฏิเสธ)', async () => {
-    await pool.query('DELETE FROM role_permissions');
+    await pool.query('DELETE FROM role_permissions WHERE role_id IN (SELECT id FROM roles WHERE NOT is_system)');
     const staffCookie = await userWithRoles(['role_assigner']);
     const adminCookie = await userWithRoles(['super_admin']);
     const app = createProtectedApp();
@@ -104,7 +104,7 @@ describe('requirePermission', () => {
     const app = createProtectedApp();
     expect((await request(app).get('/assign').set('Cookie', cookie)).status).toBe(200);
 
-    await pool.query('DELETE FROM role_permissions');
+    await pool.query('DELETE FROM role_permissions WHERE role_id IN (SELECT id FROM roles WHERE NOT is_system)');
 
     expect((await request(app).get('/assign').set('Cookie', cookie)).status).toBe(403);
   });

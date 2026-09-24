@@ -2,6 +2,11 @@
 // ทุกค่าต้องลงทะเบียนในตาราง permissions ผ่าน migration ด้วย (มี test ตรวจว่าตรงกัน)
 export const PERMISSIONS = {
   USER_ROLE_ASSIGN: 'user_role:assign',
+  CLUB_APPLICATION_CREATE: 'club_application:create',
+  CLUB_APPLICATION_REVIEW: 'club_application:review',
+  CLUB_APPLICATION_APPROVE: 'club_application:approve',
+  CLUB_READ_ALL: 'club:read_all',
+  CLUB_MANAGE_ALL: 'club:manage_all',
 } as const;
 
 export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

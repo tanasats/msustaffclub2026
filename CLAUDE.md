@@ -173,13 +173,23 @@ Role และ permission เฉพาะระบบนี้ (**เริ่�
 | role code | ชื่อไทย | is_privileged | permissions |
 |---|---|---|---|
 | `student` | นิสิต | false | (ยังไม่ผูก) — `is_system`, ระบบให้อัตโนมัติตอน login |
-| `staff` | บุคลากร | false | (ยังไม่ผูก) — `is_system`, ระบบให้อัตโนมัติตอน login |
+| `staff` | บุคลากร | false | `club_application:create` — `is_system`, ระบบให้อัตโนมัติตอน login |
 
 Permission ที่ลงทะเบียนแล้ว (ยังไม่ผูกกับ role ใด → ใช้ได้เฉพาะ `super_admin`):
 
 | permission | คำอธิบาย |
 |---|---|
 | `user_role:assign` | ให้/ถอน role ที่ไม่ใช่ role สิทธิ์สูงแก่ผู้ใช้อื่น |
+| `club_application:create` | ยื่นคำขอจัดตั้ง/ต่อทะเบียนชมรม (ผูกกับ `staff`) |
+| `club_application:review` | ตรวจคำขอขั้นที่ 1: ตรวจผ่าน หรือส่งกลับแก้ไข |
+| `club_application:approve` | อนุมัติขั้นที่ 2: อนุมัติ / ไม่อนุมัติ / ส่งกลับแก้ไข |
+| `club:read_all` | ดูข้อมูลทุกชมรมและทุกคำขอ (อ่านอย่างเดียว) |
+| `club:manage_all` | จัดการทุกชมรมและข้อมูลหลักของชมรม และผ่านสิทธิ์ระดับชมรมทุกข้อ |
+
+**สิทธิ์ระดับชมรม (club-scoped)** — ได้จากตำแหน่งของผู้ใช้ "ในชมรมนั้น" (กรรมการ/ที่ปรึกษา/สมาชิก) ไม่ใช่ role ของระบบ
+- ตำแหน่ง ↔ สิทธิ์ชมรม เก็บในตาราง `club_positions` / `club_permissions` / `club_position_permissions` (ค่าตั้งต้นดู `docs/design/club-establishment.md` หัวข้อ 3.3) ค่าคงที่อยู่ที่ `src/services/club-permissions.ts` ที่เดียว
+- ตรวจด้วย `getClubPermissions` / `hasClubPermission(auth, clubId, 'x')` และ middleware `requireClubPermission('x')` เท่านั้น **ห้ามเช็คชื่อตำแหน่งตรง ๆ** (เช่น `position === 'president'`)
+- ข้อยกเว้นทั้งหมดอยู่ใน `getClubPermissions` ที่เดียว: `club:manage_all` (รวม `super_admin`) ได้ทุกสิทธิ์ชมรม, `club:read_all` ได้ `club:view_internal`, ชมรมที่ไม่ active เหลือสิทธิ์อ่านอย่างเดียว
 
 หลักการ:
 - **1 ผู้ใช้มีได้หลาย role** ผ่านตาราง `user_roles` สิทธิ์จริงของผู้ใช้ = รวม (union) permission จากทุก role ที่ถืออยู่

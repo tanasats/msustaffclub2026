@@ -6,9 +6,13 @@ import { pool } from '../../src/db/pool.js';
  * TRUNCATE ไม่ผ่าน trigger แบบ row จึงล้าง role_change_logs ได้ (ใช้ใน test เท่านั้น)
  */
 export async function resetDatabase(): Promise<void> {
-  await pool.query('TRUNCATE role_change_logs, sessions, user_roles, student_profiles, staff_profiles, erp_org_units, users');
-  await pool.query('DELETE FROM role_permissions');
-  await pool.query('DELETE FROM roles WHERE is_system = false');
+  await pool.query(
+    `TRUNCATE club_memberships, club_committee_members, club_advisors, clubs,
+              role_change_logs, sessions, user_roles, student_profiles, staff_profiles, erp_org_units, users`,
+  );
+  // ลบเฉพาะ role ที่ test สร้าง (role ระบบและการผูก permission จาก migration ต้องคงอยู่)
+  await pool.query('DELETE FROM role_permissions WHERE role_id IN (SELECT id FROM roles WHERE NOT is_system)');
+  await pool.query('DELETE FROM roles WHERE NOT is_system');
 }
 
 export interface TestUserInput {

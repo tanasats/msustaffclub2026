@@ -3,6 +3,8 @@ import { config } from '../config/index.js';
 import { AppError } from '../errors.js';
 import { resolveSession } from '../services/auth-service.js';
 import { hasPermission, type AuthContext } from '../services/authorization.js';
+import { getClubPermissions } from '../services/club-authorization.js';
+import type { ClubPermissionCode } from '../services/club-permissions.js';
 import type { PermissionCode } from '../services/permissions.js';
 
 // ผูกข้อมูลผู้ใช้กับ request ด้วย WeakMap (ไม่ต้องแก้ type ของ Express และหายไปพร้อม request)
@@ -58,6 +60,31 @@ export function requirePermission(permission: PermissionCode): RequestHandler {
     const auth = getRequiredAuth(req);
     if (!hasPermission(auth, permission)) {
       throw new AppError(403, 'FORBIDDEN', 'ไม่มีสิทธิ์ดำเนินการนี้');
+    }
+    next();
+  };
+}
+
+// uuid รูปแบบมาตรฐาน (กัน query ด้วยค่าที่ไม่ใช่ uuid ซึ่ง PostgreSQL จะ error)
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/**
+ * ต้อง login และมีสิทธิ์ระดับชมรมในชมรมที่ระบุใน path (:clubId)
+ * ไม่พบชมรม → 404, ไม่มีสิทธิ์ → 403 (ตรวจผ่าน getClubPermissions เท่านั้น)
+ */
+export function requireClubPermission(permission: ClubPermissionCode): RequestHandler {
+  return async (req, _res, next) => {
+    const auth = getRequiredAuth(req);
+    const clubId = req.params.clubId;
+    if (typeof clubId !== 'string' || !UUID_PATTERN.test(clubId)) {
+      throw new AppError(404, 'CLUB_NOT_FOUND', 'ไม่พบชมรม');
+    }
+    const permissions = await getClubPermissions(auth, clubId);
+    if (!permissions) {
+      throw new AppError(404, 'CLUB_NOT_FOUND', 'ไม่พบชมรม');
+    }
+    if (!permissions.includes(permission)) {
+      throw new AppError(403, 'FORBIDDEN', 'ไม่มีสิทธิ์ดำเนินการนี้ในชมรมนี้');
     }
     next();
   };
