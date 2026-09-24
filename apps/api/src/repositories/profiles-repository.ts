@@ -19,8 +19,13 @@ export async function upsertStudentProfile(input: StudentProfileInput, db: Query
   );
 }
 
-// บันทึกข้อมูลจาก ERP ล่าสุดทับของเดิมทั้งหมด พร้อมเวลาที่ดึงสำเร็จ
-export async function upsertStaffProfile(userId: string, info: ErpStaffInfo, db: Queryable = pool): Promise<void> {
+// บันทึกข้อมูลจาก ERP ล่าสุดทับของเดิมทั้งหมด พร้อมหน่วยงานที่จับคู่ได้ และเวลาที่ดึงสำเร็จ
+export async function upsertStaffProfile(
+  userId: string,
+  info: ErpStaffInfo,
+  orgUnitId: string | null,
+  db: Queryable = pool,
+): Promise<void> {
   await db.query(
     `INSERT INTO staff_profiles (
        user_id, staff_code,
@@ -30,9 +35,10 @@ export async function upsertStaffProfile(userId: string, info: ErpStaffInfo, db:
        erp_faculty_id, erp_faculty_name,
        erp_department_id, erp_department_name,
        erp_program_id, erp_program_name,
+       org_unit_id,
        synced_at
      )
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, now())
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13, $14, $15, $16, now())
      ON CONFLICT (user_id) DO UPDATE
         SET staff_code          = EXCLUDED.staff_code,
             prefix_name_th      = EXCLUDED.prefix_name_th,
@@ -48,6 +54,7 @@ export async function upsertStaffProfile(userId: string, info: ErpStaffInfo, db:
             erp_department_name = EXCLUDED.erp_department_name,
             erp_program_id      = EXCLUDED.erp_program_id,
             erp_program_name    = EXCLUDED.erp_program_name,
+            org_unit_id         = EXCLUDED.org_unit_id,
             synced_at           = EXCLUDED.synced_at`,
     [
       userId,
@@ -65,6 +72,7 @@ export async function upsertStaffProfile(userId: string, info: ErpStaffInfo, db:
       info.erpDepartmentName,
       info.erpProgramId,
       info.erpProgramName,
+      orgUnitId,
     ],
   );
 }
@@ -100,6 +108,8 @@ export interface StaffProfile {
   facultyName: string | null;
   departmentName: string | null;
   programName: string | null;
+  // หน่วยงานใน org_units ที่จับคู่ได้ (null = ยังจับคู่ไม่ได้)
+  orgUnit: { code: string; nameTh: string } | null;
   syncedAt: Date;
 }
 
@@ -107,17 +117,24 @@ export async function findStaffProfile(userId: string, db: Queryable = pool): Pr
   // ชื่อเต็มแบบไทย: คำนำหน้าติดชื่อ (นายสมชาย) เว้นวรรคแล้วนามสกุล
   // concat() ถือ NULL เป็นข้อความว่าง (ต่างจาก || ที่ได้ NULL ทั้งก้อน), concat_ws ข้ามค่า NULL
   // NULLIF เปลี่ยนผลที่ว่างเปล่าเป็น NULL
-  const result = await db.query<StaffProfile>(
-    `SELECT staff_code AS "staffCode",
-            NULLIF(concat_ws(' ', NULLIF(concat(prefix_name_th, first_name_th), ''), last_name_th), '') AS "fullNameTh",
-            position_name_th    AS "positionNameTh",
-            erp_faculty_name    AS "facultyName",
-            erp_department_name AS "departmentName",
-            erp_program_name    AS "programName",
-            synced_at           AS "syncedAt"
-       FROM staff_profiles
-      WHERE user_id = $1`,
+  // LEFT JOIN เพราะบุคลากรบางคนยังจับคู่หน่วยงานไม่ได้
+  const result = await db.query<Omit<StaffProfile, 'orgUnit'> & { orgUnitCode: string | null; orgUnitNameTh: string | null }>(
+    `SELECT sp.staff_code AS "staffCode",
+            NULLIF(concat_ws(' ', NULLIF(concat(sp.prefix_name_th, sp.first_name_th), ''), sp.last_name_th), '') AS "fullNameTh",
+            sp.position_name_th    AS "positionNameTh",
+            sp.erp_faculty_name    AS "facultyName",
+            sp.erp_department_name AS "departmentName",
+            sp.erp_program_name    AS "programName",
+            ou.code                AS "orgUnitCode",
+            ou.name_th             AS "orgUnitNameTh",
+            sp.synced_at           AS "syncedAt"
+       FROM staff_profiles sp
+       LEFT JOIN org_units ou ON ou.id = sp.org_unit_id
+      WHERE sp.user_id = $1`,
     [userId],
   );
-  return result.rows[0] ?? null;
+  const row = result.rows[0];
+  if (!row) return null;
+  const { orgUnitCode, orgUnitNameTh, ...rest } = row;
+  return { ...rest, orgUnit: orgUnitCode && orgUnitNameTh ? { code: orgUnitCode, nameTh: orgUnitNameTh } : null };
 }

@@ -18,6 +18,7 @@ import { upsertUserOnLogin } from '../repositories/users-repository.js';
 import type { AuthContext } from './authorization.js';
 import { classifyAccount } from './account-type.js';
 import { erpHr, type ErpStaffInfo } from './erp-hr-client.js';
+import { resolveStaffOrgUnit } from './erp-org-unit-service.js';
 import { googleOAuth, type GoogleIdTokenPayload, type VerifiedGoogleLogin } from './google-oauth-client.js';
 import { SYSTEM_ROLES } from './permissions.js';
 import { generateToken, hashToken, isWellFormedToken, safeEqual } from './session-token.js';
@@ -170,7 +171,8 @@ export async function completeGoogleLogin(input: CompleteLoginInput): Promise<Lo
     } else {
       await ensureSystemRole(userId, SYSTEM_ROLES.STAFF, ACCOUNT_TYPE_ROLE_REASON, client);
       if (staffInfo) {
-        await upsertStaffProfile(userId, staffInfo, client);
+        const orgUnitId = await resolveStaffOrgUnit(staffInfo, client);
+        await upsertStaffProfile(userId, staffInfo, orgUnitId, client);
       }
     }
 

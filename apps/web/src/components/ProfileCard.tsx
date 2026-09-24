@@ -37,6 +37,7 @@ export function ProfileCard({ profile }: { profile: UserProfile }) {
           <Row label="รหัสบุคลากร" value={staff.staffCode} />
           <Row label="ชื่อ-นามสกุล" value={staff.fullNameTh} />
           <Row label="ตำแหน่ง" value={staff.positionNameTh} />
+          <Row label="หน่วยงานสังกัด" value={staff.orgUnit?.nameTh ?? 'ยังไม่ได้จับคู่หน่วยงาน'} />
           <Row label="คณะ / สำนัก" value={staff.facultyName} />
           <Row label="กอง / ฝ่าย" value={staff.departmentName} />
           <Row label="กลุ่มงาน / สาขา" value={staff.programName} />

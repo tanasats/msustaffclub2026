@@ -12,6 +12,7 @@ export interface StaffProfile {
   facultyName: string | null;
   departmentName: string | null;
   programName: string | null;
+  orgUnit: { code: string; nameTh: string } | null;
   syncedAt: string;
 }
 
