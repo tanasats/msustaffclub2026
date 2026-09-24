@@ -86,3 +86,50 @@ export async function upsertUserOnLogin(profile: LoginProfile, db: Queryable = p
   }
   return { status: 'inactive', userId: inactiveRow.id };
 }
+
+export interface UserSummary {
+  id: string;
+  email: string;
+  name: string | null;
+  isActive: boolean;
+  // หน่วยงานสังกัด (จาก staff_profiles → org_units) ถ้ามี
+  orgUnitName: string | null;
+}
+
+// LEFT JOIN เพราะผู้ใช้บางคนยังไม่มีข้อมูลบุคลากรหรือยังจับคู่หน่วยงานไม่ได้
+const USER_SUMMARY_SELECT = `
+  SELECT u.id, u.email, u.name, u.is_active AS "isActive", ou.name_th AS "orgUnitName"
+    FROM users u
+    LEFT JOIN staff_profiles sp ON sp.user_id = u.id
+    LEFT JOIN org_units ou ON ou.id = sp.org_unit_id`;
+
+// ดึงผู้ใช้หลายคนจาก id (= ANY($1) รับ array ได้ในพารามิเตอร์เดียว) ใช้ PK
+export async function findUserSummariesByIds(ids: string[], db: Queryable = pool): Promise<UserSummary[]> {
+  if (ids.length === 0) return [];
+  const result = await db.query<UserSummary>(`${USER_SUMMARY_SELECT} WHERE u.id = ANY($1::uuid[]) LIMIT 1000`, [ids]);
+  return result.rows;
+}
+
+/**
+ * ค้นผู้ใช้ที่ยังใช้งานได้จากชื่อหรือ email (ใช้เลือกกรรมการ/สมาชิก/ที่ปรึกษา)
+ * ILIKE = ไม่สนตัวพิมพ์, escape % และ _ ใน input เพื่อไม่ให้กลายเป็น wildcard
+ * จำนวนผู้ใช้ไม่มาก (หลักพัน) จึง scan ได้ ถ้าช้าให้เพิ่ม index pg_trgm
+ */
+export async function searchActiveUsers(query: string, limit: number, db: Queryable = pool): Promise<UserSummary[]> {
+  const pattern = `%${query.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
+  const result = await db.query<UserSummary>(
+    `${USER_SUMMARY_SELECT}
+      WHERE u.is_active
+        AND (u.name ILIKE $1 OR u.email ILIKE $1)
+      ORDER BY u.name NULLS LAST, u.email
+      LIMIT $2`,
+    [pattern, limit],
+  );
+  return result.rows;
+}
+
+// ผู้ใช้ที่ยังใช้งานได้ซึ่งมี email นี้ (อาจมีได้มากกว่า 1 ถ้า email ถูกใช้ซ้ำ จึงคืน array)
+export async function findActiveUserIdsByEmail(email: string, db: Queryable = pool): Promise<string[]> {
+  const result = await db.query<{ id: string }>('SELECT id FROM users WHERE email = $1 AND is_active LIMIT 2', [email]);
+  return result.rows.map((row) => row.id);
+}

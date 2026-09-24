@@ -39,7 +39,9 @@ export const errorHandler: ErrorRequestHandler = (err: unknown, req, res, _next)
   }
 
   if (err instanceof ZodError) {
-    res.status(400).json(errorBody('VALIDATION_ERROR', 'ข้อมูลที่ส่งมาไม่ถูกต้อง'));
+    // บอกเฉพาะชื่อฟิลด์ที่ผิด (ไม่ส่งค่าที่ผู้ใช้กรอกกลับไป) เพื่อให้ฟอร์มแสดงจุดที่ต้องแก้ได้
+    const fields = [...new Set(err.issues.map((issue) => issue.path.join('.') || '(body)'))].slice(0, 10);
+    res.status(400).json(errorBody('VALIDATION_ERROR', `ข้อมูลที่ส่งมาไม่ถูกต้อง: ${fields.join(', ')}`));
     return;
   }
 

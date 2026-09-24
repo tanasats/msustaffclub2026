@@ -8,6 +8,9 @@ import { errorHandler, notFoundHandler } from './middlewares/error-handler.js';
 import { loadSession } from './middlewares/auth.js';
 import { requireTrustedOrigin } from './middlewares/csrf.js';
 import { createAuthRouter } from './routes/auth.js';
+import { clubApplicationsRouter } from './routes/club-applications.js';
+import { clubMasterRouter } from './routes/club-master.js';
+import { usersRouter } from './routes/users.js';
 import { healthRouter } from './routes/health.js';
 
 // สร้าง Express app โดยไม่ listen เพื่อให้ test เรียกผ่าน supertest ได้
@@ -26,6 +29,9 @@ export function createApp(): express.Express {
 
   app.use(healthRouter);
   app.use(createAuthRouter());
+  app.use(clubMasterRouter);
+  app.use(usersRouter);
+  app.use(clubApplicationsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);
