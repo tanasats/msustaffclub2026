@@ -9,4 +9,5 @@ function requireEnv(name: string): string {
 
 export const serverEnv = {
   apiUrl: requireEnv('API_URL'),
+  sessionCookieName: requireEnv('SESSION_COOKIE_NAME'),
 };
