@@ -30,6 +30,8 @@ const envSchema = z.object({
   SESSION_COOKIE_NAME: requiredString,
   SESSION_TTL_DAYS: z.coerce.number().int().positive(),
   ALLOWED_EMAIL_DOMAINS: commaSeparatedList,
+  // ใช้เฉพาะ seed:super-admin ครั้งแรก จึงไม่บังคับ
+  INITIAL_SUPER_ADMIN_EMAIL: z.preprocess((value) => (value === '' ? undefined : value), z.email().optional()),
 
   S3_ENDPOINT: z.url(),
   S3_PUBLIC_ENDPOINT: z.url(),
@@ -65,6 +67,7 @@ function loadConfig() {
       redirectUri: env.GOOGLE_REDIRECT_URI,
       allowedEmailDomains: env.ALLOWED_EMAIL_DOMAINS,
     },
+    initialSuperAdminEmail: env.INITIAL_SUPER_ADMIN_EMAIL?.toLowerCase(),
     session: {
       cookieName: env.SESSION_COOKIE_NAME,
       ttlDays: env.SESSION_TTL_DAYS,

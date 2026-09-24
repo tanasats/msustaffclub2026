@@ -12,6 +12,9 @@ pool.on('error', (err) => {
 
 export type DbClient = pg.PoolClient;
 
+// repository รับได้ทั้ง pool (query เดี่ยว) และ client (อยู่ใน transaction)
+export type Queryable = pg.Pool | pg.PoolClient;
+
 /**
  * รันงานหลายคำสั่งใน transaction เดียว
  * สำเร็จทั้งหมด = COMMIT, มี error = ROLLBACK แล้วโยน error ต่อ และคืน client ให้ pool เสมอ
