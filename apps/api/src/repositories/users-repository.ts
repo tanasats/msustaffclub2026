@@ -133,3 +133,51 @@ export async function findActiveUserIdsByEmail(email: string, db: Queryable = po
   const result = await db.query<{ id: string }>('SELECT id FROM users WHERE email = $1 AND is_active LIMIT 2', [email]);
   return result.rows.map((row) => row.id);
 }
+
+export interface AdminUserListItem {
+  id: string;
+  email: string;
+  name: string | null;
+  isActive: boolean;
+  lastLoginAt: Date | null;
+  roles: string[];
+}
+
+export interface AdminUserPage {
+  items: AdminUserListItem[];
+  total: number;
+}
+
+/**
+ * รายชื่อผู้ใช้สำหรับผู้ดูแล (รวมผู้ที่ถูกปิดบัญชี) ค้นจากชื่อ/email ได้ แบ่งหน้าด้วย LIMIT/OFFSET
+ * count(*) OVER () = จำนวนทั้งหมดที่ตรงเงื่อนไข (ก่อน LIMIT) ได้มาในคำสั่งเดียว ไม่ต้อง query นับแยก
+ * $1 = NULL คือไม่กรอง
+ */
+export async function listUsersForAdmin(
+  query: string | null,
+  limit: number,
+  offset: number,
+  db: Queryable = pool,
+): Promise<AdminUserPage> {
+  const pattern = query ? `%${query.replace(/[\\%_]/g, (char) => `\\${char}`)}%` : null;
+  const result = await db.query<AdminUserListItem & { total: number }>(
+    `SELECT u.id, u.email, u.name, u.is_active AS "isActive", u.last_login_at AS "lastLoginAt",
+            ARRAY(SELECT r.code FROM user_roles ur JOIN roles r ON r.id = ur.role_id
+                   WHERE ur.user_id = u.id ORDER BY r.code) AS roles,
+            count(*) OVER ()::int AS total
+       FROM users u
+      WHERE $1::text IS NULL OR u.name ILIKE $1 OR u.email ILIKE $1
+      ORDER BY u.name NULLS LAST, u.email
+      LIMIT $2 OFFSET $3`,
+    [pattern, limit, offset],
+  );
+  return {
+    items: result.rows.map(({ total: _total, ...item }) => item),
+    total: result.rows[0]?.total ?? 0,
+  };
+}
+
+export async function findUserSummaryById(id: string, db: Queryable = pool): Promise<UserSummary | null> {
+  const [user] = await findUserSummariesByIds([id], db);
+  return user ?? null;
+}

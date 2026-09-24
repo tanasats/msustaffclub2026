@@ -46,3 +46,34 @@ export async function insertUserRole(input: NewUserRole, db: Queryable = pool): 
   );
   return result.rowCount === 1;
 }
+
+// ถอน role คืน true ถ้ามีแถวถูกลบจริง (ผู้ใช้ถือ role นี้อยู่)
+export async function deleteUserRole(userId: string, roleId: string, db: Queryable = pool): Promise<boolean> {
+  const result = await db.query('DELETE FROM user_roles WHERE user_id = $1 AND role_id = $2', [userId, roleId]);
+  return (result.rowCount ?? 0) > 0;
+}
+
+export interface UserRoleDetail {
+  code: string;
+  nameTh: string;
+  isSystem: boolean;
+  isPrivileged: boolean;
+  grantedAt: Date;
+  grantedByName: string | null;
+}
+
+// role ที่ผู้ใช้ถืออยู่ พร้อมผู้ให้และเวลาที่ได้รับ (LEFT JOIN เพราะ granted_by = NULL คือระบบให้)
+export async function listUserRoleDetails(userId: string, db: Queryable = pool): Promise<UserRoleDetail[]> {
+  const result = await db.query<UserRoleDetail>(
+    `SELECT r.code, r.name_th AS "nameTh", r.is_system AS "isSystem", r.is_privileged AS "isPrivileged",
+            ur.granted_at AS "grantedAt", g.name AS "grantedByName"
+       FROM user_roles ur
+       JOIN roles r ON r.id = ur.role_id
+       LEFT JOIN users g ON g.id = ur.granted_by
+      WHERE ur.user_id = $1
+      ORDER BY r.is_system DESC, r.code
+      LIMIT 100`,
+    [userId],
+  );
+  return result.rows;
+}

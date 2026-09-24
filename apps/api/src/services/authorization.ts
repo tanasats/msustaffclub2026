@@ -21,8 +21,16 @@ export interface AuthContext {
  * super_admin ผ่านทุก permission (ข้อยกเว้นนี้มีที่นี่ที่เดียว ห้ามเขียนซ้ำที่อื่น)
  */
 export function hasPermission(auth: AuthContext, permission: PermissionCode): boolean {
-  if (auth.roles.includes(SYSTEM_ROLES.SUPER_ADMIN)) {
+  if (isSuperAdmin(auth)) {
     return true;
   }
   return auth.permissions.includes(permission);
+}
+
+/**
+ * ผู้ใช้เป็น super_admin หรือไม่ ใช้เฉพาะกฎที่ระบุ "super_admin เท่านั้น" (เช่น ให้/ถอน role สิทธิ์สูง)
+ * การตรวจสิทธิ์ทั่วไปให้ใช้ hasPermission
+ */
+export function isSuperAdmin(auth: AuthContext): boolean {
+  return auth.roles.includes(SYSTEM_ROLES.SUPER_ADMIN);
 }
