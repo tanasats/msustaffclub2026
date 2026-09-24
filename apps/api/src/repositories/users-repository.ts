@@ -40,3 +40,49 @@ export async function findUsersByEmail(email: string, db: Queryable = pool): Pro
   );
   return result.rows;
 }
+
+export interface LoginProfile {
+  googleSub: string;
+  email: string;
+  name: string | null;
+  pictureUrl: string | null;
+}
+
+export type UpsertLoginResult =
+  | { status: 'created'; userId: string }
+  | { status: 'updated'; userId: string }
+  | { status: 'inactive'; userId: string };
+
+/**
+ * บันทึกผู้ใช้ตอน login ด้วยคำสั่งเดียว (ปลอดภัยเมื่อ login พร้อมกันหลายแท็บ)
+ * - ยังไม่มี google_sub นี้ → INSERT ผู้ใช้ใหม่
+ * - มีแล้วและ is_active → UPDATE ข้อมูลโปรไฟล์ล่าสุดจาก Google + last_login_at
+ * - มีแล้วแต่ถูกปิดใช้งาน → WHERE users.is_active ทำให้ไม่ UPDATE และไม่คืนแถว
+ * (xmax = 0) เป็นเทคนิคของ PostgreSQL บอกว่าแถวที่คืนมาเกิดจาก INSERT (true) หรือ UPDATE (false)
+ */
+export async function upsertUserOnLogin(profile: LoginProfile, db: Queryable = pool): Promise<UpsertLoginResult> {
+  const upserted = await db.query<{ id: string; inserted: boolean }>(
+    `INSERT INTO users (google_sub, email, name, picture_url, last_login_at)
+     VALUES ($1, $2, $3, $4, now())
+     ON CONFLICT (google_sub) DO UPDATE
+        SET email         = EXCLUDED.email,
+            name          = EXCLUDED.name,
+            picture_url   = EXCLUDED.picture_url,
+            last_login_at = now()
+      WHERE users.is_active
+     RETURNING id, (xmax = 0) AS inserted`,
+    [profile.googleSub, profile.email, profile.name, profile.pictureUrl],
+  );
+  const row = upserted.rows[0];
+  if (row) {
+    return { status: row.inserted ? 'created' : 'updated', userId: row.id };
+  }
+
+  // ไม่มีแถวคืนมา = มีผู้ใช้อยู่แล้วแต่ถูกปิดใช้งาน
+  const inactive = await db.query<{ id: string }>('SELECT id FROM users WHERE google_sub = $1', [profile.googleSub]);
+  const inactiveRow = inactive.rows[0];
+  if (!inactiveRow) {
+    throw new Error('upsertUserOnLogin: ไม่พบผู้ใช้หลัง ON CONFLICT');
+  }
+  return { status: 'inactive', userId: inactiveRow.id };
+}

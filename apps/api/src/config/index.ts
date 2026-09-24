@@ -29,6 +29,9 @@ const envSchema = z.object({
   GOOGLE_REDIRECT_URI: z.url(),
   SESSION_COOKIE_NAME: requiredString,
   SESSION_TTL_DAYS: z.coerce.number().int().positive(),
+  // จำกัดจำนวนครั้งที่เรียก endpoint login ต่อ IP ต่อช่วงเวลา
+  AUTH_RATE_LIMIT_MAX: z.coerce.number().int().positive().default(20),
+  AUTH_RATE_LIMIT_WINDOW_MINUTES: z.coerce.number().int().positive().default(15),
   ALLOWED_EMAIL_DOMAINS: commaSeparatedList,
   // ใช้เฉพาะ seed:super-admin ครั้งแรก จึงไม่บังคับ
   INITIAL_SUPER_ADMIN_EMAIL: z.preprocess((value) => (value === '' ? undefined : value), z.email().optional()),
@@ -59,6 +62,8 @@ function loadConfig() {
     port: env.PORT,
     logLevel: env.NODE_ENV === 'test' ? 'silent' : env.LOG_LEVEL,
     webUrl: env.WEB_URL,
+    // origin (scheme + host + port) ของ web ใช้ตรวจ header Origin ป้องกัน CSRF
+    webOrigin: new URL(env.WEB_URL).origin,
     corsOrigin: env.CORS_ORIGIN,
     databaseUrl: env.DATABASE_URL,
     google: {
@@ -71,6 +76,10 @@ function loadConfig() {
     session: {
       cookieName: env.SESSION_COOKIE_NAME,
       ttlDays: env.SESSION_TTL_DAYS,
+    },
+    authRateLimit: {
+      max: env.AUTH_RATE_LIMIT_MAX,
+      windowMinutes: env.AUTH_RATE_LIMIT_WINDOW_MINUTES,
     },
     s3: {
       endpoint: env.S3_ENDPOINT,

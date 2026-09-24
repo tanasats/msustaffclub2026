@@ -5,6 +5,9 @@ import cookieParser from 'cookie-parser';
 import { config } from './config/index.js';
 import { requestLogger } from './middlewares/request-logger.js';
 import { errorHandler, notFoundHandler } from './middlewares/error-handler.js';
+import { loadSession } from './middlewares/auth.js';
+import { requireTrustedOrigin } from './middlewares/csrf.js';
+import { createAuthRouter } from './routes/auth.js';
 import { healthRouter } from './routes/health.js';
 
 // สร้าง Express app โดยไม่ listen เพื่อให้ test เรียกผ่าน supertest ได้
@@ -18,8 +21,11 @@ export function createApp(): express.Express {
   app.use(cors({ origin: config.corsOrigin, credentials: true }));
   app.use(express.json({ limit: '100kb' }));
   app.use(cookieParser());
+  app.use(requireTrustedOrigin);
+  app.use(loadSession);
 
   app.use(healthRouter);
+  app.use(createAuthRouter());
 
   app.use(notFoundHandler);
   app.use(errorHandler);
