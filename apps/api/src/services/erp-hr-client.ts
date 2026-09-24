@@ -1,7 +1,7 @@
 import { z } from 'zod';
 import { config } from '../config/index.js';
 
-// ข้อมูลบุคลากรจาก ERP-HR (ดูเอกสาร erp_hr_msu_staff_info_integration.md)
+// ข้อมูลบุคลากรจาก ERP-HR (ดูเอกสาร docs/erp_hr_msu_staff_info_integration.md)
 // ทุกฟิลด์อาจเป็น null ได้ จึงตรวจรูปแบบด้วย Zod ก่อนใช้ ไม่เชื่อข้อมูลภายนอกตรง ๆ
 const nullableText = z.string().nullish().transform((value) => {
   const trimmed = value?.trim();

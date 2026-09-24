@@ -285,6 +285,6 @@ Permission ที่ลงทะเบียนแล้ว (ยังไม่�
 - **สรุปท้ายงาน:** บอกว่าแก้ไฟล์ไหนบ้าง และต้องรันคำสั่งอะไรต่อ (เช่น migration)
 
 ## 18. ข้อควรระวังเฉพาะโปรเจกต์
-- **ERP-HR** (`ERP_HR_STAFFINFO_URL`): เรียกด้วย Google access token ของผู้ใช้ตอน callback เท่านั้น ห้ามเก็บ access token ลงฐานข้อมูลหรือ log เรียกนอก transaction และถ้าล้มเหลวต้องไม่ทำให้ login ล้ม (รายละเอียด API: `erp_hr_msu_staff_info_integration.md`)
+- **ERP-HR** (`ERP_HR_STAFFINFO_URL`): เรียกด้วย Google access token ของผู้ใช้ตอน callback เท่านั้น ห้ามเก็บ access token ลงฐานข้อมูลหรือ log เรียกนอก transaction และถ้าล้มเหลวต้องไม่ทำให้ login ล้ม (รายละเอียด API: `docs/erp_hr_msu_staff_info_integration.md`)
 - รหัสหน่วยงานของ ERP (`facultyid` 12 หลัก) เป็นคนละชุดกับ `org_units.code` (2 หลัก) ห้ามนำมาเทียบกันตรง ๆ
 - ไม่เก็บเบอร์โทรศัพท์จาก ERP (PDPA)
