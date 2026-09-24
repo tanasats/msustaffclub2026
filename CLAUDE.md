@@ -174,6 +174,8 @@ Role และ permission เฉพาะระบบนี้ (**เริ่�
 |---|---|---|---|
 | `student` | นิสิต | false | (ยังไม่ผูก) — `is_system`, ระบบให้อัตโนมัติตอน login |
 | `staff` | บุคลากร | false | `club_application:create` — `is_system`, ระบบให้อัตโนมัติตอน login |
+| `club_officer` | เจ้าหน้าที่สโมสร | true | `club_application:review` |
+| `club_president` | นายกสโมสร | true | `club_application:approve` |
 
 Permission ที่ลงทะเบียนแล้ว (ยังไม่ผูกกับ role ใด → ใช้ได้เฉพาะ `super_admin`):
 
