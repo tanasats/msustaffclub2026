@@ -48,7 +48,7 @@ async function userWithRoles(roleCodes: string[]): Promise<string> {
 
 beforeEach(async () => {
   await resetDatabase();
-  await createRoleWithPermissions('staff', [PERMISSIONS.USER_ROLE_ASSIGN]);
+  await createRoleWithPermissions('role_assigner', [PERMISSIONS.USER_ROLE_ASSIGN]);
   await createRoleWithPermissions('viewer', []);
 });
 
@@ -76,12 +76,12 @@ describe('requirePermission', () => {
   });
 
   it('มี permission ผ่าน role → 200', async () => {
-    const cookie = await userWithRoles(['user', 'staff']);
+    const cookie = await userWithRoles(['user', 'role_assigner']);
     expect((await request(createProtectedApp()).get('/assign').set('Cookie', cookie)).status).toBe(200);
   });
 
   it('หลาย role ได้สิทธิ์รวมกัน (role หนึ่งไม่มี อีก role มี) → 200', async () => {
-    const cookie = await userWithRoles(['viewer', 'staff']);
+    const cookie = await userWithRoles(['viewer', 'role_assigner']);
     expect((await request(createProtectedApp()).get('/assign').set('Cookie', cookie)).status).toBe(200);
   });
 
@@ -92,7 +92,7 @@ describe('requirePermission', () => {
 
   it('permission ที่ยังไม่ผูกกับ role ใด ใช้ได้เฉพาะ super_admin (ค่าเริ่มต้นคือปฏิเสธ)', async () => {
     await pool.query('DELETE FROM role_permissions');
-    const staffCookie = await userWithRoles(['staff']);
+    const staffCookie = await userWithRoles(['role_assigner']);
     const adminCookie = await userWithRoles(['super_admin']);
     const app = createProtectedApp();
     expect((await request(app).get('/assign').set('Cookie', staffCookie)).status).toBe(403);
@@ -100,7 +100,7 @@ describe('requirePermission', () => {
   });
 
   it('ถอน permission ออกจาก role แล้วมีผลทันที', async () => {
-    const cookie = await userWithRoles(['staff']);
+    const cookie = await userWithRoles(['role_assigner']);
     const app = createProtectedApp();
     expect((await request(app).get('/assign').set('Cookie', cookie)).status).toBe(200);
 

@@ -1,5 +1,24 @@
 import { apiFetch } from './api-server';
 
+export interface StudentProfile {
+  studentCode: string;
+  faculty: { code: string; nameTh: string } | null;
+}
+
+export interface StaffProfile {
+  staffCode: string;
+  fullNameTh: string | null;
+  positionNameTh: string | null;
+  facultyName: string | null;
+  departmentName: string | null;
+  programName: string | null;
+  syncedAt: string;
+}
+
+export type UserProfile =
+  | { type: 'student'; student: StudentProfile | null }
+  | { type: 'staff'; staff: StaffProfile | null };
+
 export interface CurrentUser {
   user: {
     id: string;
@@ -9,6 +28,7 @@ export interface CurrentUser {
   };
   roles: string[];
   permissions: string[];
+  profile: UserProfile;
 }
 
 /**

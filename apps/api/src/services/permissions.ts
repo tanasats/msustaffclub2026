@@ -11,4 +11,6 @@ export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];
 export const SYSTEM_ROLES = {
   USER: 'user',
   SUPER_ADMIN: 'super_admin',
+  STUDENT: 'student',
+  STAFF: 'staff',
 } as const;

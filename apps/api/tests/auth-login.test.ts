@@ -3,7 +3,7 @@ import request from 'supertest';
 import { createApp } from '../src/app.js';
 import { config } from '../src/config/index.js';
 import { pool } from '../src/db/pool.js';
-import { FIRST_LOGIN_REASON } from '../src/services/auth-service.js';
+import { ACCOUNT_TYPE_ROLE_REASON, FIRST_LOGIN_REASON } from '../src/services/auth-service.js';
 import { googleOAuth } from '../src/services/google-oauth-client.js';
 import { hashToken } from '../src/services/session-token.js';
 import { resetDatabase } from './helpers/db.js';
@@ -63,13 +63,19 @@ describe('GET /auth/google/callback', () => {
     expect(users[0].last_login_at).not.toBeNull();
 
     const { rows: roles } = await pool.query(
-      'SELECT r.code FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = $1',
+      'SELECT r.code FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = $1 ORDER BY r.code',
       [users[0].id],
     );
-    expect(roles.map((r) => r.code)).toEqual(['user']);
+    expect(roles.map((r) => r.code)).toEqual(['staff', 'user']);
 
-    const { rows: logs } = await pool.query('SELECT action, reason, actor_user_id FROM role_change_logs');
-    expect(logs).toEqual([{ action: 'grant', reason: FIRST_LOGIN_REASON, actor_user_id: null }]);
+    const { rows: logs } = await pool.query(
+      `SELECT r.code, l.action, l.reason, l.actor_user_id
+         FROM role_change_logs l JOIN roles r ON r.id = l.role_id ORDER BY r.code`,
+    );
+    expect(logs).toEqual([
+      { code: 'staff', action: 'grant', reason: ACCOUNT_TYPE_ROLE_REASON, actor_user_id: null },
+      { code: 'user', action: 'grant', reason: FIRST_LOGIN_REASON, actor_user_id: null },
+    ]);
 
     // ในฐานข้อมูลต้องเป็น hash ของ token ไม่ใช่ token ดิบ
     const token = cookie!.split('=')[1]!;
@@ -86,8 +92,8 @@ describe('GET /auth/google/callback', () => {
     expect(res.headers.location).toBe(config.webUrl);
     const { rows } = await pool.query('SELECT email, name FROM users');
     expect(rows).toEqual([{ email: 'changed@msu.ac.th', name: 'ชื่อใหม่' }]);
-    expect(await countRows('user_roles')).toBe(1);
-    expect(await countRows('role_change_logs')).toBe(1);
+    expect(await countRows('user_roles')).toBe(2);
+    expect(await countRows('role_change_logs')).toBe(2);
     expect(await countRows('sessions')).toBe(2);
   });
 

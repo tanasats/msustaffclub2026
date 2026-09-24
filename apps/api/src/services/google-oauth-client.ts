@@ -16,6 +16,12 @@ export interface AuthorizationUrlInput {
 
 export type GoogleIdTokenPayload = TokenPayload;
 
+export interface VerifiedGoogleLogin {
+  payload: GoogleIdTokenPayload;
+  // ใช้เรียก ERP ทันทีใน callback เท่านั้น ห้ามเก็บลงฐานข้อมูลหรือ log
+  accessToken: string;
+}
+
 export const googleOAuth = {
   // สร้าง PKCE verifier + challenge (คำนวณในเครื่อง ไม่เรียกเครือข่าย)
   async createPkcePair(): Promise<{ codeVerifier: string; codeChallenge: string }> {
@@ -44,8 +50,9 @@ export const googleOAuth = {
    * แลก authorization code เป็น token แล้วตรวจ ID token
    * verifyIdToken ตรวจ signature (กับ public key ของ Google), aud, iss และ exp ให้
    * ส่วน nonce, email_verified และโดเมน ตรวจต่อใน auth-service
+   * คืน access token มาด้วยเพื่อใช้เรียก ERP-HR
    */
-  async exchangeCodeForVerifiedIdToken(input: { code: string; codeVerifier: string }): Promise<GoogleIdTokenPayload> {
+  async exchangeCodeForVerifiedIdToken(input: { code: string; codeVerifier: string }): Promise<VerifiedGoogleLogin> {
     const { tokens } = await client.getToken({ code: input.code, codeVerifier: input.codeVerifier });
     if (!tokens.id_token) {
       throw new Error('Google ไม่ได้ส่ง id_token กลับมา');
@@ -55,6 +62,9 @@ export const googleOAuth = {
     if (!payload) {
       throw new Error('อ่านข้อมูลใน ID token ไม่ได้');
     }
-    return payload;
+    if (!tokens.access_token) {
+      throw new Error('Google ไม่ได้ส่ง access_token กลับมา');
+    }
+    return { payload, accessToken: tokens.access_token };
   },
 };

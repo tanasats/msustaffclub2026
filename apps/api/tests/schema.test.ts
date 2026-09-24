@@ -6,11 +6,13 @@ import { createTestUser, getRoleId, resetDatabase } from './helpers/db.js';
 beforeEach(resetDatabase);
 
 describe('ข้อมูลตั้งต้นจาก migration', () => {
-  it('มี role ระบบ user (ไม่ privileged) และ super_admin (privileged)', async () => {
+  it('มี role ระบบครบ: เฉพาะ super_admin เป็น privileged', async () => {
     const { rows } = await pool.query<{ code: string; is_system: boolean; is_privileged: boolean }>(
       'SELECT code, is_system, is_privileged FROM roles WHERE is_system ORDER BY code',
     );
     expect(rows).toEqual([
+      { code: SYSTEM_ROLES.STAFF, is_system: true, is_privileged: false },
+      { code: SYSTEM_ROLES.STUDENT, is_system: true, is_privileged: false },
       { code: SYSTEM_ROLES.SUPER_ADMIN, is_system: true, is_privileged: true },
       { code: SYSTEM_ROLES.USER, is_system: true, is_privileged: false },
     ]);
@@ -35,8 +37,8 @@ describe('การป้องกัน role ระบบ', () => {
   });
 
   it('role ที่ไม่ใช่ระบบลบได้', async () => {
-    await pool.query("INSERT INTO roles (code, name_th) VALUES ('staff', 'บุคลากร')");
-    const result = await pool.query("DELETE FROM roles WHERE code = 'staff'");
+    await pool.query("INSERT INTO roles (code, name_th) VALUES ('club_manager', 'ผู้จัดการชมรม')");
+    const result = await pool.query("DELETE FROM roles WHERE code = 'club_manager'");
     expect(result.rowCount).toBe(1);
   });
 });
@@ -54,11 +56,32 @@ describe('role_change_logs แก้/ลบไม่ได้', () => {
   });
 });
 
+describe('ข้อมูลหน่วยงานจาก faculties.csv', () => {
+  it('มี 42 หน่วยงาน โดย 22 หน่วยงานมีนิสิต', async () => {
+    const { rows } = await pool.query<{ total: number; with_students: number }>(
+      'SELECT count(*)::int AS total, (count(*) FILTER (WHERE has_students))::int AS with_students FROM org_units',
+    );
+    expect(rows[0]).toEqual({ total: 42, with_students: 22 });
+  });
+
+  it('รหัส 09 คือคณะการบัญชีและการจัดการ', async () => {
+    const { rows } = await pool.query("SELECT name_th, has_students FROM org_units WHERE code = '09'");
+    expect(rows).toEqual([{ name_th: 'คณะการบัญชีและการจัดการ', has_students: true }]);
+  });
+});
+
 describe('constraint ของข้อมูล', () => {
   it('permission code ต้องเป็นรูปแบบ resource:action', async () => {
     await expect(
       pool.query("INSERT INTO permissions (code, description_th) VALUES ('BadCode', 'x')"),
     ).rejects.toThrow(/permissions_code_format/);
+  });
+
+  it('รหัสนิสิตต้องเป็นตัวเลข 11 หลัก', async () => {
+    const user = await createTestUser();
+    await expect(
+      pool.query("INSERT INTO student_profiles (user_id, student_code) VALUES ($1, '6501099900')", [user.id]),
+    ).rejects.toThrow(/student_profiles_student_code_format/);
   });
 
   it('email ของผู้ใช้ต้องเป็นตัวพิมพ์เล็ก', async () => {

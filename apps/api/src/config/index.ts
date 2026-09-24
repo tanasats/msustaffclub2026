@@ -36,6 +36,10 @@ const envSchema = z.object({
   // ใช้เฉพาะ seed:super-admin ครั้งแรก จึงไม่บังคับ
   INITIAL_SUPER_ADMIN_EMAIL: z.preprocess((value) => (value === '' ? undefined : value), z.email().optional()),
 
+  // ERP-HR ของมหาวิทยาลัย (ดึงข้อมูลบุคลากรด้วย Google access token)
+  ERP_HR_STAFFINFO_URL: z.url(),
+  ERP_HR_TIMEOUT_MS: z.coerce.number().int().positive().default(5000),
+
   S3_ENDPOINT: z.url(),
   S3_PUBLIC_ENDPOINT: z.url(),
   S3_REGION: requiredString,
@@ -80,6 +84,10 @@ function loadConfig() {
     authRateLimit: {
       max: env.AUTH_RATE_LIMIT_MAX,
       windowMinutes: env.AUTH_RATE_LIMIT_WINDOW_MINUTES,
+    },
+    erpHr: {
+      staffInfoUrl: env.ERP_HR_STAFFINFO_URL,
+      timeoutMs: env.ERP_HR_TIMEOUT_MS,
     },
     s3: {
       endpoint: env.S3_ENDPOINT,

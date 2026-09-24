@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { LogoutButton } from '@/components/LogoutButton';
+import { ProfileCard } from '@/components/ProfileCard';
 import { getCurrentUser } from '@/lib/auth';
 
 export default async function HomePage() {
@@ -7,7 +8,7 @@ export default async function HomePage() {
   if (!current) {
     redirect('/login');
   }
-  const { user, roles } = current;
+  const { user, roles, profile } = current;
 
   return (
     <main className="mx-auto max-w-3xl px-4 py-10 sm:py-16">
@@ -27,6 +28,8 @@ export default async function HomePage() {
           บทบาท: <span className="font-medium text-slate-900">{roles.join(', ') || '-'}</span>
         </p>
       </section>
+
+      <ProfileCard profile={profile} />
     </main>
   );
 }

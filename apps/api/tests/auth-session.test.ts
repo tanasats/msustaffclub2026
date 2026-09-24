@@ -27,6 +27,8 @@ describe('GET /auth/me', () => {
       user: { id: user.id, email: 'me@msu.ac.th', name: 'ผู้ใช้ทดสอบ', pictureUrl: null },
       roles: ['user'],
       permissions: [],
+      // บุคลากรที่ยังไม่มีข้อมูลจาก ERP-HR
+      profile: { type: 'staff', staff: null },
     });
   });
 

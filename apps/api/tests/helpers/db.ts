@@ -6,7 +6,7 @@ import { pool } from '../../src/db/pool.js';
  * TRUNCATE ไม่ผ่าน trigger แบบ row จึงล้าง role_change_logs ได้ (ใช้ใน test เท่านั้น)
  */
 export async function resetDatabase(): Promise<void> {
-  await pool.query('TRUNCATE role_change_logs, sessions, user_roles, users');
+  await pool.query('TRUNCATE role_change_logs, sessions, user_roles, student_profiles, staff_profiles, users');
   await pool.query('DELETE FROM role_permissions');
   await pool.query('DELETE FROM roles WHERE is_system = false');
 }

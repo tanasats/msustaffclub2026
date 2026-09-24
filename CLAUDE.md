@@ -141,6 +141,7 @@ Flow (Authorization Code + PKCE):
 3. Google เรียกกลับ `GET /auth/google/callback` → API ตรวจ `state`, แลก code, **ตรวจ ID token** (signature, `aud`, `iss`, `exp`, `nonce`) ด้วย `google-auth-library`
 4. ต้องได้ `email_verified = true` ไม่เช่นนั้นปฏิเสธ
 5. ค้นหาผู้ใช้ด้วย **`google_sub`** (ไม่ใช้ email เป็นตัวระบุ เพราะ email เปลี่ยนได้) ถ้าไม่พบให้สร้างใหม่พร้อมกำหนด role `user` (ทำใน transaction เดียว)
+5.1 แยกประเภทบัญชีจากส่วนหน้า @: ตัวเลข 11 หลักพอดี = นิสิต (ให้ role `student`, คณะ = หลักที่ 5-6 อ้างอิง `org_units.code`, ไม่พบ = NULL) นอกนั้น = บุคลากร (ให้ role `staff` และดึงข้อมูลจาก ERP-HR ด้วย Google access token) ตรวจและให้ role ทุกครั้งที่ login พร้อม log
 6. สร้าง session แล้ว redirect กลับ `WEB_URL`
 7. web ถามผู้ใช้ปัจจุบันจาก `GET /auth/me`, ออกจากระบบด้วย `POST /auth/logout`
 
@@ -168,7 +169,14 @@ Role และ permission เฉพาะระบบนี้ (**เริ่�
 
 | role code | ชื่อไทย | is_privileged | permissions |
 |---|---|---|---|
-| [เช่น `staff`] | [บุคลากร] | false | [เช่น `document:read`, `document:create`] |
+| `student` | นิสิต | false | (ยังไม่ผูก) — `is_system`, ระบบให้อัตโนมัติตอน login |
+| `staff` | บุคลากร | false | (ยังไม่ผูก) — `is_system`, ระบบให้อัตโนมัติตอน login |
+
+Permission ที่ลงทะเบียนแล้ว (ยังไม่ผูกกับ role ใด → ใช้ได้เฉพาะ `super_admin`):
+
+| permission | คำอธิบาย |
+|---|---|
+| `user_role:assign` | ให้/ถอน role ที่ไม่ใช่ role สิทธิ์สูงแก่ผู้ใช้อื่น |
 
 หลักการ:
 - **1 ผู้ใช้มีได้หลาย role** ผ่านตาราง `user_roles` สิทธิ์จริงของผู้ใช้ = รวม (union) permission จากทุก role ที่ถืออยู่
@@ -190,7 +198,7 @@ Role และ permission เฉพาะระบบนี้ (**เริ่�
 - ห้ามแก้ role ของตัวเอง, ห้ามถอน role `user`, ห้ามถอน `super_admin` คนสุดท้ายออกจากระบบ
 - ทุกการให้/ถอนต้องเขียน `role_change_logs` (ใครทำ, กับใคร, role อะไร, grant หรือ revoke, เหตุผล, เมื่อไร) ใน **transaction เดียวกัน** และห้ามแก้/ลบ log
 - `super_admin` คนแรกสร้างผ่าน seed script (`INITIAL_SUPER_ADMIN_EMAIL`) เท่านั้น ห้ามมีช่องทางผ่าน UI หรือ API สาธารณะ
-- ผู้ใช้ใหม่ได้ role `user` เท่านั้น ห้ามรับ role จาก client
+- ตอน login ระบบให้ได้เฉพาะ `user` และ role ประเภทบัญชี (`student` หรือ `staff`) เท่านั้น ห้ามรับ role จาก client
 
 ตารางหลัก: `roles` (`code` UNIQUE, `name_th`, `is_system`, `is_privileged`), `permissions` (`code` UNIQUE), `role_permissions`, `users` (`google_sub` UNIQUE, `email`, `name`, `picture_url`, `is_active`, `last_login_at`), `user_roles` (PK `user_id, role_id`, `granted_by`, `granted_at`), `sessions` (`token_hash` UNIQUE, `user_id`, `expires_at`, `last_seen_at`), `role_change_logs`
 
@@ -277,5 +285,6 @@ Role และ permission เฉพาะระบบนี้ (**เริ่�
 - **สรุปท้ายงาน:** บอกว่าแก้ไฟล์ไหนบ้าง และต้องรันคำสั่งอะไรต่อ (เช่น migration)
 
 ## 18. ข้อควรระวังเฉพาะโปรเจกต์
-- [เช่น ตารางนี้ห้ามลบข้อมูลจริง ใช้ soft delete]
-- [เช่น ระบบเก่าเชื่อมต่อผ่าน API นี้ ห้ามเปลี่ยน format]
+- **ERP-HR** (`ERP_HR_STAFFINFO_URL`): เรียกด้วย Google access token ของผู้ใช้ตอน callback เท่านั้น ห้ามเก็บ access token ลงฐานข้อมูลหรือ log เรียกนอก transaction และถ้าล้มเหลวต้องไม่ทำให้ login ล้ม (รายละเอียด API: `erp_hr_msu_staff_info_integration.md`)
+- รหัสหน่วยงานของ ERP (`facultyid` 12 หลัก) เป็นคนละชุดกับ `org_units.code` (2 หลัก) ห้ามนำมาเทียบกันตรง ๆ
+- ไม่เก็บเบอร์โทรศัพท์จาก ERP (PDPA)

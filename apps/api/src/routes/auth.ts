@@ -11,6 +11,7 @@ import {
   type LoginFailureCode,
   type PendingOAuth,
 } from '../services/auth-service.js';
+import { getUserProfile } from '../services/profile-service.js';
 
 // cookie อายุสั้นที่จำ state/nonce/PKCE verifier ระหว่างไป Google แล้วกลับมา
 const OAUTH_COOKIE_NAME = `${config.session.cookieName}_oauth`;
@@ -101,10 +102,11 @@ export function createAuthRouter(): Router {
     }
   });
 
-  // ต้อง login เท่านั้น: ข้อมูลผู้ใช้ปัจจุบันพร้อม role และ permission
-  authRouter.get('/auth/me', requireAuth, (req, res) => {
+  // ต้อง login เท่านั้น: ข้อมูลผู้ใช้ปัจจุบันพร้อม role, permission และข้อมูลนิสิต/บุคลากร
+  authRouter.get('/auth/me', requireAuth, async (req, res) => {
     const auth = getRequiredAuth(req);
-    res.json({ user: auth.user, roles: auth.roles, permissions: auth.permissions });
+    const profile = await getUserProfile(auth.user.id, auth.user.email);
+    res.json({ user: auth.user, roles: auth.roles, permissions: auth.permissions, profile });
   });
 
   // public (ไม่บังคับ login): ลบ session ถ้ามี แล้วลบ cookie
