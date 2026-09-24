@@ -2,8 +2,8 @@ import type { Metadata } from 'next';
 import './globals.css';
 
 export const metadata: Metadata = {
-  title: 'ระบบจัดการชมรมกีฬาบุคลากร มหาวิทยาลัยมหาสารคาม',
-  description: 'ระบบบริหารจัดการชมรมกีฬาบุคลากร มหาวิทยาลัยมหาสารคาม',
+  title: 'ระบบบริหารจัดการชมรมบุคลากร มหาวิทยาลัยมหาสารคาม',
+  description: 'ระบบบริหารจัดการชมรมบุคลากร (กีฬา ดนตรี วิชาการ และอื่น ๆ) มหาวิทยาลัยมหาสารคาม',
 };
 
 export default function RootLayout({ children }: Readonly<{ children: React.ReactNode }>) {

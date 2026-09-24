@@ -22,7 +22,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   return (
     <main className="mx-auto flex min-h-screen max-w-md flex-col justify-center px-4">
       <div className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm sm:p-8">
-        <h1 className="text-xl font-bold sm:text-2xl">ระบบจัดการชมรมกีฬาบุคลากร</h1>
+        <h1 className="text-xl font-bold sm:text-2xl">ระบบบริหารจัดการชมรมบุคลากร</h1>
         <p className="mt-1 text-slate-600">มหาวิทยาลัยมหาสารคาม</p>
 
         {errorMessage && (
