@@ -1,0 +1,28 @@
+import express from 'express';
+import helmet from 'helmet';
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
+import { config } from './config/index.js';
+import { requestLogger } from './middlewares/request-logger.js';
+import { errorHandler, notFoundHandler } from './middlewares/error-handler.js';
+import { healthRouter } from './routes/health.js';
+
+// สร้าง Express app โดยไม่ listen เพื่อให้ test เรียกผ่าน supertest ได้
+export function createApp(): express.Express {
+  const app = express();
+
+  app.disable('x-powered-by');
+  app.use(helmet());
+  app.use(requestLogger);
+  // อนุญาตเฉพาะ origin ของ web เท่านั้น และส่ง cookie ข้าม origin ได้
+  app.use(cors({ origin: config.corsOrigin, credentials: true }));
+  app.use(express.json({ limit: '100kb' }));
+  app.use(cookieParser());
+
+  app.use(healthRouter);
+
+  app.use(notFoundHandler);
+  app.use(errorHandler);
+
+  return app;
+}

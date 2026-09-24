@@ -1,0 +1,7 @@
+packages:
+  - apps/*
+
+# แพ็กเกจที่อนุญาตให้รัน build script ตอนติดตั้ง
+allowBuilds:
+  esbuild: true
+  unrs-resolver: true

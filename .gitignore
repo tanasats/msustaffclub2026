@@ -1,0 +1,15 @@
+node_modules/
+dist/
+.next/
+out/
+coverage/
+*.tsbuildinfo
+next-env.d.ts
+
+# env (ห้าม commit ใช้ .env.example แทน)
+.env
+.env.*
+!.env.example
+
+.DS_Store
+*.log
