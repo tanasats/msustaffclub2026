@@ -243,9 +243,16 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
         <Bento className="lg:col-span-3">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
             <BentoTitle>กิจกรรมปีงบประมาณ {activities.fiscalYear} ({activities.items.length})</BentoTitle>
-            <Link href={`/clubs/${club.id}/activities`} className="btn btn-secondary !min-h-10 text-sm">
-              แผนและกิจกรรมทั้งหมด
-            </Link>
+            <div className="flex flex-wrap gap-2">
+              {canViewInternal && (
+                <Link href={`/clubs/${club.id}/reports`} className="btn btn-secondary !min-h-10 text-sm">
+                  รายงานรายเดือน
+                </Link>
+              )}
+              <Link href={`/clubs/${club.id}/activities`} className="btn btn-secondary !min-h-10 text-sm">
+                แผนและกิจกรรมทั้งหมด
+              </Link>
+            </div>
           </div>
           {activities.items.length === 0 ? (
             <p className="text-sm text-stone">ยังไม่มีกิจกรรมที่บันทึกในปีงบประมาณนี้</p>
