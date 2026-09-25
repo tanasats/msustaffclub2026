@@ -6,10 +6,12 @@ interface MembershipPanelProps {
   club: ClubPage;
   // บัญชีบุคลากรเท่านั้นที่สมัครได้ (ยังไม่เปิดให้นิสิต) — API ตรวจซ้ำเสมอ
   eligible: boolean;
+  // ผู้ใช้เป็นประธานชมรม (ประธานพ้นตำแหน่งได้ด้วยการโอนตำแหน่งเท่านั้น) — เพื่อเลือกข้อความ/ปุ่ม API ตรวจซ้ำเสมอ
+  isPresident: boolean;
 }
 
 // การเป็นสมาชิกของผู้ใช้ปัจจุบัน: สมัคร / ยกเลิกใบสมัคร / ลาออก ตามสถานะ
-export function MembershipPanel({ club, eligible }: MembershipPanelProps) {
+export function MembershipPanel({ club, eligible, isPresident }: MembershipPanelProps) {
   const base = `/clubs/${club.id}/membership`;
   const status = club.me.membershipStatus;
   const isCommittee = club.me.positions.length > 0;
@@ -21,8 +23,15 @@ export function MembershipPanel({ club, eligible }: MembershipPanelProps) {
     content = (
       <>
         <p className="font-serif text-lg font-medium text-matcha-800">คุณเป็นสมาชิกชมรมนี้</p>
-        {isCommittee ? (
-          <p className="mt-2 text-sm text-stone">คุณเป็นกรรมการ หากต้องการลาออกจากชมรม ต้องพ้นจากตำแหน่งกรรมการก่อน</p>
+        {isPresident ? (
+          <p className="mt-2 text-sm text-stone">คุณเป็นประธานชมรม หากต้องการพ้นตำแหน่ง ให้โอนตำแหน่งประธานให้สมาชิกคนอื่นก่อน</p>
+        ) : isCommittee ? (
+          <>
+            <p className="mt-2 text-sm text-stone">คุณเป็นกรรมการ หากต้องการลาออกจากชมรม ต้องลาออกจากตำแหน่งกรรมการก่อน</p>
+            <div className="mt-3">
+              <ActionButton path={`/clubs/${club.id}/committee/resign`} label="ลาออกจากตำแหน่งกรรมการ" note="optional" tone="neutral" />
+            </div>
+          </>
         ) : (
           <div className="mt-3">
             <ActionButton path={`${base}/leave`} label="ลาออกจากชมรม" note="optional" tone="danger" />

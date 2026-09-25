@@ -49,6 +49,10 @@ export async function insertAdvisorsFromApplication(
   return result.rowCount ?? 0;
 }
 
+/**
+ * กรรมการชุดแรกจากคำขอ พร้อมบันทึกประวัติ "รับตำแหน่ง" (actor = NULL คือระบบ) ในคำสั่งเดียว
+ * ใช้ CTE: INSERT กรรมการ แล้วนำ id ที่ได้ (RETURNING) ไป INSERT ประวัติต่อ
+ */
 export async function insertCommitteeFromApplication(
   clubId: string,
   applicationId: string,
@@ -56,11 +60,17 @@ export async function insertCommitteeFromApplication(
   db: Queryable,
 ): Promise<void> {
   await db.query(
-    `INSERT INTO club_committee_members
-       (club_id, user_id, position_id, position_title, sort_order, work_location, contact_phone, bio, started_on)
-     SELECT $1, user_id, position_id, position_title, sort_order, work_location, contact_phone, bio, $3::date
-       FROM club_application_committee
-      WHERE application_id = $2`,
+    `WITH inserted AS (
+       INSERT INTO club_committee_members
+         (club_id, user_id, position_id, position_title, sort_order, work_location, contact_phone, bio, started_on)
+       SELECT $1, user_id, position_id, position_title, sort_order, work_location, contact_phone, bio, $3::date
+         FROM club_application_committee
+        WHERE application_id = $2
+       RETURNING id
+     )
+     INSERT INTO club_committee_events (committee_member_id, actor_user_id, action, note)
+     SELECT id, NULL, 'appointed', 'กรรมการชุดแรกจากการอนุมัติจัดตั้งชมรม'
+       FROM inserted`,
     [clubId, applicationId, startedOn],
   );
 }
@@ -192,6 +202,7 @@ export async function findClubDetail(clubId: string, db: Queryable = pool): Prom
 }
 
 export interface ClubCommitteeRow {
+  id: string;
   userId: string;
   name: string | null;
   email: string;
@@ -206,7 +217,7 @@ export interface ClubCommitteeRow {
 // กรรมการชุดปัจจุบัน (ยังไม่สิ้นสุดตำแหน่ง) เรียงตามลำดับที่กำหนด ใช้ partial index club_committee_members_current_idx
 export async function listCurrentCommittee(clubId: string, db: Queryable = pool): Promise<ClubCommitteeRow[]> {
   const result = await db.query<ClubCommitteeRow>(
-    `SELECT cm.user_id AS "userId", u.name, u.email, ou.name_th AS "orgUnitName",
+    `SELECT cm.id, cm.user_id AS "userId", u.name, u.email, ou.name_th AS "orgUnitName",
             p.code AS "positionCode", cm.position_title AS "positionTitle",
             cm.contact_phone AS "contactPhone", cm.work_location AS "workLocation",
             to_char(cm.started_on, 'YYYY-MM-DD') AS "startedOn"

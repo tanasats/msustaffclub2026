@@ -53,6 +53,7 @@ export async function getClubPage(auth: AuthContext, clubId: string) {
   return {
     ...club,
     committee: committee.map((c) => ({
+      id: c.id,
       userId: c.userId,
       name: c.name ?? c.email,
       orgUnitName: c.orgUnitName,

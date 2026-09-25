@@ -52,14 +52,11 @@ import {
   isEligibleForClub,
   MAX_ADVISORS,
   MIN_INITIAL_MEMBERS,
+  PRESIDENT_POSITION_CODE,
 } from './club-rules.js';
 import { buddhistYearOf, fiscalYearOf, toThaiDigits } from './fiscal-year.js';
 import { registerFileReadAccess } from './files-service.js';
 import { PERMISSIONS } from './permissions.js';
-
-// ตำแหน่งประธาน: ผู้ยื่นคำขอต้องเป็นประธานเสมอ (ข้อตกลง D ในเอกสารออกแบบ)
-// ใช้ code เพื่อหาแถวข้อมูลหลักเท่านั้น ไม่ได้ใช้ตรวจสิทธิ์
-const PRESIDENT_POSITION_CODE = 'president';
 
 export function notFound(): AppError {
   return new AppError(404, 'APPLICATION_NOT_FOUND', 'ไม่พบคำขอ');

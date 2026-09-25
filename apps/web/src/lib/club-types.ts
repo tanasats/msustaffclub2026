@@ -29,6 +29,8 @@ export interface ClubPage {
   registeredUntil: string;
   memberCount: number;
   committee: {
+    // id ของตำแหน่ง (ใช้ตอนให้พ้นตำแหน่ง)
+    id: string;
     userId: string;
     name: string;
     orgUnitName: string | null;
@@ -72,4 +74,16 @@ export interface MembershipRequest {
   email: string;
   orgUnitName: string | null;
   appliedAt: string;
+}
+
+export interface CommitteeHistoryItem {
+  id: string;
+  name: string | null;
+  email: string;
+  positionTitle: string;
+  startedOn: string;
+  endedOn: string;
+  endReason: string;
+  endNote: string | null;
+  endedByName: string | null;
 }

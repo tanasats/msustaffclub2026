@@ -4,6 +4,14 @@ import { getRequiredAuth, requireAuth, requireClubPermission } from '../middlewa
 import { CLUB_PERMISSIONS } from '../services/club-permissions.js';
 import { getClubPage, listClubDirectory, listClubMembers } from '../services/club-service.js';
 import {
+  appointCommitteeMember,
+  COMMITTEE_END_REASONS,
+  endCommitteeTerm,
+  getCommitteeHistory,
+  resignFromCommittee,
+  transferPresidency,
+} from '../services/committee-service.js';
+import {
   applyForMembership,
   approveMembership,
   leaveClub,
@@ -97,5 +105,78 @@ clubsRouter.post('/clubs/:clubId/memberships/:membershipId/reject', requireAuth,
 clubsRouter.post('/clubs/:clubId/memberships/:membershipId/remove', requireAuth, async (req, res) => {
   const { reason, note } = removeSchema.parse(req.body);
   await removeMember(getRequiredAuth(req), clubIdOf(req.params.clubId), membershipIdOf(req.params.membershipId), reason, note);
+  res.status(204).end();
+});
+
+// ---------- คณะกรรมการ ----------
+
+const committeeMemberIdOf = (value: unknown) => parseIdParam(value, 'COMMITTEE_MEMBER_NOT_FOUND', 'ไม่พบกรรมการที่ดำรงตำแหน่งอยู่');
+const appointSchema = z
+  .object({
+    userId: z.uuid(),
+    positionCode: z.string().regex(/^[a-z][a-z0-9_]*$/).max(50),
+    positionTitle: optionalText(100).optional(),
+    workLocation: optionalText(200).optional(),
+    contactPhone: optionalText(50).optional(),
+    note: optionalText(1000).optional(),
+  })
+  .strict();
+const transferSchema = z
+  .object({
+    userId: z.uuid(),
+    workLocation: optionalText(200).optional(),
+    contactPhone: optionalText(50).optional(),
+    note: optionalText(1000).optional(),
+  })
+  .strict();
+const endTermSchema = z.object({ reason: z.enum(COMMITTEE_END_REASONS), note: requiredText(1000) }).strict();
+
+// ต้องมีสิทธิ์ชมรม club:view_internal: ประวัติกรรมการที่พ้นตำแหน่งแล้ว
+clubsRouter.get(
+  '/clubs/:clubId/committee/history',
+  requireAuth,
+  requireClubPermission(CLUB_PERMISSIONS.VIEW_INTERNAL),
+  async (req, res) => {
+    res.json(await getCommitteeHistory(req.params.clubId as string));
+  },
+);
+
+// ต้องมีสิทธิ์ชมรม club_committee:manage (ตรวจใน service): แต่งตั้งกรรมการ
+clubsRouter.post('/clubs/:clubId/committee', requireAuth, async (req, res) => {
+  const input = appointSchema.parse(req.body);
+  const id = await appointCommitteeMember(getRequiredAuth(req), clubIdOf(req.params.clubId), {
+    userId: input.userId,
+    positionCode: input.positionCode,
+    positionTitle: input.positionTitle ?? null,
+    workLocation: input.workLocation ?? null,
+    contactPhone: input.contactPhone ?? null,
+    note: input.note ?? null,
+  });
+  res.status(201).json({ id });
+});
+
+// ต้องมีสิทธิ์ชมรม club_committee:manage (ตรวจใน service): โอนตำแหน่งประธาน
+clubsRouter.post('/clubs/:clubId/committee/transfer-presidency', requireAuth, async (req, res) => {
+  const input = transferSchema.parse(req.body);
+  await transferPresidency(getRequiredAuth(req), clubIdOf(req.params.clubId), {
+    userId: input.userId,
+    workLocation: input.workLocation ?? null,
+    contactPhone: input.contactPhone ?? null,
+    note: input.note ?? null,
+  });
+  res.status(204).end();
+});
+
+// ต้อง login เท่านั้น (ต้องเป็นกรรมการของชมรม ตรวจใน service): ลาออกจากตำแหน่งกรรมการ
+clubsRouter.post('/clubs/:clubId/committee/resign', requireAuth, async (req, res) => {
+  const { note } = noteSchema.parse(req.body ?? {});
+  await resignFromCommittee(getRequiredAuth(req), clubIdOf(req.params.clubId), note ?? null);
+  res.status(204).end();
+});
+
+// ต้องมีสิทธิ์ชมรม club_committee:manage (ตรวจใน service): ให้กรรมการพ้นตำแหน่ง
+clubsRouter.post('/clubs/:clubId/committee/:committeeMemberId/end', requireAuth, async (req, res) => {
+  const { reason, note } = endTermSchema.parse(req.body);
+  await endCommitteeTerm(getRequiredAuth(req), clubIdOf(req.params.clubId), committeeMemberIdOf(req.params.committeeMemberId), reason, note);
   res.status(204).end();
 });

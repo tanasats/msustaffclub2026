@@ -1,5 +1,7 @@
 import { redirect } from 'next/navigation';
 import { ActionButton } from '@/components/club-applications/ActionButton';
+import { CommitteeManager } from '@/components/clubs/CommitteeManager';
+import { EndCommitteeTermButton } from '@/components/clubs/EndCommitteeTermButton';
 import { MembershipPanel } from '@/components/clubs/MembershipPanel';
 import { RemoveMemberButton } from '@/components/clubs/RemoveMemberButton';
 import { Badge } from '@/components/ui/Badge';
@@ -7,8 +9,13 @@ import { Bento, BentoLabel, BentoTitle } from '@/components/ui/Bento';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { apiGetJson } from '@/lib/api-server';
 import { getCurrentUser } from '@/lib/auth';
-import type { ClubMember, ClubPage, MembershipRequest } from '@/lib/club-types';
+import type { ClubPosition } from '@/lib/club-application-types';
+import type { ClubMember, ClubPage, CommitteeHistoryItem, MembershipRequest } from '@/lib/club-types';
+import { committeeEndReasonLabel } from '@/lib/committee-labels';
 import { formatDate, formatDateTime } from '@/lib/format';
+
+// ใช้หาแถวประธานเพื่อเลือกแสดงปุ่มเท่านั้น (API ตรวจกฎจริง)
+const PRESIDENT_CODE = 'president';
 
 const STATUS_LABEL = { active: null, suspended: 'ถูกระงับชั่วคราว', dissolved: 'ยุบแล้ว' } as const;
 
@@ -28,11 +35,19 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
   if (!current) redirect('/login');
   const canViewInternal = club.me.permissions.includes('club:view_internal');
   const canApproveMembers = club.me.permissions.includes('club_member:approve') && club.status === 'active';
-  const [members, requests] = await Promise.all([
+  const canManageCommittee = club.me.permissions.includes('club_committee:manage') && club.status === 'active';
+  const [members, requests, positions, history] = await Promise.all([
     canViewInternal ? apiGetJson<{ items: ClubMember[]; total: number }>(`/clubs/${club.id}/members?pageSize=100`) : null,
     canApproveMembers ? apiGetJson<{ items: MembershipRequest[] }>(`/clubs/${club.id}/membership-requests`) : null,
+    canManageCommittee ? apiGetJson<{ items: ClubPosition[] }>('/club-positions') : null,
+    canViewInternal ? apiGetJson<{ items: CommitteeHistoryItem[] }>(`/clubs/${club.id}/committee/history`) : null,
   ]);
   const statusLabel = STATUS_LABEL[club.status];
+  const myId = current.user.id;
+  const presidentId = club.committee.find((c) => c.positionCode === PRESIDENT_CODE)?.userId ?? null;
+  const person = (m: ClubMember) => ({ userId: m.userId, name: m.name ?? m.email });
+  const appointable = (members?.items ?? []).filter((m) => !m.isCommittee && m.userId !== myId).map(person);
+  const transferable = (members?.items ?? []).filter((m) => m.userId !== presidentId && m.userId !== myId).map(person);
 
   return (
     <>
@@ -120,26 +135,64 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
         )}
 
         <div className={requests ? '' : 'lg:col-start-3 lg:row-start-2'}>
-          <MembershipPanel club={club} eligible={current.profile.type === 'staff'} />
+          <MembershipPanel club={club} eligible={current.profile.type === 'staff'} isPresident={presidentId === myId} />
         </div>
 
-        <Bento className="lg:col-span-2">
+        {/* กรรมการสูง 2 แถว ให้กล่องที่ปรึกษาอยู่คอลัมน์ขวาใต้กล่องสมาชิกภาพ ไม่ตกไปขึ้นแถวใหม่ */}
+        <Bento className="lg:col-span-2 lg:row-span-2">
           <BentoTitle className="mb-3">คณะกรรมการบริหาร</BentoTitle>
           <ul className="grid gap-2 sm:grid-cols-2">
             {club.committee.map((member) => (
-              <li key={member.userId} className="rounded-xl border border-ink/[0.08] p-3">
+              <li key={member.id} className="rounded-xl border border-ink/[0.08] p-3">
                 <p className="text-xs text-matcha-700">{member.positionTitle}</p>
                 <p className="mt-0.5 font-medium">{member.name}</p>
                 <p className="text-xs text-stone">{member.orgUnitName ?? '—'}</p>
                 {canViewInternal && (member.contactPhone || member.email) && (
                   <p className="mt-1 text-xs text-stone">{[member.contactPhone, member.email].filter(Boolean).join(' · ')}</p>
                 )}
+                {canViewInternal && <p className="mt-1 text-xs text-mist">ตั้งแต่ {formatDate(member.startedOn)}</p>}
+                {canManageCommittee && member.positionCode !== PRESIDENT_CODE && member.userId !== myId && (
+                  <EndCommitteeTermButton clubId={club.id} committeeMemberId={member.id} memberName={member.name} />
+                )}
               </li>
             ))}
+            {club.committee.length === 0 && <li className="text-sm text-stone">ยังไม่มีกรรมการ</li>}
           </ul>
+          {canManageCommittee && members && (
+            <div className="mt-4">
+              <CommitteeManager
+                clubId={club.id}
+                appointable={appointable}
+                transferable={transferable}
+                positions={(positions?.items ?? []).filter((p) => p.kind === 'committee' && p.code !== PRESIDENT_CODE)}
+              />
+              {members.total > members.items.length && (
+                <p className="mt-2 text-xs text-stone">แสดงรายชื่อให้เลือก {members.items.length} คนแรกจาก {members.total} คน</p>
+              )}
+            </div>
+          )}
+          {history && history.items.length > 0 && (
+            <details className="mt-4 rounded-xl border border-ink/[0.08] p-3">
+              <summary className="cursor-pointer text-sm font-medium">ประวัติกรรมการที่พ้นตำแหน่ง ({history.items.length})</summary>
+              <ul className="mt-2 divide-y divide-ink/[0.06]">
+                {history.items.map((h) => (
+                  <li key={h.id} className="py-2 text-sm">
+                    <p>
+                      <span className="font-medium">{h.name ?? h.email}</span> · {h.positionTitle}
+                    </p>
+                    <p className="text-xs text-stone">
+                      {formatDate(h.startedOn)} – {formatDate(h.endedOn)} · {committeeEndReasonLabel(h.endReason)}
+                      {h.endedByName && ` · โดย ${h.endedByName}`}
+                    </p>
+                    {h.endNote && <p className="text-xs text-stone">หมายเหตุ: {h.endNote}</p>}
+                  </li>
+                ))}
+              </ul>
+            </details>
+          )}
         </Bento>
 
-        <Bento>
+        <Bento className="lg:col-start-3">
           <BentoTitle className="mb-3">ที่ปรึกษาชมรม</BentoTitle>
           <ul className="grid gap-2">
             {club.advisors.map((advisor, index) => (
