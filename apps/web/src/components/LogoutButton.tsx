@@ -29,7 +29,7 @@ export function LogoutButton() {
   return (
     <div className="flex flex-col gap-2">
       <button type="button" onClick={handleLogout} disabled={pending} className={buttonClass('danger', 'w-full sm:w-auto')}>
-        <Icon name="logout" className="size-[18px]" />
+        <Icon name="logout" className="size-[1.125rem]" />
         {pending ? 'กำลังออกจากระบบ...' : 'ออกจากระบบ'}
       </button>
       {failed && <p className="text-sm text-beni">ออกจากระบบไม่สำเร็จ กรุณาลองใหม่</p>}

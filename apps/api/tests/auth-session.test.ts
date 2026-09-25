@@ -29,6 +29,7 @@ describe('GET /auth/me', () => {
       permissions: [],
       // บุคลากรที่ยังไม่มีข้อมูลจาก ERP-HR
       profile: { type: 'staff', staff: null },
+      preferences: { fontScale: 'md' },
     });
   });
 

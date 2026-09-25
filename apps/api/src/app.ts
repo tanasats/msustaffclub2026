@@ -13,6 +13,7 @@ import { clubApplicationsRouter } from './routes/club-applications.js';
 import { clubMasterRouter } from './routes/club-master.js';
 import { usersRouter } from './routes/users.js';
 import { healthRouter } from './routes/health.js';
+import { meRouter } from './routes/me.js';
 
 // สร้าง Express app โดยไม่ listen เพื่อให้ test เรียกผ่าน supertest ได้
 export function createApp(): express.Express {
@@ -34,6 +35,7 @@ export function createApp(): express.Express {
   app.use(usersRouter);
   app.use(clubApplicationsRouter);
   app.use(adminRolesRouter);
+  app.use(meRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

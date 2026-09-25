@@ -22,16 +22,16 @@ async function listOrNull(path: string): Promise<ApplicationListItem[] | null> {
 
 function StatTile({ href, icon, label, value, hint }: { href: string; icon: IconName; label: string; value: number; hint: string }) {
   return (
-    <Link href={href} className="bento group flex flex-col justify-between gap-4 p-4 transition hover:border-matcha-300 hover:bg-white sm:gap-6 sm:p-6">
+    <Link href={href} className="bento group flex flex-col justify-between gap-4 p-4 transition hover:border-matcha-300 hover:bg-white in-data-[font-scale=xl]:col-span-2 sm:gap-6 sm:p-6 sm:in-data-[font-scale=xl]:col-span-1">
       <div className="flex items-center justify-between">
         <BentoLabel>{label}</BentoLabel>
         <span className="inline-flex size-9 shrink-0 items-center justify-center rounded-full bg-matcha-50 text-matcha-700 transition group-hover:bg-matcha-800 group-hover:text-washi">
-          <Icon name={icon} className="size-[18px]" />
+          <Icon name={icon} className="size-[1.125rem]" />
         </span>
       </div>
       <div>
         <p className="font-serif text-3xl font-medium text-ink tabular-nums sm:text-4xl">{value}</p>
-        <p className="mt-1 text-[13px] leading-snug text-stone sm:text-sm">{hint}</p>
+        <p className="mt-1 text-[0.8125rem] leading-snug text-stone sm:text-sm">{hint}</p>
       </div>
     </Link>
   );
@@ -68,14 +68,14 @@ export default async function HomePage() {
           <div>
             <p className="text-sm text-matcha-200">{greetingOf()}</p>
             <h1 className="mt-3 font-serif text-3xl leading-snug font-medium sm:text-4xl">คุณ{firstName}</h1>
-            <p className="mt-3 max-w-md text-[15px] leading-relaxed text-matcha-100/90">
+            <p className="mt-3 max-w-md text-[0.9375rem] leading-relaxed text-matcha-100/90">
               ระบบบริหารจัดการชมรมบุคลากร มหาวิทยาลัยมหาสารคาม — ชมรมกีฬา ดนตรี วิชาการ และอีกหลากหลาย
             </p>
           </div>
           {canApply && (
             <div className="flex flex-wrap gap-2">
               <Link href="/club-applications" className={buttonClass('secondary', '!border-transparent !bg-washi !text-matcha-900 hover:!bg-cream')}>
-                <Icon name="plus" className="size-[18px]" />
+                <Icon name="plus" className="size-[1.125rem]" />
                 ยื่นคำขอจัดตั้งชมรม
               </Link>
             </div>
@@ -87,7 +87,7 @@ export default async function HomePage() {
       <Bento tone="cream" className="col-span-2 flex flex-col justify-between gap-6 sm:col-span-1">
         <div className="flex items-center justify-between">
           <BentoLabel>วันนี้</BentoLabel>
-          <Icon name="calendar" className="size-[18px] text-stone" />
+          <Icon name="calendar" className="size-[1.125rem] text-stone" />
         </div>
         <div>
           <p className="font-serif text-xl leading-snug font-medium text-ink">{thaiLongDate()}</p>
@@ -146,7 +146,7 @@ export default async function HomePage() {
               {mine.slice(0, 4).map((item) => (
                 <li key={item.id}>
                   <Link href={`/club-applications/${item.id}`} className="flex min-h-14 items-center justify-between gap-3 py-2 hover:text-matcha-800">
-                    <span className="truncate text-[15px]">{item.nameTh}</span>
+                    <span className="truncate text-[0.9375rem]">{item.nameTh}</span>
                     <StatusBadge status={item.status} />
                   </Link>
                 </li>
@@ -162,7 +162,7 @@ export default async function HomePage() {
           <BentoTitle className="mb-4">ขั้นตอนการจัดตั้งชมรม</BentoTitle>
           <ol className="grid gap-3 lg:grid-cols-5 lg:gap-4">
             {STEPS.map((step, index) => (
-              <li key={step} className="flex items-start gap-3 text-[15px]">
+              <li key={step} className="flex items-start gap-3 text-[0.9375rem]">
                 <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-matcha-300 font-serif text-sm text-matcha-700">
                   {index + 1}
                 </span>

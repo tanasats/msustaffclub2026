@@ -8,7 +8,7 @@ export function SidebarPreference() {
   return (
     <div className="flex min-h-11 items-center justify-between gap-4">
       <span id="sidebar-pref-label">
-        <span className="block text-[15px] text-ink">ย่อเมนูด้านข้าง</span>
+        <span className="block text-[0.9375rem] text-ink">ย่อเมนูด้านข้าง</span>
         <span className="block text-sm text-stone">แสดงเฉพาะไอคอนบนหน้าจอขนาดใหญ่</span>
       </span>
       <button

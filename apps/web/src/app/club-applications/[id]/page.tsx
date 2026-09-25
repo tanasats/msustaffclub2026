@@ -71,12 +71,12 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
       />
 
       {latestNote && (status === 'returned' || status === 'rejected' || status === 'draft') && (
-        <p className="mb-4 rounded-bento border border-kin/20 bg-kin-50 px-5 py-4 text-[15px] text-kin">
+        <p className="mb-4 rounded-bento border border-kin/20 bg-kin-50 px-5 py-4 text-[0.9375rem] text-kin">
           <span className="font-medium">หมายเหตุ:</span> {latestNote}
         </p>
       )}
       {status === 'approved' && (
-        <p className="mb-4 rounded-bento border border-matcha-200 bg-matcha-50 px-5 py-4 text-[15px] text-matcha-800">
+        <p className="mb-4 rounded-bento border border-matcha-200 bg-matcha-50 px-5 py-4 text-[0.9375rem] text-matcha-800">
           คำขอได้รับอนุมัติ ระบบสร้างชมรม กรรมการ ที่ปรึกษา และสมาชิกตั้งต้นเรียบร้อยแล้ว
         </p>
       )}

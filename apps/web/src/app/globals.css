@@ -36,6 +36,17 @@
 @layer base {
   html {
     -webkit-tap-highlight-color: transparent;
+    /* ขนาดตัวอักษรตามที่ผู้ใช้ตั้ง (เป็น % ของค่าในเบราว์เซอร์ จึงเคารพการตั้งค่าของผู้ใช้เดิมด้วย) ทุกขนาดใช้ rem จึงขยายตามทั้งหน้า */
+    font-size: 100%;
+  }
+  html[data-font-scale='sm'] {
+    font-size: 93.75%;
+  }
+  html[data-font-scale='lg'] {
+    font-size: 112.5%;
+  }
+  html[data-font-scale='xl'] {
+    font-size: 125%;
   }
   body {
     @apply bg-washi font-sans text-ink antialiased;
@@ -58,7 +69,7 @@
 }
 
 @utility field {
-  @apply min-h-11 w-full rounded-xl border border-ink/[0.12] bg-white/90 px-3.5 py-2 text-[15px] text-ink placeholder:text-mist
+  @apply min-h-11 w-full rounded-xl border border-ink/[0.12] bg-white/90 px-3.5 py-2 text-base text-ink placeholder:text-mist
     transition focus:border-matcha-500 focus:outline-none focus:ring-4 focus:ring-matcha-100;
 }
 
@@ -69,7 +80,7 @@
 
 /* ปุ่ม: สูงอย่างน้อย 44px เพื่อกดง่ายบนมือถือ */
 @utility btn {
-  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-[15px] font-medium transition
+  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-[0.9375rem] font-medium transition
     active:scale-[0.98] disabled:pointer-events-none disabled:opacity-45;
 }
 @utility btn-primary {

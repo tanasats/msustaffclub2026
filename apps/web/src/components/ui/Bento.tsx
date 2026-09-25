@@ -20,7 +20,7 @@ export function Bento({ tone = 'paper', className = '', children, as: Tag = 'sec
 
 // หัวข้อเล็กภายในช่อง (ภาษาไทยห้ามเว้นระยะตัวอักษร เพราะสระ/วรรณยุกต์จะดูแยกจากพยัญชนะ)
 export function BentoLabel({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <p className={`text-[13px] font-medium text-stone ${className}`}>{children}</p>;
+  return <p className={`text-[0.8125rem] font-medium text-stone ${className}`}>{children}</p>;
 }
 
 export function BentoTitle({ children, className = '' }: { children: React.ReactNode; className?: string }) {

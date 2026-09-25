@@ -59,7 +59,8 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     : null;
 
   return (
-    <html lang="th" className={`${sans.variable} ${serif.variable}`}>
+    // ขนาดตัวอักษรที่ผู้ใช้ตั้งไว้ (จากฐานข้อมูล) ใส่ตั้งแต่ server render จึงไม่กระพริบเปลี่ยนขนาด
+    <html lang="th" data-font-scale={current?.preferences.fontScale ?? 'md'} className={`${sans.variable} ${serif.variable}`}>
       <body className="min-h-dvh">
         {current && shellUser ? (
           <AppShell user={shellUser} nav={buildNavigation(current)}>

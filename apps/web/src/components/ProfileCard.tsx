@@ -4,7 +4,7 @@ function Row({ label, value }: { label: string; value: string | null | undefined
   return (
     <div className="flex flex-col gap-0.5 py-2.5 sm:flex-row sm:gap-4">
       <dt className="w-32 shrink-0 text-sm text-stone">{label}</dt>
-      <dd className="text-[15px] text-ink">{value || '—'}</dd>
+      <dd className="text-[0.9375rem] text-ink">{value || '—'}</dd>
     </div>
   );
 }

@@ -20,6 +20,12 @@ export type UserProfile =
   | { type: 'student'; student: StudentProfile | null }
   | { type: 'staff'; staff: StaffProfile | null };
 
+export type FontScale = 'sm' | 'md' | 'lg' | 'xl';
+
+export interface UserPreferences {
+  fontScale: FontScale;
+}
+
 export interface CurrentUser {
   user: {
     id: string;
@@ -30,6 +36,7 @@ export interface CurrentUser {
   roles: string[];
   permissions: string[];
   profile: UserProfile;
+  preferences: UserPreferences;
 }
 
 /**

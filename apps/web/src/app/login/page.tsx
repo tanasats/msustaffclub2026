@@ -41,7 +41,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         <p className="relative text-sm tracking-[0.3em] text-matcha-200">MAHASARAKHAM UNIVERSITY</p>
         <div className="relative max-w-md">
           <h2 className="font-serif text-4xl leading-snug font-medium">พื้นที่ของชมรม<br />และความสัมพันธ์ของบุคลากร</h2>
-          <p className="mt-5 text-[15px] leading-relaxed text-matcha-100/85">
+          <p className="mt-5 text-[0.9375rem] leading-relaxed text-matcha-100/85">
             จัดตั้งชมรม ดูแลสมาชิก และบันทึกผลงาน — ทั้งชมรมกีฬา ดนตรี วิชาการ และอีกหลากหลาย ในที่เดียว
           </p>
         </div>

@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { LogoutButton } from '@/components/LogoutButton';
 import { ProfileDetails } from '@/components/ProfileCard';
+import { FontSizeControl } from '@/components/settings/FontSizeControl';
 import { SidebarPreference } from '@/components/settings/SidebarPreference';
 import { Avatar } from '@/components/ui/Avatar';
 import { Badge } from '@/components/ui/Badge';
@@ -21,7 +22,7 @@ export default async function SettingsPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Settings" title="การตั้งค่า" description="ข้อมูลบัญชี การแสดงผล และการออกจากระบบ" />
+      <PageHeader eyebrow="Settings" title="การตั้งค่า" description="ข้อมูลบัญชี ขนาดตัวอักษร การแสดงผล และการออกจากระบบ" />
       <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-3">
         <Bento className="lg:col-span-2">
           <BentoLabel className="mb-4">บัญชีผู้ใช้</BentoLabel>
@@ -60,16 +61,19 @@ export default async function SettingsPage() {
 
         <div className="grid gap-3 sm:gap-4">
           <Bento>
-            <BentoLabel className="mb-3">การแสดงผล</BentoLabel>
-            <SidebarPreference />
+            <BentoLabel className="mb-4">การแสดงผล</BentoLabel>
+            <FontSizeControl initial={current.preferences.fontScale} />
+            <div className="mt-4 border-t border-ink/[0.06] pt-4">
+              <SidebarPreference />
+            </div>
           </Bento>
           {canManageRoles && (
             <Link href="/admin/users" className="bento flex min-h-11 items-center justify-between gap-3 p-5 transition hover:border-matcha-300 sm:p-6">
               <span className="flex items-center gap-3">
                 <span className="inline-flex size-9 items-center justify-center rounded-full bg-kin-50 text-kin">
-                  <Icon name="shield" className="size-[18px]" />
+                  <Icon name="shield" className="size-[1.125rem]" />
                 </span>
-                <span className="text-[15px]">จัดการสิทธิ์ผู้ใช้</span>
+                <span className="text-[0.9375rem]">จัดการสิทธิ์ผู้ใช้</span>
               </span>
               <Icon name="arrowRight" className="size-4 text-stone" />
             </Link>

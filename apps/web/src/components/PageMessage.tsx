@@ -13,7 +13,7 @@ export function PageMessage({ title, description, children }: PageMessageProps) 
       <div className="bento flex w-full max-w-md flex-col items-center gap-3 p-8 text-center">
         <LogoMark className="mb-2 size-12" />
         <h1 className="font-serif text-2xl font-medium">{title}</h1>
-        {description && <p className="text-[15px] leading-relaxed text-stone">{description}</p>}
+        {description && <p className="text-[0.9375rem] leading-relaxed text-stone">{description}</p>}
         {children && <div className="mt-3">{children}</div>}
       </div>
     </div>

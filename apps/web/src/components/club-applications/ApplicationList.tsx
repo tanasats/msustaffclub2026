@@ -28,7 +28,7 @@ export function ApplicationList({ items, emptyMessage }: ApplicationListProps) {
               <Icon name="scroll" className="size-5" />
             </span>
             <span className="min-w-0 flex-1">
-              <span className="block truncate font-serif text-[17px] font-medium text-ink">{item.nameTh}</span>
+              <span className="block truncate font-serif text-[1.0625rem] font-medium text-ink">{item.nameTh}</span>
               <span className="mt-0.5 block text-xs text-mist">
                 ปีงบประมาณ {item.fiscalYear}
                 {item.applicantName ? ` · ${item.applicantName}` : ''} · {formatDateTime(item.updatedAt)}

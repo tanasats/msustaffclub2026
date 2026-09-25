@@ -50,7 +50,7 @@ export function CreateApplicationForm() {
         />
       </label>
       <button type="submit" disabled={pending || !nameTh.trim()} className="btn btn-primary">
-        <Icon name="plus" className="size-[18px]" />
+        <Icon name="plus" className="size-[1.125rem]" />
         {pending ? 'กำลังสร้าง...' : 'เริ่มยื่นคำขอ'}
       </button>
       {error && (

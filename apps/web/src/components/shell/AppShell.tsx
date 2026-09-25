@@ -35,8 +35,8 @@ function Brand({ collapsed }: { collapsed: boolean }) {
       <LogoMark className="size-10 shrink-0" />
       {!collapsed && (
         <span className="leading-tight">
-          <span className="block font-serif text-[15px] font-medium text-ink">ชมรมบุคลากร</span>
-          <span className="block text-[11px] tracking-[0.16em] text-stone">MSU · CLUB</span>
+          <span className="block font-serif text-[0.9375rem] font-medium text-ink">ชมรมบุคลากร</span>
+          <span className="block text-[0.6875rem] tracking-[0.16em] text-stone">MSU · CLUB</span>
         </span>
       )}
     </Link>
@@ -66,7 +66,7 @@ function NavList({ nav, active, collapsed, onNavigate }: { nav: NavItem[]; activ
                       onClick={onNavigate}
                       title={collapsed ? item.label : undefined}
                       aria-current={isActive ? 'page' : undefined}
-                      className={`group flex min-h-11 items-center gap-3 rounded-xl px-3 text-[15px] transition ${
+                      className={`group flex min-h-11 items-center gap-3 rounded-xl px-3 text-[0.9375rem] transition ${
                         collapsed ? 'justify-center' : ''
                       } ${isActive ? 'bg-matcha-800 text-washi shadow-sm shadow-matcha-900/15' : 'text-stone hover:bg-matcha-50 hover:text-matcha-800'}`}
                     >
@@ -133,7 +133,7 @@ export function AppShell({ user, nav, children }: AppShellProps) {
       {/* ---------- Sidebar (จอใหญ่) ---------- */}
       <aside
         className={`fixed inset-y-3 left-3 z-30 hidden flex-col justify-between rounded-bento border border-ink/[0.08] bg-white/70 p-3 backdrop-blur-md transition-[width] duration-300 lg:flex ${
-          collapsed ? 'w-[76px]' : 'w-[264px]'
+          collapsed ? 'w-[4.75rem]' : 'w-[16.5rem]'
         }`}
       >
         <div className="flex flex-col gap-8">
@@ -146,7 +146,7 @@ export function AppShell({ user, nav, children }: AppShellProps) {
               title={collapsed ? 'ขยายเมนู' : 'ย่อเมนู'}
               className="inline-flex size-9 items-center justify-center rounded-lg text-mist transition hover:bg-ink/[0.04] hover:text-ink"
             >
-              <Icon name={collapsed ? 'expand' : 'collapse'} className="size-[18px]" />
+              <Icon name={collapsed ? 'expand' : 'collapse'} className="size-[1.125rem]" />
             </button>
           </div>
           <NavList nav={nav} active={active} collapsed={collapsed} />
@@ -194,7 +194,7 @@ export function AppShell({ user, nav, children }: AppShellProps) {
 
       {/* ---------- เนื้อหา ---------- */}
       <main
-        className={`pb-safe-nav transition-[padding] duration-300 lg:pb-10 ${collapsed ? 'lg:pl-[100px]' : 'lg:pl-[288px]'}`}
+        className={`pb-safe-nav transition-[padding] duration-300 lg:pb-10 ${collapsed ? 'lg:pl-[6.25rem]' : 'lg:pl-[18rem]'}`}
         aria-label={currentLabel || undefined}
       >
         <div className="mx-auto w-full max-w-6xl px-4 pt-5 sm:px-6 lg:px-8 lg:pt-8">{children}</div>
@@ -212,7 +212,7 @@ export function AppShell({ user, nav, children }: AppShellProps) {
               key={item.href}
               href={item.href}
               aria-current={isActive ? 'page' : undefined}
-              className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] transition ${
+              className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[0.6875rem] transition ${
                 isActive ? 'bg-matcha-800 text-washi' : 'text-stone'
               }`}
             >
@@ -224,7 +224,7 @@ export function AppShell({ user, nav, children }: AppShellProps) {
         <Link
           href="/settings"
           aria-current={pathname.startsWith('/settings') ? 'page' : undefined}
-          className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[11px] transition ${
+          className={`flex min-h-12 flex-col items-center justify-center gap-0.5 rounded-xl text-[0.6875rem] transition ${
             pathname.startsWith('/settings') ? 'bg-matcha-800 text-washi' : 'text-stone'
           }`}
         >
