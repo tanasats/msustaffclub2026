@@ -121,6 +121,12 @@ export const icons = {
       <path d="M15.5 5.6a3.25 3.25 0 0 1 0 5.8M17 14a5.5 5.5 0 0 1 3.5 5" />
     </Svg>
   ),
+  award: (p: IconProps) => (
+    <Svg {...p}>
+      <circle cx="12" cy="9" r="5" />
+      <path d="m9 13.5-1.5 7 4.5-2.5 4.5 2.5-1.5-7" />
+    </Svg>
+  ),
   check: (p: IconProps) => (
     <Svg {...p}>
       <path d="m5 12.5 4.5 4.5L19 7.5" />

@@ -5,7 +5,7 @@ import { logger } from '../logger.js';
 import {
   findFile,
   insertFile,
-  isLogoFileInUse,
+  isFileInUse,
   lockFile,
   markFileUploaded,
   softDeleteFile,
@@ -49,6 +49,14 @@ export const FILE_POLICIES: Record<FilePurpose, FilePolicy> = {
     typeLabel: 'PNG, JPG, WebP',
     maxBytes: 2 * 1024 * 1024,
     keyPrefix: 'club-logos',
+  },
+  // เกียรติบัตร/รูปภาพหลักฐานผลงาน — ตรวจสิทธิ์ตอนแนบกับผลงาน (ต้องเป็นสมาชิกชมรม)
+  achievement_evidence: {
+    uploadPermission: null,
+    mimeTypes: ['application/pdf', 'image/jpeg', 'image/png'],
+    typeLabel: 'PDF, JPG, PNG',
+    maxBytes: 10 * 1024 * 1024,
+    keyPrefix: 'achievement-evidence',
   },
 };
 
@@ -178,13 +186,13 @@ export async function createFileViewUrl(fileId: string): Promise<string | null> 
 }
 
 /**
- * ลบไฟล์ตราที่ถูกแทนที่ ถ้าไม่มีคำขอหรือชมรมใดใช้แล้ว
+ * ลบไฟล์ที่ถูกแทนที่/เอาออก ถ้าไม่มีข้อมูลใดอ้างอิงแล้ว
  * แถวไฟล์ soft delete ใน transaction ส่วน object ใน bucket ลบหลัง commit (ลบไม่สำเร็จ = log ไว้ ไม่ทำให้รายการล้ม)
  */
-export async function discardLogoFileIfUnused(fileId: string): Promise<void> {
+export async function discardFileIfUnused(fileId: string): Promise<void> {
   const objectKey = await withTransaction(async (client) => {
     const file = await lockFile(fileId, client);
-    if (!file || (await isLogoFileInUse(fileId, client))) return null;
+    if (!file || (await isFileInUse(fileId, client))) return null;
     await softDeleteFile(fileId, client);
     return file.objectKey;
   });
@@ -192,6 +200,6 @@ export async function discardLogoFileIfUnused(fileId: string): Promise<void> {
   try {
     await storage.deleteObject(objectKey);
   } catch (err) {
-    logger.error({ err, fileId }, 'ลบไฟล์ตราที่ไม่ได้ใช้ออกจากที่เก็บไม่สำเร็จ');
+    logger.error({ err, fileId }, 'ลบไฟล์ที่ไม่ได้ใช้ออกจากที่เก็บไม่สำเร็จ');
   }
 }

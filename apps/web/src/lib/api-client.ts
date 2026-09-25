@@ -4,6 +4,8 @@ export interface ApiResult {
   ok: boolean;
   // ข้อความ error จาก API (รูปแบบ { error: { code, message } }) สำหรับแสดงผู้ใช้
   errorMessage?: string;
+  // body ของ response ที่สำเร็จ (ถ้ามี เช่น id ของข้อมูลที่สร้างใหม่) — 204 ไม่มี body
+  data?: unknown;
 }
 
 /**
@@ -18,7 +20,10 @@ export async function apiSend(method: 'POST' | 'PUT' | 'PATCH', path: string, bo
       headers: body === undefined ? undefined : { 'Content-Type': 'application/json' },
       body: body === undefined ? undefined : JSON.stringify(body),
     });
-    if (res.ok) return { ok: true };
+    if (res.ok) {
+      const data: unknown = res.status === 204 ? undefined : await res.json().catch(() => undefined);
+      return { ok: true, data };
+    }
     const data = (await res.json().catch(() => null)) as { error?: { message?: string } } | null;
     return { ok: false, errorMessage: data?.error?.message ?? `เกิดข้อผิดพลาด (HTTP ${res.status})` };
   } catch {

@@ -7,6 +7,12 @@ function bangkokParts(date: Date) {
   return { year: get('year'), month: get('month'), day: get('day'), hour: get('hour') };
 }
 
+// วันนี้ตามเวลาประเทศไทย รูปแบบ YYYY-MM-DD (ใช้กับ <input type="date">)
+export function bangkokToday(date = new Date()): string {
+  const { year, month, day } = bangkokParts(date);
+  return `${year}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
+}
+
 export function fiscalYearOf(date = new Date()): number {
   const { year, month } = bangkokParts(date);
   return year + 543 + (month >= 10 ? 1 : 0);

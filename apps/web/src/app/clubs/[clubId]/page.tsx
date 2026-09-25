@@ -1,4 +1,6 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { AchievementListItem } from '@/components/achievements/AchievementListItem';
 import { ActionButton } from '@/components/club-applications/ActionButton';
 import { ClubLogo } from '@/components/clubs/ClubLogo';
 import { CommitteeManager } from '@/components/clubs/CommitteeManager';
@@ -11,6 +13,7 @@ import { Bento, BentoLabel, BentoTitle } from '@/components/ui/Bento';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { apiGetJson } from '@/lib/api-server';
 import { getCurrentUser } from '@/lib/auth';
+import type { AchievementItem, AchievementPage } from '@/lib/achievement-types';
 import type { ClubPosition } from '@/lib/club-application-types';
 import type { ClubMember, ClubPage, CommitteeHistoryItem, MembershipRequest } from '@/lib/club-types';
 import { committeeEndReasonLabel } from '@/lib/committee-labels';
@@ -39,11 +42,15 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
   const canApproveMembers = club.me.permissions.includes('club_member:approve') && club.status === 'active';
   const canManageCommittee = club.me.permissions.includes('club_committee:manage') && club.status === 'active';
   const canEditProfile = club.me.permissions.includes('club_profile:edit') && club.status === 'active';
-  const [members, requests, positions, history] = await Promise.all([
+  const canReviewAchievements = club.me.permissions.includes('club_achievement:manage') && club.status === 'active';
+  const canSubmitAchievement = club.me.membershipStatus === 'active' && club.status === 'active';
+  const [members, requests, positions, history, achievements, achievementQueue] = await Promise.all([
     canViewInternal ? apiGetJson<{ items: ClubMember[]; total: number }>(`/clubs/${club.id}/members?pageSize=100`) : null,
     canApproveMembers ? apiGetJson<{ items: MembershipRequest[] }>(`/clubs/${club.id}/membership-requests`) : null,
     canManageCommittee ? apiGetJson<{ items: ClubPosition[] }>('/club-positions') : null,
     canViewInternal ? apiGetJson<{ items: CommitteeHistoryItem[] }>(`/clubs/${club.id}/committee/history`) : null,
+    apiGetJson<AchievementPage>(`/clubs/${club.id}/achievements?pageSize=50`),
+    canReviewAchievements ? apiGetJson<{ items: AchievementItem[] }>(`/clubs/${club.id}/achievement-reviews`) : null,
   ]);
   const statusLabel = STATUS_LABEL[club.status];
   const myId = current.user.id;
@@ -228,6 +235,36 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
             ))}
             {club.advisors.length === 0 && <li className="text-sm text-stone">—</li>}
           </ul>
+        </Bento>
+
+        <Bento className="lg:col-span-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <BentoTitle>ผลงานของชมรม ({achievements.total.toLocaleString('th-TH')})</BentoTitle>
+            <div className="flex flex-wrap gap-2">
+              {achievementQueue && (
+                <Link href={`/clubs/${club.id}/achievements/review`} className="btn btn-secondary !min-h-10 text-sm">
+                  รอรับรอง ({achievementQueue.items.length})
+                </Link>
+              )}
+              {canSubmitAchievement && (
+                <Link href={`/clubs/${club.id}/achievements/new`} className="btn btn-primary !min-h-10 text-sm">
+                  บันทึกผลงาน
+                </Link>
+              )}
+            </div>
+          </div>
+          {achievements.items.length === 0 ? (
+            <p className="text-sm text-stone">ยังไม่มีผลงานที่รับรองแล้ว</p>
+          ) : (
+            <ul className="grid gap-2 md:grid-cols-2">
+              {achievements.items.map((item) => (
+                <AchievementListItem key={item.id} item={item} show="owner" />
+              ))}
+            </ul>
+          )}
+          {achievements.total > achievements.items.length && (
+            <p className="mt-2 text-xs text-stone">แสดง {achievements.items.length} รายการล่าสุด</p>
+          )}
         </Bento>
 
         {members && (
