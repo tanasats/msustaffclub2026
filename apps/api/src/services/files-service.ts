@@ -58,6 +58,14 @@ export const FILE_POLICIES: Record<FilePurpose, FilePolicy> = {
     maxBytes: 10 * 1024 * 1024,
     keyPrefix: 'achievement-evidence',
   },
+  // รูปกิจกรรม — ตรวจสิทธิ์ตอนแนบกับกิจกรรม (ต้องมีสิทธิ์ชมรม club_activity:manage)
+  activity_photo: {
+    uploadPermission: null,
+    mimeTypes: ['image/jpeg', 'image/png', 'image/webp'],
+    typeLabel: 'JPG, PNG, WebP',
+    maxBytes: 10 * 1024 * 1024,
+    keyPrefix: 'activity-photos',
+  },
 };
 
 /**

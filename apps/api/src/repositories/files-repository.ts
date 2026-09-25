@@ -1,6 +1,6 @@
 import { pool, type Queryable } from '../db/pool.js';
 
-export type FilePurpose = 'advisor_consent' | 'club_logo' | 'achievement_evidence';
+export type FilePurpose = 'advisor_consent' | 'club_logo' | 'achievement_evidence' | 'activity_photo';
 
 export interface FileRecord {
   id: string;
@@ -67,7 +67,8 @@ export async function isFileInUse(id: string, db: Queryable): Promise<boolean> {
     `SELECT EXISTS (SELECT 1 FROM clubs WHERE logo_file_id = $1)
          OR EXISTS (SELECT 1 FROM club_applications WHERE logo_file_id = $1)
          OR EXISTS (SELECT 1 FROM club_application_advisors WHERE consent_file_id = $1)
-         OR EXISTS (SELECT 1 FROM club_achievement_files WHERE file_id = $1) AS "inUse"`,
+         OR EXISTS (SELECT 1 FROM club_achievement_files WHERE file_id = $1)
+         OR EXISTS (SELECT 1 FROM club_activity_files WHERE file_id = $1) AS "inUse"`,
     [id],
   );
   return result.rows[0]?.inUse ?? false;

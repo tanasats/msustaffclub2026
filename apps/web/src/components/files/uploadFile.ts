@@ -3,7 +3,7 @@ import { publicEnv } from '@/lib/public-env';
 type UploadResult = { ok: true; fileId: string } | { ok: false; message: string };
 
 // อัปโหลดไฟล์ 3 ขั้น: ขอ URL จาก API → PUT ตรงไปที่ storage → แจ้ง API ให้ตรวจและยืนยัน
-export async function uploadFile(file: File, purpose: 'advisor_consent' | 'club_logo' | 'achievement_evidence'): Promise<UploadResult> {
+export async function uploadFile(file: File, purpose: 'advisor_consent' | 'club_logo' | 'achievement_evidence' | 'activity_photo'): Promise<UploadResult> {
   const api = publicEnv.apiUrl;
   try {
     const ticketRes = await fetch(`${api}/files/uploads`, {

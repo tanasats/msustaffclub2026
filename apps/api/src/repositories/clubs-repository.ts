@@ -338,3 +338,24 @@ export async function replaceClubLogo(clubId: string, fileId: string | null, db:
   );
   return result.rows[0] ?? null;
 }
+
+/**
+ * แผนกิจกรรมในคำขอ → แผนประจำปีของชมรม (created_by = NULL คือระบบคัดลอก)
+ * ON CONFLICT: คำขอเดียวกันคัดลอกซ้ำไม่ได้ (unique application_activity_id)
+ */
+export async function insertPlannedActivitiesFromApplication(
+  clubId: string,
+  applicationId: string,
+  fiscalYear: number,
+  db: Queryable,
+): Promise<void> {
+  await db.query(
+    `INSERT INTO club_planned_activities
+       (club_id, fiscal_year, planned_date, planned_time, title, note, sort_order, application_activity_id)
+     SELECT $1, $3, activity_date, activity_time, title, note, sort_order, id
+       FROM club_application_activities
+      WHERE application_id = $2
+     ON CONFLICT (application_activity_id) DO NOTHING`,
+    [clubId, applicationId, fiscalYear],
+  );
+}

@@ -23,6 +23,7 @@ import {
   insertClubFromApplication,
   insertCommitteeFromApplication,
   insertMembershipsFromApplication,
+  insertPlannedActivitiesFromApplication,
 } from '../repositories/clubs-repository.js';
 import { hasPermission, type AuthContext } from './authorization.js';
 import { collectSubmissionIssues, notFound } from './club-application-service.js';
@@ -267,6 +268,7 @@ export async function decideApplication(
     await insertAdvisorsFromApplication(clubId, applicationId, app.fiscalYear, today, client);
     await insertCommitteeFromApplication(clubId, applicationId, today, client);
     await insertMembershipsFromApplication(clubId, applicationId, client);
+    await insertPlannedActivitiesFromApplication(clubId, applicationId, app.fiscalYear, client);
 
     await markDecided(applicationId, 'approved', auth.user.id, note, clubId, client);
     await transition(client, app, auth.user.id, 'approved', note);

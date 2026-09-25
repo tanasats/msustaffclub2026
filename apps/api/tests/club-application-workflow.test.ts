@@ -92,6 +92,9 @@ async function scenario(): Promise<Scenario> {
     ],
   });
   await put(applicant, `/club-applications/${id}/members`, { memberUserIds: members.map((m) => m.id) });
+  await put(applicant, `/club-applications/${id}/activities`, {
+    activities: [{ activityDate: null, activityTime: '17.00 น.', title: 'ซ้อมดนตรีไทยประจำสัปดาห์' }],
+  });
 
   // ที่ปรึกษาคนที่ 2 login ครั้งแรกหลังจากถูกเสนอชื่อแล้ว
   const advisor2 = await actor({ email: 'advisor.second@msu.ac.th' });
@@ -181,6 +184,12 @@ describe('flow เต็ม: ขอความยินยอม → ยื่�
     );
     expect(memberEvents).toHaveLength(memberships.length);
     expect(memberEvents.every((e) => e.action === 'approved' && e.actor_user_id === null)).toBe(true);
+    // แผนกิจกรรมในคำขอ → แผนประจำปีของชมรม
+    const { rows: plans } = await pool.query(
+      'SELECT title, planned_time, fiscal_year, created_by FROM club_planned_activities WHERE club_id = $1',
+      [clubId],
+    );
+    expect(plans).toEqual([{ title: 'ซ้อมดนตรีไทยประจำสัปดาห์', planned_time: '17.00 น.', fiscal_year: fiscalYearOf(), created_by: null }]);
     // กรรมการชุดแรกมีประวัติ "รับตำแหน่ง" โดยระบบ
     const { rows: committeeEvents } = await pool.query(
       `SELECT e.action, e.actor_user_id FROM club_committee_events e

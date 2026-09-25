@@ -12,7 +12,7 @@ export interface ApiResult {
  * เรียก API ที่เปลี่ยนข้อมูลจาก Client Component (ส่ง cookie ด้วย credentials: 'include')
  * browser ใส่ header Origin ให้เองซึ่ง API ใช้ตรวจ CSRF
  */
-export async function apiSend(method: 'POST' | 'PUT' | 'PATCH', path: string, body?: unknown): Promise<ApiResult> {
+export async function apiSend(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<ApiResult> {
   try {
     const res = await fetch(`${publicEnv.apiUrl}${path}`, {
       method,

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { getRequiredAuth, requireAuth } from '../middlewares/auth.js';
 import { completeUpload, getDownloadUrl, requestUpload } from '../services/files-service.js';
+import { redirectToImage } from './responses.js';
 import { parseIdParam, requiredText } from './validation.js';
 
 // ไฟล์: ต้อง login เท่านั้น สิทธิ์ตามวัตถุประสงค์ของไฟล์ตรวจใน files-service
@@ -11,7 +12,7 @@ const idOf = (value: unknown) => parseIdParam(value, 'FILE_NOT_FOUND', 'ไม�
 
 const uploadSchema = z
   .object({
-    purpose: z.enum(['advisor_consent', 'club_logo', 'achievement_evidence']),
+    purpose: z.enum(['advisor_consent', 'club_logo', 'achievement_evidence', 'activity_photo']),
     fileName: requiredText(500),
     mimeType: z.string().min(1).max(100),
     sizeBytes: z.number().int().positive(),
@@ -29,4 +30,10 @@ filesRouter.post('/files/:id/complete', requireAuth, async (req, res) => {
 
 filesRouter.get('/files/:id/download-url', requireAuth, async (req, res) => {
   res.json(await getDownloadUrl(getRequiredAuth(req), idOf(req.params.id)));
+});
+
+// ต้อง login เท่านั้น (สิทธิ์อ่านไฟล์ตรวจใน service): แสดงรูปใน <img> ด้วย redirect ไป URL อายุสั้น
+filesRouter.get('/files/:id/view', requireAuth, async (req, res) => {
+  const { url } = await getDownloadUrl(getRequiredAuth(req), idOf(req.params.id));
+  redirectToImage(res, url);
 });

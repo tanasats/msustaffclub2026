@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { AchievementListItem } from '@/components/achievements/AchievementListItem';
+import { ActivityListItem } from '@/components/activities/ActivityListItem';
 import { ActionButton } from '@/components/club-applications/ActionButton';
 import { ClubLogo } from '@/components/clubs/ClubLogo';
 import { CommitteeManager } from '@/components/clubs/CommitteeManager';
@@ -14,6 +15,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { apiGetJson } from '@/lib/api-server';
 import { getCurrentUser } from '@/lib/auth';
 import type { AchievementItem, AchievementPage } from '@/lib/achievement-types';
+import type { ActivityItem } from '@/lib/activity-types';
 import type { ClubPosition } from '@/lib/club-application-types';
 import type { ClubMember, ClubPage, CommitteeHistoryItem, MembershipRequest } from '@/lib/club-types';
 import { committeeEndReasonLabel } from '@/lib/committee-labels';
@@ -44,13 +46,14 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
   const canEditProfile = club.me.permissions.includes('club_profile:edit') && club.status === 'active';
   const canReviewAchievements = club.me.permissions.includes('club_achievement:manage') && club.status === 'active';
   const canSubmitAchievement = club.me.membershipStatus === 'active' && club.status === 'active';
-  const [members, requests, positions, history, achievements, achievementQueue] = await Promise.all([
+  const [members, requests, positions, history, achievements, achievementQueue, activities] = await Promise.all([
     canViewInternal ? apiGetJson<{ items: ClubMember[]; total: number }>(`/clubs/${club.id}/members?pageSize=100`) : null,
     canApproveMembers ? apiGetJson<{ items: MembershipRequest[] }>(`/clubs/${club.id}/membership-requests`) : null,
     canManageCommittee ? apiGetJson<{ items: ClubPosition[] }>('/club-positions') : null,
     canViewInternal ? apiGetJson<{ items: CommitteeHistoryItem[] }>(`/clubs/${club.id}/committee/history`) : null,
     apiGetJson<AchievementPage>(`/clubs/${club.id}/achievements?pageSize=50`),
     canReviewAchievements ? apiGetJson<{ items: AchievementItem[] }>(`/clubs/${club.id}/achievement-reviews`) : null,
+    apiGetJson<{ fiscalYear: number; items: ActivityItem[] }>(`/clubs/${club.id}/activities`),
   ]);
   const statusLabel = STATUS_LABEL[club.status];
   const myId = current.user.id;
@@ -235,6 +238,24 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
             ))}
             {club.advisors.length === 0 && <li className="text-sm text-stone">—</li>}
           </ul>
+        </Bento>
+
+        <Bento className="lg:col-span-3">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <BentoTitle>กิจกรรมปีงบประมาณ {activities.fiscalYear} ({activities.items.length})</BentoTitle>
+            <Link href={`/clubs/${club.id}/activities`} className="btn btn-secondary !min-h-10 text-sm">
+              แผนและกิจกรรมทั้งหมด
+            </Link>
+          </div>
+          {activities.items.length === 0 ? (
+            <p className="text-sm text-stone">ยังไม่มีกิจกรรมที่บันทึกในปีงบประมาณนี้</p>
+          ) : (
+            <ul className="grid gap-2 md:grid-cols-2">
+              {activities.items.slice(0, 6).map((item) => (
+                <ActivityListItem key={item.id} item={item} />
+              ))}
+            </ul>
+          )}
         </Bento>
 
         <Bento className="lg:col-span-3">
