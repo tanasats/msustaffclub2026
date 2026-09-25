@@ -68,6 +68,7 @@ export async function insertCommitteeFromApplication(
 /**
  * สมาชิกตั้งต้น = กรรมการ ∪ สมาชิกที่ระบุ (UNION ตัดคนซ้ำ) เฉพาะบัญชีที่ยังใช้งานได้
  * เป็นสมาชิก active ทันที (decided_by = NULL คือระบบอนุมัติพร้อมการจัดตั้ง)
+ * ใช้ CTE: INSERT สมาชิก แล้วนำ id ที่ได้ (RETURNING) ไป INSERT ประวัติต่อในคำสั่งเดียว
  */
 export async function insertMembershipsFromApplication(
   clubId: string,
@@ -75,14 +76,19 @@ export async function insertMembershipsFromApplication(
   db: Queryable,
 ): Promise<number> {
   const result = await db.query(
-    `INSERT INTO club_memberships (club_id, user_id, status, decided_at)
-     SELECT $1, people.user_id, 'active', now()
-       FROM (
-         SELECT user_id FROM club_application_committee WHERE application_id = $2
-         UNION
-         SELECT user_id FROM club_application_members WHERE application_id = $2
-       ) AS people
-       JOIN users u ON u.id = people.user_id AND u.is_active`,
+    `WITH inserted AS (
+       INSERT INTO club_memberships (club_id, user_id, status, decided_at)
+       SELECT $1, people.user_id, 'active', now()
+         FROM (
+           SELECT user_id FROM club_application_committee WHERE application_id = $2
+           UNION
+           SELECT user_id FROM club_application_members WHERE application_id = $2
+         ) AS people
+         JOIN users u ON u.id = people.user_id AND u.is_active
+       RETURNING id
+     )
+     INSERT INTO club_membership_events (membership_id, actor_user_id, action, note)
+     SELECT id, NULL, 'approved', 'สมาชิกตั้งต้นจากการอนุมัติจัดตั้งชมรม' FROM inserted`,
     [clubId, applicationId],
   );
   return result.rowCount ?? 0;
@@ -248,6 +254,8 @@ export async function listCurrentAdvisors(clubId: string, db: Queryable = pool):
 }
 
 export interface ClubMemberRow {
+  membershipId: string;
+  isCommittee: boolean;
   userId: string;
   name: string | null;
   email: string;
@@ -263,7 +271,10 @@ export async function listActiveMembers(
   db: Queryable = pool,
 ): Promise<{ items: ClubMemberRow[]; total: number }> {
   const result = await db.query<ClubMemberRow & { total: number }>(
-    `SELECT m.user_id AS "userId", u.name, u.email, ou.name_th AS "orgUnitName", m.decided_at AS "joinedAt",
+    `SELECT m.id AS "membershipId", m.user_id AS "userId", u.name, u.email, ou.name_th AS "orgUnitName",
+            m.decided_at AS "joinedAt",
+            EXISTS (SELECT 1 FROM club_committee_members cm
+                     WHERE cm.club_id = m.club_id AND cm.user_id = m.user_id AND cm.ended_on IS NULL) AS "isCommittee",
             count(*) OVER ()::int AS total
        FROM club_memberships m
        JOIN users u ON u.id = m.user_id

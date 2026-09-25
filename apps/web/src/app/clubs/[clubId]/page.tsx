@@ -1,9 +1,14 @@
+import { redirect } from 'next/navigation';
+import { ActionButton } from '@/components/club-applications/ActionButton';
+import { MembershipPanel } from '@/components/clubs/MembershipPanel';
+import { RemoveMemberButton } from '@/components/clubs/RemoveMemberButton';
 import { Badge } from '@/components/ui/Badge';
 import { Bento, BentoLabel, BentoTitle } from '@/components/ui/Bento';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { apiGetJson } from '@/lib/api-server';
-import type { ClubMember, ClubPage } from '@/lib/club-types';
-import { formatDate } from '@/lib/format';
+import { getCurrentUser } from '@/lib/auth';
+import type { ClubMember, ClubPage, MembershipRequest } from '@/lib/club-types';
+import { formatDate, formatDateTime } from '@/lib/format';
 
 const STATUS_LABEL = { active: null, suspended: 'ถูกระงับชั่วคราว', dissolved: 'ยุบแล้ว' } as const;
 
@@ -19,11 +24,14 @@ function InfoRow({ label, value }: { label: string; value: string | null | undef
 export default async function ClubDetailPage({ params }: { params: Promise<{ clubId: string }> }) {
   const { clubId } = await params;
   // API ตอบ 404 ถ้าไม่พบชมรม และส่งข้อมูลภายในเฉพาะผู้มีสิทธิ์ club:view_internal
-  const club = await apiGetJson<ClubPage>(`/clubs/${encodeURIComponent(clubId)}`);
+  const [club, current] = await Promise.all([apiGetJson<ClubPage>(`/clubs/${encodeURIComponent(clubId)}`), getCurrentUser()]);
+  if (!current) redirect('/login');
   const canViewInternal = club.me.permissions.includes('club:view_internal');
-  const members = canViewInternal
-    ? await apiGetJson<{ items: ClubMember[]; total: number }>(`/clubs/${club.id}/members?pageSize=100`)
-    : null;
+  const canApproveMembers = club.me.permissions.includes('club_member:approve') && club.status === 'active';
+  const [members, requests] = await Promise.all([
+    canViewInternal ? apiGetJson<{ items: ClubMember[]; total: number }>(`/clubs/${club.id}/members?pageSize=100`) : null,
+    canApproveMembers ? apiGetJson<{ items: MembershipRequest[] }>(`/clubs/${club.id}/membership-requests`) : null,
+  ]);
   const statusLabel = STATUS_LABEL[club.status];
 
   return (
@@ -85,6 +93,36 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
           </dl>
         </Bento>
 
+        {requests && (
+          <Bento className="lg:col-span-2">
+            <BentoTitle className="mb-3">ใบสมัครที่รออนุมัติ ({requests.items.length})</BentoTitle>
+            {requests.items.length === 0 ? (
+              <p className="text-sm text-stone">ไม่มีใบสมัครที่รออนุมัติ</p>
+            ) : (
+              <ul className="grid gap-2">
+                {requests.items.map((request) => (
+                  <li key={request.membershipId} className="flex flex-col gap-3 rounded-xl border border-ink/[0.08] p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div>
+                      <p className="font-medium">{request.name ?? request.email}</p>
+                      <p className="text-xs text-stone">
+                        {request.orgUnitName ?? request.email} · สมัครเมื่อ {formatDateTime(request.appliedAt)}
+                      </p>
+                    </div>
+                    <div className="flex flex-wrap gap-2">
+                      <ActionButton path={`/clubs/${club.id}/memberships/${request.membershipId}/approve`} label="อนุมัติ" />
+                      <ActionButton path={`/clubs/${club.id}/memberships/${request.membershipId}/reject`} label="ไม่อนุมัติ" note="optional" tone="neutral" />
+                    </div>
+                  </li>
+                ))}
+              </ul>
+            )}
+          </Bento>
+        )}
+
+        <div className={requests ? '' : 'lg:col-start-3 lg:row-start-2'}>
+          <MembershipPanel club={club} eligible={current.profile.type === 'staff'} />
+        </div>
+
         <Bento className="lg:col-span-2">
           <BentoTitle className="mb-3">คณะกรรมการบริหาร</BentoTitle>
           <ul className="grid gap-2 sm:grid-cols-2">
@@ -129,8 +167,14 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
             <ul className="grid gap-x-6 sm:grid-cols-2 lg:grid-cols-3">
               {members.items.map((member) => (
                 <li key={member.userId} className="border-b border-ink/[0.06] py-2">
-                  <p className="text-[0.9375rem]">{member.name ?? member.email}</p>
+                  <p className="flex flex-wrap items-center gap-2 text-[0.9375rem]">
+                    {member.name ?? member.email}
+                    {member.isCommittee && <Badge tone="kin">กรรมการ</Badge>}
+                  </p>
                   <p className="text-xs text-stone">{member.orgUnitName ?? member.email}</p>
+                  {canApproveMembers && !member.isCommittee && member.userId !== current.user.id && (
+                    <RemoveMemberButton clubId={club.id} membershipId={member.membershipId} memberName={member.name ?? member.email} />
+                  )}
                 </li>
               ))}
             </ul>

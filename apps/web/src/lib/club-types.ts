@@ -56,9 +56,20 @@ export interface ClubPage {
 }
 
 export interface ClubMember {
+  membershipId: string;
+  isCommittee: boolean;
   userId: string;
   name: string | null;
   email: string;
   orgUnitName: string | null;
   joinedAt: string | null;
+}
+
+export interface MembershipRequest {
+  membershipId: string;
+  userId: string;
+  name: string | null;
+  email: string;
+  orgUnitName: string | null;
+  appliedAt: string;
 }

@@ -3,7 +3,17 @@ import { z } from 'zod';
 import { getRequiredAuth, requireAuth, requireClubPermission } from '../middlewares/auth.js';
 import { CLUB_PERMISSIONS } from '../services/club-permissions.js';
 import { getClubPage, listClubDirectory, listClubMembers } from '../services/club-service.js';
-import { parseIdParam } from './validation.js';
+import {
+  applyForMembership,
+  approveMembership,
+  leaveClub,
+  listMembershipRequests,
+  rejectMembership,
+  removeMember,
+  REMOVAL_REASONS,
+  withdrawApplication,
+} from '../services/membership-service.js';
+import { optionalText, parseIdParam, requiredText } from './validation.js';
 
 export const clubsRouter = Router();
 
@@ -34,4 +44,58 @@ clubsRouter.get('/clubs/:clubId', requireAuth, async (req, res) => {
 clubsRouter.get('/clubs/:clubId/members', requireAuth, requireClubPermission(CLUB_PERMISSIONS.VIEW_INTERNAL), async (req, res) => {
   const { page, pageSize } = pageSchema.parse(req.query);
   res.json(await listClubMembers(req.params.clubId as string, page, pageSize));
+});
+
+// ---------- สมาชิกภาพ ----------
+
+const clubIdOf = (value: unknown) => parseIdParam(value, 'CLUB_NOT_FOUND', 'ไม่พบชมรม');
+const membershipIdOf = (value: unknown) => parseIdParam(value, 'MEMBERSHIP_NOT_FOUND', 'ไม่พบใบสมัครหรือสมาชิกภาพ');
+const noteSchema = z.object({ note: optionalText(1000).optional() }).strict();
+const removeSchema = z.object({ reason: z.enum(REMOVAL_REASONS), note: requiredText(1000) }).strict();
+
+// ต้อง login เท่านั้น (ตรวจว่าเป็นบุคลากรใน service): สมัครเป็นสมาชิก
+clubsRouter.post('/clubs/:clubId/membership', requireAuth, async (req, res) => {
+  await applyForMembership(getRequiredAuth(req), clubIdOf(req.params.clubId));
+  res.status(204).end();
+});
+
+// ต้อง login เท่านั้น: ยกเลิกใบสมัครของตัวเอง
+clubsRouter.post('/clubs/:clubId/membership/withdraw', requireAuth, async (req, res) => {
+  await withdrawApplication(getRequiredAuth(req), clubIdOf(req.params.clubId));
+  res.status(204).end();
+});
+
+// ต้อง login เท่านั้น: ลาออกจากชมรม (มีผลทันที)
+clubsRouter.post('/clubs/:clubId/membership/leave', requireAuth, async (req, res) => {
+  const { note } = noteSchema.parse(req.body ?? {});
+  await leaveClub(getRequiredAuth(req), clubIdOf(req.params.clubId), note ?? null);
+  res.status(204).end();
+});
+
+// ต้องมีสิทธิ์ชมรม club_member:approve: ใบสมัครที่รออนุมัติ
+clubsRouter.get(
+  '/clubs/:clubId/membership-requests',
+  requireAuth,
+  requireClubPermission(CLUB_PERMISSIONS.MEMBER_APPROVE),
+  async (req, res) => {
+    res.json(await listMembershipRequests(req.params.clubId as string));
+  },
+);
+
+// ต้องมีสิทธิ์ชมรม club_member:approve (ตรวจใน service): อนุมัติ / ปฏิเสธ / ให้พ้นสภาพ
+clubsRouter.post('/clubs/:clubId/memberships/:membershipId/approve', requireAuth, async (req, res) => {
+  await approveMembership(getRequiredAuth(req), clubIdOf(req.params.clubId), membershipIdOf(req.params.membershipId));
+  res.status(204).end();
+});
+
+clubsRouter.post('/clubs/:clubId/memberships/:membershipId/reject', requireAuth, async (req, res) => {
+  const { note } = noteSchema.parse(req.body ?? {});
+  await rejectMembership(getRequiredAuth(req), clubIdOf(req.params.clubId), membershipIdOf(req.params.membershipId), note ?? null);
+  res.status(204).end();
+});
+
+clubsRouter.post('/clubs/:clubId/memberships/:membershipId/remove', requireAuth, async (req, res) => {
+  const { reason, note } = removeSchema.parse(req.body);
+  await removeMember(getRequiredAuth(req), clubIdOf(req.params.clubId), membershipIdOf(req.params.membershipId), reason, note);
+  res.status(204).end();
 });
