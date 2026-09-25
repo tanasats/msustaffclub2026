@@ -17,6 +17,8 @@ import {
   lockApplication,
   replaceActivityRows,
   replaceAdvisorRows,
+  setExternalAdvisorConsentFile,
+  findApplicationIdByConsentFile,
   replaceCommitteeRows,
   replaceMemberRows,
   updateApplicationGeneral,
@@ -32,6 +34,13 @@ import {
   listClubPositions,
   type ClubPositionRecord,
 } from '../repositories/club-master-repository.js';
+import {
+  findExternalPerson,
+  insertExternalPerson,
+  updateExternalPerson,
+  type ExternalPersonInput,
+} from '../repositories/external-persons-repository.js';
+import { findFile } from '../repositories/files-repository.js';
 import { findActiveUserIdsByEmail, findUserSummariesByIds, type UserSummary } from '../repositories/users-repository.js';
 import { hasPermission, type AuthContext } from './authorization.js';
 import {
@@ -45,6 +54,7 @@ import {
   MIN_INITIAL_MEMBERS,
 } from './club-rules.js';
 import { buddhistYearOf, fiscalYearOf, toThaiDigits } from './fiscal-year.js';
+import { registerFileReadAccess } from './files-service.js';
 import { PERMISSIONS } from './permissions.js';
 
 // ตำแหน่งประธาน: ผู้ยื่นคำขอต้องเป็นประธานเสมอ (ข้อตกลง D ในเอกสารออกแบบ)
@@ -208,7 +218,15 @@ export async function updateGeneral(
 
 // ---------- ที่ปรึกษา ----------
 
-export type AdvisorInput = { userId: string } | { email: string };
+export type AdvisorInput =
+  | { userId: string }
+  | { email: string }
+  // บุคคลภายนอก: externalPersonId = คนเดิมในคำขอนี้ (แก้ข้อมูลได้), ไม่ระบุ = เพิ่มคนใหม่
+  | { external: ExternalPersonInput; externalPersonId?: string };
+
+// key สำหรับจับคู่ที่ปรึกษาคนเดิม เพื่อคงผลการยินยอม/ไฟล์แนบไว้เมื่อแก้รายชื่อ
+const advisorKey = (row: Pick<AdvisorRow, 'email' | 'externalPersonId'>) =>
+  row.externalPersonId ? `ext:${row.externalPersonId}` : `email:${row.email}`;
 
 export async function replaceAdvisors(auth: AuthContext, applicationId: string, inputs: AdvisorInput[]): Promise<void> {
   if (inputs.length > MAX_ADVISORS) {
@@ -217,48 +235,98 @@ export async function replaceAdvisors(auth: AuthContext, applicationId: string, 
 
   await withTransaction(async (client) => {
     const app = await lockForEdit(client, auth, applicationId);
+    const previousRows = await listAdvisorRows(applicationId, client);
+    const previousExternalIds = new Set(previousRows.flatMap((row) => (row.externalPersonId ? [row.externalPersonId] : [])));
 
-    // แปลง input ทุกแบบให้เป็น (email, userId)
+    // แปลง input ทุกแบบให้เป็น (email, userId) หรือ (externalPersonId)
     const selectedIds = inputs.flatMap((input) => ('userId' in input ? [input.userId] : []));
     const users = await loadEligibleUsers(selectedIds, client);
-    const resolved: { email: string; userId: string | null }[] = [];
+    const resolved: Pick<AdvisorRow, 'email' | 'userId' | 'externalPersonId'>[] = [];
     for (const input of inputs) {
       if ('userId' in input) {
-        resolved.push({ email: users.get(input.userId)!.email, userId: input.userId });
-        continue;
+        resolved.push({ email: users.get(input.userId)!.email, userId: input.userId, externalPersonId: null });
+      } else if ('email' in input) {
+        const email = input.email.trim().toLowerCase();
+        if (!isAllowedEmailDomain(email) || !isEligibleForClub(email)) {
+          throw new AppError(422, 'ADVISOR_EMAIL_NOT_ALLOWED', `${email} ต้องเป็นบัญชีบุคลากรของมหาวิทยาลัย (บุคคลภายนอกให้เพิ่มแบบบุคคลภายนอก)`);
+        }
+        // ถ้ามีผู้ใช้ email นี้อยู่แล้ว (1 คนพอดี) ผูก user_id เลย ไม่เช่นนั้นรอจับคู่ตอนที่ปรึกษา login
+        const matches = await findActiveUserIdsByEmail(email, client);
+        resolved.push({ email, userId: matches.length === 1 ? matches[0]! : null, externalPersonId: null });
+      } else if (input.externalPersonId) {
+        // แก้ข้อมูลบุคคลภายนอกได้เฉพาะคนที่อยู่ในคำขอนี้อยู่แล้ว
+        if (!previousExternalIds.has(input.externalPersonId) || !(await findExternalPerson(input.externalPersonId, client))) {
+          throw new AppError(422, 'EXTERNAL_PERSON_NOT_FOUND', 'ไม่พบข้อมูลที่ปรึกษาภายนอก');
+        }
+        await updateExternalPerson(input.externalPersonId, input.external, client);
+        resolved.push({ email: null, userId: null, externalPersonId: input.externalPersonId });
+      } else {
+        const id = await insertExternalPerson(input.external, auth.user.id, client);
+        resolved.push({ email: null, userId: null, externalPersonId: id });
       }
-      const email = input.email.trim().toLowerCase();
-      if (!isAllowedEmailDomain(email) || !isEligibleForClub(email)) {
-        throw new AppError(422, 'ADVISOR_EMAIL_NOT_ALLOWED', `${email} ต้องเป็นบัญชีบุคลากรของมหาวิทยาลัย`);
-      }
-      // ถ้ามีผู้ใช้ email นี้อยู่แล้ว (1 คนพอดี) ผูก user_id เลย ไม่เช่นนั้นรอจับคู่ตอนที่ปรึกษา login
-      const matches = await findActiveUserIdsByEmail(email, client);
-      resolved.push({ email, userId: matches.length === 1 ? matches[0]! : null });
     }
 
-    const emails = resolved.map((row) => row.email);
-    if (new Set(emails).size !== emails.length) {
+    const keys = resolved.map(advisorKey);
+    if (new Set(keys).size !== keys.length) {
       throw new AppError(422, 'DUPLICATE_ADVISOR', 'ระบุที่ปรึกษาซ้ำกัน');
     }
-    if (emails.includes(auth.user.email) || resolved.some((row) => row.userId === app.applicantUserId)) {
+    if (resolved.some((row) => row.email === auth.user.email || row.userId === app.applicantUserId)) {
       throw new AppError(422, 'ADVISOR_IS_APPLICANT', 'ผู้ยื่นคำขอเป็นที่ปรึกษาของชมรมตัวเองไม่ได้');
     }
 
-    // คงผลการยินยอมเดิมไว้สำหรับที่ปรึกษาคนเดิม (email เดิม) คนใหม่เริ่มที่ pending
-    const previous = new Map((await listAdvisorRows(applicationId, client)).map((row) => [row.email, row]));
+    // คงผลการยินยอม/ไฟล์คำยินยอมเดิมไว้สำหรับที่ปรึกษาคนเดิม คนใหม่เริ่มที่ pending
+    const previous = new Map(previousRows.map((row) => [advisorKey(row), row]));
     const rows: AdvisorRow[] = resolved.map((row, index) => {
-      const old = previous.get(row.email);
+      const old = previous.get(advisorKey(row));
       return {
-        email: row.email,
+        ...row,
         userId: row.userId ?? old?.userId ?? null,
         sortOrder: index + 1,
         consentStatus: old?.consentStatus ?? 'pending',
         respondedAt: old?.respondedAt ?? null,
+        consentFileId: old?.consentFileId ?? null,
+        consentVerifiedBy: old?.consentVerifiedBy ?? null,
+        consentVerifiedAt: old?.consentVerifiedAt ?? null,
       };
     });
     await replaceAdvisorRows(applicationId, rows, client);
   });
 }
+
+/**
+ * แนบใบคำยินยอมที่ลงนามแล้วให้ที่ปรึกษาภายนอก (ลำดับที่ sortOrder)
+ * ไฟล์ต้องเป็นใบคำยินยอมที่ผู้ยื่นอัปโหลดเองและอัปโหลดสำเร็จแล้ว
+ */
+export async function attachExternalAdvisorConsent(
+  auth: AuthContext,
+  applicationId: string,
+  sortOrder: number,
+  fileId: string,
+): Promise<void> {
+  await withTransaction(async (client) => {
+    await lockForEdit(client, auth, applicationId);
+    const file = await findFile(fileId, client);
+    if (!file || file.uploadedBy !== auth.user.id || file.purpose !== 'advisor_consent' || file.status !== 'uploaded') {
+      throw new AppError(422, 'INVALID_CONSENT_FILE', 'ไฟล์ใบคำยินยอมไม่ถูกต้อง หรือยังอัปโหลดไม่สำเร็จ');
+    }
+    if (!(await setExternalAdvisorConsentFile(applicationId, sortOrder, fileId, client))) {
+      throw new AppError(404, 'ADVISOR_NOT_FOUND', 'ไม่พบที่ปรึกษาภายนอกลำดับนี้');
+    }
+  });
+}
+
+// สิทธิ์ดาวน์โหลดใบคำยินยอม = สิทธิ์ดูคำขอที่ไฟล์นั้นแนบอยู่
+registerFileReadAccess('advisor_consent', async (auth, file) => {
+  const applicationId = await findApplicationIdByConsentFile(file.id);
+  const app = applicationId ? await findApplicationBase(applicationId) : null;
+  if (!app) return false;
+  try {
+    await assertCanView(auth, app);
+    return true;
+  } catch {
+    return false;
+  }
+});
 
 // ---------- กรรมการ ----------
 
@@ -426,11 +494,15 @@ export async function getApplicationDetail(auth: AuthContext, applicationId: str
     contactEmail: detail.contactEmail,
     regulationText: detail.regulationText,
     advisors: advisors.map((a) => ({
+      kind: a.externalPersonId ? ('external' as const) : ('internal' as const),
       email: a.email,
       user: a.userId ? { id: a.userId, name: a.userName } : null,
+      external: a.externalPersonId && a.external ? { id: a.externalPersonId, ...a.external } : null,
       sortOrder: a.sortOrder,
       consentStatus: a.consentStatus,
       respondedAt: a.respondedAt,
+      consentFile: a.consentFileId ? { id: a.consentFileId, originalName: a.consentFileName } : null,
+      consentVerified: a.consentVerifiedAt ? { at: a.consentVerifiedAt, byName: a.consentVerifiedByName } : null,
     })),
     committee: committee.map((c) => ({
       user: { id: c.userId, name: c.userName, email: c.userEmail, orgUnitName: c.orgUnitName },
@@ -500,6 +572,12 @@ export async function collectSubmissionIssues(applicationId: string, db: Queryab
   }
   if (advisors.length === 0) {
     add('ADVISOR_REQUIRED', 'กรุณาระบุที่ปรึกษาชมรมอย่างน้อย 1 คน');
+  } else if (!advisors.some((a) => !a.externalPersonId)) {
+    add('INTERNAL_ADVISOR_REQUIRED', 'ต้องมีที่ปรึกษาที่เป็นบุคลากรของมหาวิทยาลัยอย่างน้อย 1 คน');
+  }
+  const missingConsent = advisors.filter((a) => a.externalPersonId && !a.consentFileId);
+  if (missingConsent.length > 0) {
+    add('EXTERNAL_CONSENT_REQUIRED', 'กรุณาแนบใบคำยินยอมที่ลงนามแล้วของที่ปรึกษาภายนอกให้ครบ');
   }
   const committeeUserIds = new Set(committee.map((c) => c.userId));
   if (advisors.some((a) => a.userId && committeeUserIds.has(a.userId))) {

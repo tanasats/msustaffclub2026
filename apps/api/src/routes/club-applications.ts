@@ -6,6 +6,7 @@ import {
   createEstablishDraft,
   getApplicationDetail,
   listMyApplications,
+  attachExternalAdvisorConsent,
   replaceActivities,
   replaceAdvisors,
   replaceCommittee,
@@ -21,8 +22,10 @@ import {
   respondAsAdvisor,
   reviewApplication,
   submitApplication,
+  verifyAdvisorConsent,
   withdrawToDraft,
 } from '../services/club-application-workflow-service.js';
+import { AppError } from '../errors.js';
 import { MAX_OBJECTIVES } from '../services/club-rules.js';
 import { PERMISSIONS } from '../services/permissions.js';
 import { optionalText, parseIdParam, requiredText } from './validation.js';
@@ -54,9 +57,36 @@ const generalSchema = z
   .partial()
   .strict();
 
+const externalPersonSchema = z
+  .object({
+    prefixTh: optionalText(50),
+    firstNameTh: requiredText(100),
+    lastNameTh: requiredText(100),
+    organization: requiredText(300),
+    position: optionalText(200),
+    email: z.email().max(200).nullable().transform((value) => value?.toLowerCase() ?? null),
+    phone: optionalText(50),
+  })
+  .strict()
+  .refine((person) => person.email || person.phone, { message: 'ต้องมีอีเมลหรือเบอร์โทรอย่างน้อย 1 ช่องทาง', path: ['phone'] });
+
 const advisorsSchema = z.object({
-  advisors: z.array(z.union([z.object({ userId: z.uuid() }).strict(), z.object({ email: z.email().max(200) }).strict()])),
+  advisors: z.array(
+    z.union([
+      z.object({ userId: z.uuid() }).strict(),
+      z.object({ email: z.email().max(200) }).strict(),
+      z.object({ external: externalPersonSchema, externalPersonId: z.uuid().optional() }).strict(),
+    ]),
+  ),
 });
+const consentFileSchema = z.object({ fileId: z.uuid() }).strict();
+const advisorOrderOf = (value: unknown) => {
+  const order = Number(value);
+  if (!Number.isInteger(order) || order < 1 || order > 2) {
+    throw new AppError(404, 'ADVISOR_NOT_FOUND', 'ไม่พบที่ปรึกษาลำดับนี้');
+  }
+  return order;
+};
 
 const committeeSchema = z.object({
   committee: z
@@ -151,6 +181,13 @@ clubApplicationsRouter.put('/club-applications/:id/advisors', requireCreate, asy
   res.status(204).end();
 });
 
+// ผู้ยื่น: แนบใบคำยินยอมของที่ปรึกษาภายนอก (ไฟล์ที่อัปโหลดผ่าน /files/uploads แล้ว)
+clubApplicationsRouter.put('/club-applications/:id/advisors/:order/consent-file', requireCreate, async (req, res) => {
+  const { fileId } = consentFileSchema.parse(req.body);
+  await attachExternalAdvisorConsent(getRequiredAuth(req), idOf(req.params.id), advisorOrderOf(req.params.order), fileId);
+  res.status(204).end();
+});
+
 clubApplicationsRouter.put('/club-applications/:id/committee', requireCreate, async (req, res) => {
   const { committee } = committeeSchema.parse(req.body);
   await replaceCommittee(getRequiredAuth(req), idOf(req.params.id), committee);
@@ -212,4 +249,10 @@ clubApplicationsRouter.post('/club-applications/:id/review', requireAuth, async 
 clubApplicationsRouter.post('/club-applications/:id/decision', requireAuth, async (req, res) => {
   const { decision, note } = decisionSchema.parse(req.body);
   res.json(await decideApplication(getRequiredAuth(req), idOf(req.params.id), decision, note ?? null));
+});
+
+// ต้องมี club_application:review (ตรวจใน service): ยืนยันว่าตรวจใบคำยินยอมของที่ปรึกษาภายนอกแล้ว
+clubApplicationsRouter.post('/club-applications/:id/advisors/:order/verify-consent', requireAuth, async (req, res) => {
+  await verifyAdvisorConsent(getRequiredAuth(req), idOf(req.params.id), advisorOrderOf(req.params.order));
+  res.status(204).end();
 });

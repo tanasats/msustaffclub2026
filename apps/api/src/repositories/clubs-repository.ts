@@ -25,7 +25,11 @@ export async function insertClubFromApplication(
   return result.rows[0]!.id;
 }
 
-// ที่ปรึกษาที่ยินยอมแล้วเท่านั้น (ต้องมี user_id เพราะยินยอมผ่านการ login)
+/**
+ * ที่ปรึกษาที่ยินยอมแล้วเท่านั้น:
+ * - บุคลากร: ยินยอมผ่านการ login (มี user_id)
+ * - บุคคลภายนอก: แนบใบคำยินยอม และเจ้าหน้าที่ตรวจเอกสารแล้ว
+ */
 export async function insertAdvisorsFromApplication(
   clubId: string,
   applicationId: string,
@@ -34,10 +38,12 @@ export async function insertAdvisorsFromApplication(
   db: Queryable,
 ): Promise<number> {
   const result = await db.query(
-    `INSERT INTO club_advisors (club_id, user_id, fiscal_year, started_on)
-     SELECT $1, user_id, $3, $4::date
+    `INSERT INTO club_advisors (club_id, user_id, external_person_id, fiscal_year, started_on)
+     SELECT $1, user_id, external_person_id, $3, $4::date
        FROM club_application_advisors
-      WHERE application_id = $2 AND consent_status = 'accepted' AND user_id IS NOT NULL`,
+      WHERE application_id = $2
+        AND consent_status = 'accepted'
+        AND (user_id IS NOT NULL OR (external_person_id IS NOT NULL AND consent_verified_at IS NOT NULL))`,
     [clubId, applicationId, fiscalYear, startedOn],
   );
   return result.rowCount ?? 0;

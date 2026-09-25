@@ -12,6 +12,7 @@ import {
   recordAdvisorResponse,
   resetAdvisorConsents,
   updateApplicationStatus,
+  verifyExternalAdvisorConsent,
   type AdvisorRequestItem,
   type ApplicationBase,
   type ApplicationStatus,
@@ -183,11 +184,30 @@ export async function reviewApplication(
     const app = await lockAsOfficer(client, auth, applicationId, PERMISSIONS.CLUB_APPLICATION_REVIEW);
     assertStatus(app, ['submitted']);
     if (decision === 'pass') {
+      // ต้องตรวจใบคำยินยอมของที่ปรึกษาภายนอกครบทุกคนก่อน
+      const advisors = await listAdvisorRows(applicationId, client);
+      if (advisors.some((a) => a.externalPersonId && !a.consentVerifiedAt)) {
+        throw new AppError(422, 'EXTERNAL_CONSENT_NOT_VERIFIED', 'กรุณาตรวจและยืนยันใบคำยินยอมของที่ปรึกษาภายนอกให้ครบก่อน');
+      }
       await markReviewed(applicationId, auth.user.id, client);
       await transition(client, app, auth.user.id, 'reviewed', note);
     } else {
       await updateApplicationStatus(applicationId, 'returned', client);
       await transition(client, app, auth.user.id, 'returned', note);
+    }
+  });
+}
+
+/**
+ * เจ้าหน้าที่ยืนยันว่าตรวจใบคำยินยอมของที่ปรึกษาภายนอก (ลำดับที่ sortOrder) แล้วถูกต้อง
+ * ทำได้เฉพาะคำขอที่ยื่นแล้ว (submitted) ถ้าเอกสารไม่ถูกต้องให้ส่งกลับแก้ไขแทน
+ */
+export async function verifyAdvisorConsent(auth: AuthContext, applicationId: string, sortOrder: number): Promise<void> {
+  await withTransaction(async (client) => {
+    const app = await lockAsOfficer(client, auth, applicationId, PERMISSIONS.CLUB_APPLICATION_REVIEW);
+    assertStatus(app, ['submitted']);
+    if (!(await verifyExternalAdvisorConsent(applicationId, sortOrder, auth.user.id, client))) {
+      throw new AppError(404, 'ADVISOR_NOT_FOUND', 'ไม่พบที่ปรึกษาภายนอกที่แนบใบคำยินยอมลำดับนี้');
     }
   });
 }

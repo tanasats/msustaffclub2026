@@ -10,7 +10,7 @@ export async function resetDatabase(): Promise<void> {
     `TRUNCATE club_application_events, club_application_activities, club_application_members,
               club_application_committee, club_application_advisors, club_applications,
               club_memberships, club_committee_members, club_advisors, clubs,
-              role_change_logs, sessions, user_roles, user_preferences, files, student_profiles, staff_profiles, erp_org_units, users`,
+              role_change_logs, sessions, user_roles, user_preferences, external_persons, files, student_profiles, staff_profiles, erp_org_units, users`,
   );
   // ลบเฉพาะ role ที่ test สร้าง (ชื่อขึ้นต้นด้วย test_) role และการผูก permission จาก migration ต้องคงอยู่
   await pool.query("DELETE FROM role_permissions WHERE role_id IN (SELECT id FROM roles WHERE code LIKE 'test\\_%')");

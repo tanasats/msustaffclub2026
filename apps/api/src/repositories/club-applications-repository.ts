@@ -128,17 +128,26 @@ export async function updateApplicationStatus(id: string, status: ApplicationSta
 // ---------- ที่ปรึกษา ----------
 
 export interface AdvisorRow {
-  email: string;
+  // บุคลากร: email (+ user_id เมื่อจับคู่ได้) / บุคคลภายนอก: external_person_id
+  email: string | null;
   userId: string | null;
+  externalPersonId: string | null;
   sortOrder: number;
   consentStatus: 'pending' | 'accepted' | 'declined';
   respondedAt: Date | null;
+  consentFileId: string | null;
+  consentVerifiedBy: string | null;
+  consentVerifiedAt: Date | null;
 }
+
+const ADVISOR_ROW_COLUMNS = `
+  email, user_id AS "userId", external_person_id AS "externalPersonId", sort_order AS "sortOrder",
+  consent_status AS "consentStatus", responded_at AS "respondedAt", consent_file_id AS "consentFileId",
+  consent_verified_by AS "consentVerifiedBy", consent_verified_at AS "consentVerifiedAt"`;
 
 export async function listAdvisorRows(applicationId: string, db: Queryable = pool): Promise<AdvisorRow[]> {
   const result = await db.query<AdvisorRow>(
-    `SELECT email, user_id AS "userId", sort_order AS "sortOrder",
-            consent_status AS "consentStatus", responded_at AS "respondedAt"
+    `SELECT ${ADVISOR_ROW_COLUMNS}
        FROM club_application_advisors
       WHERE application_id = $1
       ORDER BY sort_order
@@ -156,19 +165,78 @@ export async function replaceAdvisorRows(applicationId: string, rows: AdvisorRow
   await db.query('DELETE FROM club_application_advisors WHERE application_id = $1', [applicationId]);
   if (rows.length === 0) return;
   await db.query(
-    `INSERT INTO club_application_advisors (application_id, email, user_id, sort_order, consent_status, responded_at)
-     SELECT $1, t.email, t.user_id, t.sort_order, t.consent_status, t.responded_at
-       FROM unnest($2::text[], $3::uuid[], $4::smallint[], $5::text[], $6::timestamptz[])
-            AS t (email, user_id, sort_order, consent_status, responded_at)`,
+    `INSERT INTO club_application_advisors
+       (application_id, email, user_id, external_person_id, sort_order, consent_status, responded_at,
+        consent_file_id, consent_verified_by, consent_verified_at)
+     SELECT $1, t.email, t.user_id, t.external_person_id, t.sort_order, t.consent_status, t.responded_at,
+            t.consent_file_id, t.consent_verified_by, t.consent_verified_at
+       FROM unnest($2::text[], $3::uuid[], $4::uuid[], $5::smallint[], $6::text[], $7::timestamptz[],
+                   $8::uuid[], $9::uuid[], $10::timestamptz[])
+            AS t (email, user_id, external_person_id, sort_order, consent_status, responded_at,
+                  consent_file_id, consent_verified_by, consent_verified_at)`,
     [
       applicationId,
       rows.map((row) => row.email),
       rows.map((row) => row.userId),
+      rows.map((row) => row.externalPersonId),
       rows.map((row) => row.sortOrder),
       rows.map((row) => row.consentStatus),
       rows.map((row) => row.respondedAt),
+      rows.map((row) => row.consentFileId),
+      rows.map((row) => row.consentVerifiedBy),
+      rows.map((row) => row.consentVerifiedAt),
     ],
   );
+}
+
+/**
+ * แนบใบคำยินยอมให้ที่ปรึกษาภายนอก → ถือว่ายินยอมแล้ว (รอเจ้าหน้าที่ตรวจเอกสาร จึงล้างผลการตรวจเดิม)
+ * คืน true ถ้าพบแถวที่ปรึกษาภายนอกลำดับนี้
+ */
+export async function setExternalAdvisorConsentFile(
+  applicationId: string,
+  sortOrder: number,
+  fileId: string,
+  db: Queryable,
+): Promise<boolean> {
+  const result = await db.query(
+    `UPDATE club_application_advisors
+        SET consent_file_id = $3, consent_status = 'accepted', responded_at = now(),
+            consent_verified_by = NULL, consent_verified_at = NULL
+      WHERE application_id = $1 AND sort_order = $2 AND external_person_id IS NOT NULL`,
+    [applicationId, sortOrder, fileId],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+// เจ้าหน้าที่ยืนยันว่าตรวจเอกสารคำยินยอมแล้ว (ต้องมีไฟล์แนบก่อน)
+export async function verifyExternalAdvisorConsent(
+  applicationId: string,
+  sortOrder: number,
+  verifierId: string,
+  db: Queryable,
+): Promise<boolean> {
+  const result = await db.query(
+    `UPDATE club_application_advisors
+        SET consent_verified_by = $3, consent_verified_at = now()
+      WHERE application_id = $1 AND sort_order = $2
+        AND external_person_id IS NOT NULL AND consent_file_id IS NOT NULL`,
+    [applicationId, sortOrder, verifierId],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+// คำขอที่ใช้ไฟล์นี้เป็นใบคำยินยอม (ใช้ตรวจสิทธิ์ดาวน์โหลดไฟล์) ใช้ index club_application_advisors_consent_file_id_idx
+export async function findApplicationIdByConsentFile(fileId: string, db: Queryable = pool): Promise<string | null> {
+  const result = await db.query<{ applicationId: string }>(
+    `SELECT a.application_id AS "applicationId"
+       FROM club_application_advisors a
+       JOIN club_applications app ON app.id = a.application_id AND app.deleted_at IS NULL
+      WHERE a.consent_file_id = $1
+      LIMIT 1`,
+    [fileId],
+  );
+  return result.rows[0]?.applicationId ?? null;
 }
 
 // ---------- กรรมการ ----------
@@ -313,14 +381,37 @@ export async function findApplicationDetail(id: string, db: Queryable = pool): P
 
 export interface AdvisorDetailRow extends AdvisorRow {
   userName: string | null;
+  external: {
+    prefixTh: string | null;
+    firstNameTh: string;
+    lastNameTh: string;
+    organization: string;
+    position: string | null;
+    email: string | null;
+    phone: string | null;
+  } | null;
+  consentFileName: string | null;
+  consentVerifiedByName: string | null;
 }
 
+// LEFT JOIN ทุกตัว: แถวบุคลากรไม่มี external_persons, แถวภายนอกไม่มี users, ไฟล์/ผู้ตรวจอาจยังไม่มี
 export async function listAdvisorDetails(applicationId: string, db: Queryable = pool): Promise<AdvisorDetailRow[]> {
-  const result = await db.query<AdvisorDetailRow>(
-    `SELECT a.email, a.user_id AS "userId", u.name AS "userName", a.sort_order AS "sortOrder",
-            a.consent_status AS "consentStatus", a.responded_at AS "respondedAt"
+  const result = await db.query<AdvisorDetailRow & { extFirstName: string | null }>(
+    `SELECT a.email, a.user_id AS "userId", a.external_person_id AS "externalPersonId", a.sort_order AS "sortOrder",
+            a.consent_status AS "consentStatus", a.responded_at AS "respondedAt", a.consent_file_id AS "consentFileId",
+            a.consent_verified_by AS "consentVerifiedBy", a.consent_verified_at AS "consentVerifiedAt",
+            u.name AS "userName",
+            CASE WHEN e.id IS NULL THEN NULL ELSE json_build_object(
+              'prefixTh', e.prefix_th, 'firstNameTh', e.first_name_th, 'lastNameTh', e.last_name_th,
+              'organization', e.organization, 'position', e.position, 'email', e.email, 'phone', e.phone
+            ) END AS external,
+            f.original_name AS "consentFileName",
+            v.name AS "consentVerifiedByName"
        FROM club_application_advisors a
        LEFT JOIN users u ON u.id = a.user_id
+       LEFT JOIN external_persons e ON e.id = a.external_person_id
+       LEFT JOIN files f ON f.id = a.consent_file_id
+       LEFT JOIN users v ON v.id = a.consent_verified_by
       WHERE a.application_id = $1
       ORDER BY a.sort_order
       LIMIT 10`,
@@ -491,12 +582,13 @@ export async function isClubNameTaken(name: string, excludeClubId: string | null
 
 // ---------- ขั้นตอนอนุมัติ ----------
 
-// ล้างผลการยินยอมทั้งหมดกลับเป็น pending (ใช้ตอนผู้ยื่นขอความยินยอมรอบใหม่)
+// ล้างผลการยินยอมของที่ปรึกษาที่เป็นบุคลากรกลับเป็น pending (ใช้ตอนขอความยินยอมรอบใหม่)
+// ที่ปรึกษาภายนอกยินยอมด้วยเอกสารแนบ จึงไม่ถูกล้าง
 export async function resetAdvisorConsents(applicationId: string, db: Queryable): Promise<void> {
   await db.query(
     `UPDATE club_application_advisors
         SET consent_status = 'pending', responded_at = NULL
-      WHERE application_id = $1`,
+      WHERE application_id = $1 AND external_person_id IS NULL`,
     [applicationId],
   );
 }
@@ -517,6 +609,7 @@ export async function recordAdvisorResponse(
         SET consent_status = $4, responded_at = now(), user_id = $2
       WHERE application_id = $1
         AND consent_status = 'pending'
+        AND external_person_id IS NULL
         AND (user_id = $2 OR (user_id IS NULL AND email = $3))`,
     [applicationId, userId, email, decision],
   );
