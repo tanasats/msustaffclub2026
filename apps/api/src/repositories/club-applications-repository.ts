@@ -345,6 +345,7 @@ export interface ApplicationDetailRow extends ApplicationBase {
   history: string | null;
   motto: string | null;
   logoMeaning: string | null;
+  logoFileId: string | null;
   objectives: string[];
   officeLocation: string | null;
   contactPhone: string | null;
@@ -365,7 +366,7 @@ export async function findApplicationDetail(id: string, db: Queryable = pool): P
             a.name_th AS "nameTh",
             a.category_id AS "categoryId", c.code AS "categoryCode", c.name_th AS "categoryNameTh",
             c.requires_detail AS "categoryRequiresDetail", a.category_detail AS "categoryDetail",
-            a.history, a.motto, a.logo_meaning AS "logoMeaning", a.objectives,
+            a.history, a.motto, a.logo_meaning AS "logoMeaning", a.logo_file_id AS "logoFileId", a.objectives,
             a.office_location AS "officeLocation", a.contact_phone AS "contactPhone", a.contact_email AS "contactEmail",
             a.regulation_text AS "regulationText",
             a.submitted_at AS "submittedAt", a.reviewed_at AS "reviewedAt", a.decided_at AS "decidedAt",
@@ -696,4 +697,25 @@ export async function listApplicationsByStatus(
     [statuses, limit],
   );
   return result.rows;
+}
+
+// ตราที่แนบกับคำขอ (null ตัวนอก = ไม่พบคำขอ)
+export async function findApplicationLogoFileId(id: string, db: Queryable = pool): Promise<{ logoFileId: string | null } | null> {
+  const result = await db.query<{ logoFileId: string | null }>(
+    'SELECT logo_file_id AS "logoFileId" FROM club_applications WHERE id = $1 AND deleted_at IS NULL',
+    [id],
+  );
+  return result.rows[0] ?? null;
+}
+
+// เปลี่ยนตราที่แนบกับคำขอ แล้วคืนค่าไฟล์เดิม (subquery อ่านค่าเดิมก่อน UPDATE เหมือน replaceClubLogo)
+export async function replaceApplicationLogo(id: string, fileId: string | null, db: Queryable): Promise<{ previousFileId: string | null }> {
+  const result = await db.query<{ previousFileId: string | null }>(
+    `UPDATE club_applications a SET logo_file_id = $2
+       FROM (SELECT id, logo_file_id FROM club_applications WHERE id = $1 FOR UPDATE) old
+      WHERE a.id = old.id
+      RETURNING old.logo_file_id AS "previousFileId"`,
+    [id, fileId],
+  );
+  return result.rows[0] ?? { previousFileId: null };
 }

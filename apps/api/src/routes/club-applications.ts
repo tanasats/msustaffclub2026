@@ -14,6 +14,8 @@ import {
   updateGeneral,
   validateForSubmission,
 } from '../services/club-application-service.js';
+import { getApplicationLogoUrl, setApplicationLogo } from '../services/club-logo-service.js';
+import { redirectToImage } from './responses.js';
 import {
   decideApplication,
   listMyAdvisorRequests,
@@ -255,4 +257,20 @@ clubApplicationsRouter.post('/club-applications/:id/decision', requireAuth, asyn
 clubApplicationsRouter.post('/club-applications/:id/advisors/:order/verify-consent', requireAuth, async (req, res) => {
   await verifyAdvisorConsent(getRequiredAuth(req), idOf(req.params.id), advisorOrderOf(req.params.order));
   res.status(204).end();
+});
+
+// ---------- ตราสัญลักษณ์ในคำขอ ----------
+
+const logoSchema = z.object({ fileId: z.uuid().nullable() }).strict();
+
+// ต้อง login เท่านั้น (ต้องเป็นผู้ยื่นและคำขอแก้ไขได้ ตรวจใน service): แนบ/เปลี่ยน/ลบตรา (fileId = null)
+clubApplicationsRouter.put('/club-applications/:id/logo', requireAuth, async (req, res) => {
+  const { fileId } = logoSchema.parse(req.body);
+  await setApplicationLogo(getRequiredAuth(req), idOf(req.params.id), fileId);
+  res.status(204).end();
+});
+
+// ต้อง login เท่านั้น (ต้องดูคำขอนี้ได้ ตรวจใน service): รูปตรา
+clubApplicationsRouter.get('/club-applications/:id/logo', requireAuth, async (req, res) => {
+  redirectToImage(res, await getApplicationLogoUrl(getRequiredAuth(req), idOf(req.params.id)));
 });

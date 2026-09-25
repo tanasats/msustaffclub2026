@@ -84,7 +84,7 @@ export async function assertCanView(auth: AuthContext, app: ApplicationBase): Pr
 /**
  * ล็อกคำขอเพื่อแก้ไข: ต้องเป็นผู้ยื่น และคำขออยู่ในสถานะที่แก้ได้
  */
-async function lockForEdit(client: DbClient, auth: AuthContext, applicationId: string): Promise<ApplicationBase> {
+export async function lockForEdit(client: DbClient, auth: AuthContext, applicationId: string): Promise<ApplicationBase> {
   const app = await lockApplication(applicationId, client);
   if (!app || app.applicantUserId !== auth.user.id) {
     throw notFound();
@@ -485,6 +485,7 @@ export async function getApplicationDetail(auth: AuthContext, applicationId: str
     history: detail.history,
     motto: detail.motto,
     logoMeaning: detail.logoMeaning,
+    logoFileId: detail.logoFileId,
     objectives: detail.objectives,
     officeLocation: detail.officeLocation,
     contactPhone: detail.contactPhone,

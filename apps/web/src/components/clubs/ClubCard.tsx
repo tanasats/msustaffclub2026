@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import { Badge } from '@/components/ui/Badge';
 import { Icon } from '@/components/ui/icons';
+import { ClubLogo } from './ClubLogo';
 import type { ClubListItem } from '@/lib/club-types';
 
 // การ์ดชมรมในทำเนียบ (Bento)
@@ -13,8 +14,13 @@ export function ClubCard({ club }: { club: ClubListItem }) {
           {club.myMembershipStatus === 'active' && <Badge tone="kin">สมาชิก</Badge>}
           {club.myMembershipStatus === 'pending' && <Badge tone="sky">รออนุมัติสมาชิก</Badge>}
         </div>
-        <h2 className="mt-3 font-serif text-xl leading-snug font-medium text-ink group-hover:text-matcha-800">{club.nameTh}</h2>
-        {club.motto && <p className="mt-1 text-sm text-stone">“{club.motto}”</p>}
+        <div className="mt-3 flex items-start gap-3">
+          <ClubLogo path={`/clubs/${club.id}/logo`} fileId={club.logoFileId} name={club.nameTh} size="sm" />
+          <div className="min-w-0">
+            <h2 className="font-serif text-xl leading-snug font-medium text-ink group-hover:text-matcha-800">{club.nameTh}</h2>
+            {club.motto && <p className="mt-1 text-sm text-stone">“{club.motto}”</p>}
+          </div>
+        </div>
       </div>
       <div className="flex items-center justify-between text-sm text-stone">
         <span className="inline-flex items-center gap-1.5">

@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { getRequiredAuth, requireAuth, requireClubPermission } from '../middlewares/auth.js';
 import { CLUB_PERMISSIONS } from '../services/club-permissions.js';
+import { getClubLogoUrl, setClubLogo } from '../services/club-logo-service.js';
 import { getClubPage, listClubDirectory, listClubMembers } from '../services/club-service.js';
 import {
   appointCommitteeMember,
@@ -21,6 +22,7 @@ import {
   REMOVAL_REASONS,
   withdrawApplication,
 } from '../services/membership-service.js';
+import { redirectToImage } from './responses.js';
 import { optionalText, parseIdParam, requiredText } from './validation.js';
 
 export const clubsRouter = Router();
@@ -178,5 +180,21 @@ clubsRouter.post('/clubs/:clubId/committee/resign', requireAuth, async (req, res
 clubsRouter.post('/clubs/:clubId/committee/:committeeMemberId/end', requireAuth, async (req, res) => {
   const { reason, note } = endTermSchema.parse(req.body);
   await endCommitteeTerm(getRequiredAuth(req), clubIdOf(req.params.clubId), committeeMemberIdOf(req.params.committeeMemberId), reason, note);
+  res.status(204).end();
+});
+
+// ---------- ตราสัญลักษณ์ ----------
+
+const logoSchema = z.object({ fileId: z.uuid().nullable() }).strict();
+
+// ต้อง login เท่านั้น: รูปตราของชมรม (ข้อมูลสาธารณะของชมรม)
+clubsRouter.get('/clubs/:clubId/logo', requireAuth, async (req, res) => {
+  redirectToImage(res, await getClubLogoUrl(clubIdOf(req.params.clubId)));
+});
+
+// ต้องมีสิทธิ์ชมรม club_profile:edit (ตรวจใน service): แนบ/เปลี่ยน/ลบตรา (fileId = null)
+clubsRouter.put('/clubs/:clubId/logo', requireAuth, async (req, res) => {
+  const { fileId } = logoSchema.parse(req.body);
+  await setClubLogo(getRequiredAuth(req), clubIdOf(req.params.clubId), fileId);
   res.status(204).end();
 });

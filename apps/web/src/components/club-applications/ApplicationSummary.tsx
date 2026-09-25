@@ -1,4 +1,5 @@
 import { formatDate } from '@/lib/format';
+import { ClubLogo } from '@/components/clubs/ClubLogo';
 import { FileLink } from '@/components/files/FileLink';
 import { Badge } from '@/components/ui/Badge';
 import { advisorDisplayName, type ApplicationDetail } from '@/lib/club-application-types';
@@ -34,6 +35,9 @@ export function ApplicationSummary({ application: a }: { application: Applicatio
             )}
           </Row>
           <Row label="คำขวัญ">{a.motto}</Row>
+          <Row label="ตราสัญลักษณ์">
+            {a.logoFileId && <ClubLogo path={`/club-applications/${a.id}/logo`} fileId={a.logoFileId} name={a.nameTh} />}
+          </Row>
           <Row label="ความหมายของตรา">{a.logoMeaning}</Row>
           <Row label="ประวัติชมรม">{a.history && <p className="whitespace-pre-line">{a.history}</p>}</Row>
           <Row label="สถานที่ทำการ">{a.officeLocation}</Row>

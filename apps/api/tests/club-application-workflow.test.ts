@@ -122,6 +122,13 @@ async function toReviewed(s: Scenario) {
 describe('flow เต็ม: ขอความยินยอม → ยื่น → ตรวจ → อนุมัติ → สร้างชมรม', () => {
   it('อนุมัติแล้วได้ชมรม ที่ปรึกษา กรรมการ สมาชิก และ log ครบทุกขั้น', async () => {
     const s = await scenario();
+    // ตราที่แนบกับคำขอ (ใส่ตรงในฐานข้อมูล — การอัปโหลดจริงทดสอบใน club-logo.test.ts)
+    const { rows: logo } = await pool.query<{ id: string }>(
+      `INSERT INTO files (bucket, object_key, original_name, mime_type, size_bytes, purpose, status, uploaded_at, uploaded_by)
+       VALUES ('b', 'club-logos/x', 'logo.png', 'image/png', 10, 'club_logo', 'uploaded', now(), $1) RETURNING id`,
+      [s.applicant.id],
+    );
+    await pool.query('UPDATE club_applications SET logo_file_id = $2 WHERE id = $1', [s.id, logo[0]!.id]);
     await toReviewed(s);
 
     const res = await post(s.approver, `/club-applications/${s.id}/decision`, { decision: 'approve', note: 'เห็นชอบ' });
@@ -131,7 +138,7 @@ describe('flow เต็ม: ขอความยินยอม → ยื่�
     const clubId = res.body.clubId as string;
 
     const { rows: clubs } = await pool.query(
-      `SELECT name_th, status, motto, objectives, to_char(established_on, 'YYYY-MM-DD') AS established_on,
+      `SELECT name_th, status, motto, objectives, logo_file_id, to_char(established_on, 'YYYY-MM-DD') AS established_on,
               to_char(registered_until, 'YYYY-MM-DD') AS registered_until, regulation_text LIKE '%ชมรมดนตรีไทย%' AS has_regulation
          FROM clubs WHERE id = $1`,
       [clubId],
@@ -141,6 +148,7 @@ describe('flow เต็ม: ขอความยินยอม → ยื่�
       status: 'active',
       motto: 'ดนตรีคือชีวิต',
       objectives: ['ส่งเสริมดนตรีไทย'],
+      logo_file_id: logo[0]!.id,
       established_on: bangkokDateString(),
       registered_until: fiscalYearRange(fiscalYearOf()).end,
       has_regulation: true,

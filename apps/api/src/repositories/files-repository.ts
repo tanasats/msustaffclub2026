@@ -1,6 +1,6 @@
 import { pool, type Queryable } from '../db/pool.js';
 
-export type FilePurpose = 'advisor_consent';
+export type FilePurpose = 'advisor_consent' | 'club_logo';
 
 export interface FileRecord {
   id: string;
@@ -56,4 +56,19 @@ export async function lockFile(id: string, db: Queryable): Promise<FileRecord | 
 
 export async function markFileUploaded(id: string, db: Queryable): Promise<void> {
   await db.query(`UPDATE files SET status = 'uploaded', uploaded_at = now() WHERE id = $1`, [id]);
+}
+
+// ไฟล์ตรายังถูกใช้โดยคำขอหรือชมรมใดอยู่หรือไม่ (คำขอกับชมรมที่ตั้งจากคำขอนั้นใช้ไฟล์เดียวกันได้)
+export async function isLogoFileInUse(id: string, db: Queryable): Promise<boolean> {
+  const result = await db.query<{ inUse: boolean }>(
+    `SELECT EXISTS (SELECT 1 FROM clubs WHERE logo_file_id = $1)
+         OR EXISTS (SELECT 1 FROM club_applications WHERE logo_file_id = $1) AS "inUse"`,
+    [id],
+  );
+  return result.rows[0]?.inUse ?? false;
+}
+
+// ลบไฟล์แบบ soft delete (เก็บแถวไว้เป็นประวัติ) ส่วน object ใน bucket ลบแยกหลัง commit
+export async function softDeleteFile(id: string, db: Queryable): Promise<void> {
+  await db.query('UPDATE files SET deleted_at = now() WHERE id = $1 AND deleted_at IS NULL', [id]);
 }

@@ -1,7 +1,9 @@
 import { redirect } from 'next/navigation';
 import { ActionButton } from '@/components/club-applications/ActionButton';
+import { ClubLogo } from '@/components/clubs/ClubLogo';
 import { CommitteeManager } from '@/components/clubs/CommitteeManager';
 import { EndCommitteeTermButton } from '@/components/clubs/EndCommitteeTermButton';
+import { LogoUploader } from '@/components/clubs/LogoUploader';
 import { MembershipPanel } from '@/components/clubs/MembershipPanel';
 import { RemoveMemberButton } from '@/components/clubs/RemoveMemberButton';
 import { Badge } from '@/components/ui/Badge';
@@ -36,6 +38,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
   const canViewInternal = club.me.permissions.includes('club:view_internal');
   const canApproveMembers = club.me.permissions.includes('club_member:approve') && club.status === 'active';
   const canManageCommittee = club.me.permissions.includes('club_committee:manage') && club.status === 'active';
+  const canEditProfile = club.me.permissions.includes('club_profile:edit') && club.status === 'active';
   const [members, requests, positions, history] = await Promise.all([
     canViewInternal ? apiGetJson<{ items: ClubMember[]; total: number }>(`/clubs/${club.id}/members?pageSize=100`) : null,
     canApproveMembers ? apiGetJson<{ items: MembershipRequest[] }>(`/clubs/${club.id}/membership-requests`) : null,
@@ -74,6 +77,22 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
 
       <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-3">
         <Bento className="lg:col-span-2">
+          {(club.logoFileId || club.logoMeaning || canEditProfile) && (
+            <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start">
+              <ClubLogo path={`/clubs/${club.id}/logo`} fileId={club.logoFileId} name={club.nameTh} size="lg" />
+              <div className="min-w-0 flex-1">
+                <BentoTitle className="mb-1">ตราสัญลักษณ์</BentoTitle>
+                <p className="text-[0.9375rem] leading-relaxed whitespace-pre-line text-ink">
+                  {club.logoMeaning ?? (club.logoFileId ? '' : 'ยังไม่มีตราสัญลักษณ์')}
+                </p>
+                {canEditProfile && (
+                  <div className="mt-3">
+                    <LogoUploader attachPath={`/clubs/${club.id}/logo`} hasLogo={Boolean(club.logoFileId)} />
+                  </div>
+                )}
+              </div>
+            </div>
+          )}
           <BentoTitle className="mb-3">วัตถุประสงค์</BentoTitle>
           {club.objectives.length > 0 ? (
             <ol className="grid gap-2">
