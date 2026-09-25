@@ -11,6 +11,7 @@ import { adminRolesRouter } from './routes/admin-roles.js';
 import { createAuthRouter } from './routes/auth.js';
 import { clubApplicationsRouter } from './routes/club-applications.js';
 import { clubMasterRouter } from './routes/club-master.js';
+import { clubsRouter } from './routes/clubs.js';
 import { usersRouter } from './routes/users.js';
 import { filesRouter } from './routes/files.js';
 import { healthRouter } from './routes/health.js';
@@ -35,6 +36,7 @@ export function createApp(): express.Express {
   app.use(clubMasterRouter);
   app.use(usersRouter);
   app.use(clubApplicationsRouter);
+  app.use(clubsRouter);
   app.use(adminRolesRouter);
   app.use(meRouter);
   app.use(filesRouter);

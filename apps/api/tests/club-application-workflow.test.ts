@@ -165,6 +165,24 @@ describe('flow เต็ม: ขอความยินยอม → ยื่�
       [clubId],
     );
     expect(memberships.map((m) => m.user_id).sort()).toEqual([s.applicant.id, s.secretaryId, ...s.memberIds].sort());
+    // สมาชิกตั้งต้นทุกคนมีประวัติ "อนุมัติโดยระบบ" (บันทึกในคำสั่งเดียวกับการสร้างสมาชิก)
+    const { rows: memberEvents } = await pool.query(
+      `SELECT e.action, e.actor_user_id FROM club_membership_events e
+         JOIN club_memberships m ON m.id = e.membership_id WHERE m.club_id = $1`,
+      [clubId],
+    );
+    expect(memberEvents).toHaveLength(memberships.length);
+    expect(memberEvents.every((e) => e.action === 'approved' && e.actor_user_id === null)).toBe(true);
+    // กรรมการชุดแรกมีประวัติ "รับตำแหน่ง" โดยระบบ
+    const { rows: committeeEvents } = await pool.query(
+      `SELECT e.action, e.actor_user_id FROM club_committee_events e
+         JOIN club_committee_members m ON m.id = e.committee_member_id WHERE m.club_id = $1`,
+      [clubId],
+    );
+    expect(committeeEvents).toEqual([
+      { action: 'appointed', actor_user_id: null },
+      { action: 'appointed', actor_user_id: null },
+    ]);
 
     const detail = (await get(s.applicant, `/club-applications/${s.id}`)).body;
     expect(detail).toMatchObject({ status: 'approved', clubId, decisionNote: 'เห็นชอบ' });

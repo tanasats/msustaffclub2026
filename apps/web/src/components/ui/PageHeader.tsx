@@ -2,7 +2,7 @@ import Link from 'next/link';
 import { Icon } from './icons';
 
 interface PageHeaderProps {
-  // ข้อความภาษาอังกฤษสั้น ๆ เหนือหัวข้อ (เว้นระยะตัวอักษรได้ เพราะไม่ใช่ภาษาไทย)
+  // ข้อความภาษาอังกฤษสั้น ๆ เหนือหัวข้อเท่านั้น — ห้ามใส่ภาษาไทย (มีระยะห่างตัวอักษรกว้าง ทำให้สระ/วรรณยุกต์แยกจากพยัญชนะ)
   eyebrow?: string;
   title: string;
   description?: React.ReactNode;

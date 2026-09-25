@@ -16,7 +16,11 @@ export interface NavItem {
 export function buildNavigation(current: CurrentUser): NavItem[] {
   const has = (permission: string) =>
     current.roles.includes('super_admin') || current.permissions.includes(permission);
-  const items: NavItem[] = [{ href: '/', label: 'หน้าหลัก', shortLabel: 'หน้าหลัก', icon: 'home', group: 'main' }];
+  const items: NavItem[] = [
+    { href: '/', label: 'หน้าหลัก', shortLabel: 'หน้าหลัก', icon: 'home', group: 'main' },
+    // ทุกคนที่ login ดูทำเนียบชมรมได้
+    { href: '/clubs', label: 'ทำเนียบชมรม', shortLabel: 'ชมรม', icon: 'users', group: 'main' },
+  ];
 
   if (has('club_application:create')) {
     items.push({ href: '/club-applications', label: 'คำขอจัดตั้งชมรม', shortLabel: 'คำขอ', icon: 'scroll', group: 'main' });
