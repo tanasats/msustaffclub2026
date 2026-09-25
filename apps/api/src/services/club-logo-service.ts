@@ -10,7 +10,7 @@ import type { AuthContext } from './authorization.js';
 import { assertCanView, lockForEdit, notFound as applicationNotFound } from './club-application-service.js';
 import { hasClubPermission } from './club-authorization.js';
 import { CLUB_PERMISSIONS } from './club-permissions.js';
-import { assertAttachableFile, createFileViewUrl, discardLogoFileIfUnused } from './files-service.js';
+import { assertAttachableFile, createFileViewUrl, discardFileIfUnused } from './files-service.js';
 
 function logoNotFound(): AppError {
   return new AppError(404, 'LOGO_NOT_FOUND', 'ไม่พบตราสัญลักษณ์');
@@ -19,7 +19,7 @@ function logoNotFound(): AppError {
 // ไฟล์เดิมที่ถูกแทนที่: ลบทิ้งถ้าไม่มีคำขอ/ชมรมใดใช้แล้ว (ทำหลัง commit)
 async function cleanupPrevious(previousFileId: string | null, newFileId: string | null): Promise<void> {
   if (previousFileId && previousFileId !== newFileId) {
-    await discardLogoFileIfUnused(previousFileId);
+    await discardFileIfUnused(previousFileId);
   }
 }
 

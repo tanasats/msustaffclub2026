@@ -7,6 +7,7 @@ import { requestLogger } from './middlewares/request-logger.js';
 import { errorHandler, notFoundHandler } from './middlewares/error-handler.js';
 import { loadSession } from './middlewares/auth.js';
 import { requireTrustedOrigin } from './middlewares/csrf.js';
+import { achievementsRouter } from './routes/achievements.js';
 import { adminRolesRouter } from './routes/admin-roles.js';
 import { createAuthRouter } from './routes/auth.js';
 import { clubApplicationsRouter } from './routes/club-applications.js';
@@ -37,6 +38,7 @@ export function createApp(): express.Express {
   app.use(usersRouter);
   app.use(clubApplicationsRouter);
   app.use(clubsRouter);
+  app.use(achievementsRouter);
   app.use(adminRolesRouter);
   app.use(meRouter);
   app.use(filesRouter);

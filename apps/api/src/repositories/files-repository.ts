@@ -1,6 +1,6 @@
 import { pool, type Queryable } from '../db/pool.js';
 
-export type FilePurpose = 'advisor_consent' | 'club_logo';
+export type FilePurpose = 'advisor_consent' | 'club_logo' | 'achievement_evidence';
 
 export interface FileRecord {
   id: string;
@@ -58,11 +58,16 @@ export async function markFileUploaded(id: string, db: Queryable): Promise<void>
   await db.query(`UPDATE files SET status = 'uploaded', uploaded_at = now() WHERE id = $1`, [id]);
 }
 
-// ไฟล์ตรายังถูกใช้โดยคำขอหรือชมรมใดอยู่หรือไม่ (คำขอกับชมรมที่ตั้งจากคำขอนั้นใช้ไฟล์เดียวกันได้)
-export async function isLogoFileInUse(id: string, db: Queryable): Promise<boolean> {
+/**
+ * ไฟล์ยังถูกอ้างอิงจากข้อมูลใดอยู่หรือไม่ (ตรวจทุกคอลัมน์ที่อ้างถึง files ก่อนลบ)
+ * เช่น คำขอกับชมรมที่ตั้งจากคำขอนั้นใช้ไฟล์ตราเดียวกันได้ — ทุกคอลัมน์มี index รองรับ
+ */
+export async function isFileInUse(id: string, db: Queryable): Promise<boolean> {
   const result = await db.query<{ inUse: boolean }>(
     `SELECT EXISTS (SELECT 1 FROM clubs WHERE logo_file_id = $1)
-         OR EXISTS (SELECT 1 FROM club_applications WHERE logo_file_id = $1) AS "inUse"`,
+         OR EXISTS (SELECT 1 FROM club_applications WHERE logo_file_id = $1)
+         OR EXISTS (SELECT 1 FROM club_application_advisors WHERE consent_file_id = $1)
+         OR EXISTS (SELECT 1 FROM club_achievement_files WHERE file_id = $1) AS "inUse"`,
     [id],
   );
   return result.rows[0]?.inUse ?? false;
