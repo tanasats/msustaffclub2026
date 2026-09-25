@@ -47,3 +47,56 @@ export function thaiMonthLabel(date: string): string {
   const [year, month] = date.split('-').map(Number) as [number, number];
   return new Intl.DateTimeFormat('th-TH', { month: 'long', year: 'numeric', timeZone: 'UTC' }).format(new Date(Date.UTC(year, month - 1, 1)));
 }
+
+export interface AnnualStats {
+  activityCount: number;
+  participantTotal: number;
+  plannedCount: number;
+  activeMembers: number;
+  approvedAchievements: number;
+  monthlyReportsSubmitted: number;
+}
+
+export interface AnnualReportSummary {
+  id: string;
+  fiscalYear: number;
+  status: MonthlyReportStatus;
+  submittedAt: string | null;
+  acknowledgedAt: string | null;
+}
+
+export interface AnnualReportDetail {
+  id: string;
+  clubId: string;
+  clubName: string;
+  fiscalYear: number;
+  status: MonthlyReportStatus;
+  summary: string | null;
+  obstacles: string | null;
+  stats: AnnualStats;
+  activities: MonthlyReportDetail['activities'];
+  dueDate: string;
+  createdByName: string | null;
+  submittedByName: string | null;
+  submittedAt: string | null;
+  acknowledgedByName: string | null;
+  acknowledgedAt: string | null;
+  acknowledgementNote: string | null;
+  me: { canEdit: boolean; canAcknowledge: boolean; canViewClubReports: boolean };
+}
+
+// สถานะรายงานประจำปี (ผู้รับทราบคือเจ้าหน้าที่สโมสร)
+export const ANNUAL_STATUS_LABELS: Record<MonthlyReportStatus, string> = {
+  draft: 'ร่าง',
+  submitted: 'รอสโมสรรับทราบ',
+  acknowledged: 'สโมสรรับทราบแล้ว',
+};
+
+export interface ReportOverviewItem {
+  clubId: string;
+  clubName: string;
+  missingMonths: string[];
+  awaitingAdvisor: number;
+  annualReportId: string | null;
+  annualStatus: MonthlyReportStatus | null;
+}

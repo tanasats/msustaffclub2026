@@ -7,6 +7,7 @@ export const PERMISSIONS = {
   CLUB_APPLICATION_APPROVE: 'club_application:approve',
   CLUB_READ_ALL: 'club:read_all',
   CLUB_MANAGE_ALL: 'club:manage_all',
+  CLUB_REPORT_REVIEW: 'club_report:review',
 } as const;
 
 export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

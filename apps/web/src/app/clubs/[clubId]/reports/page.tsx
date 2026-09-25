@@ -1,11 +1,18 @@
 import Link from 'next/link';
+import { CreateAnnualReportButton } from '@/components/reports/CreateAnnualReportButton';
 import { CreateReportButton } from '@/components/reports/CreateReportButton';
 import { Badge } from '@/components/ui/Badge';
-import { Bento } from '@/components/ui/Bento';
+import { Bento, BentoTitle } from '@/components/ui/Bento';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { apiGetJson } from '@/lib/api-server';
 import type { ClubPage } from '@/lib/club-types';
-import { REPORT_STATUS_LABELS, thaiMonthLabel, type MonthlyReportSummary } from '@/lib/report-types';
+import {
+  ANNUAL_STATUS_LABELS,
+  REPORT_STATUS_LABELS,
+  thaiMonthLabel,
+  type AnnualReportSummary,
+  type MonthlyReportSummary,
+} from '@/lib/report-types';
 import { bangkokToday, fiscalYearOf } from '@/lib/thai-date';
 
 const STATUS_TONES = { draft: 'neutral', submitted: 'sky', acknowledged: 'matcha' } as const;
@@ -33,10 +40,12 @@ export default async function ClubReportsPage({
   const requested = Number((await searchParams).fiscalYear);
   const fiscalYear = Number.isInteger(requested) && requested >= current - 5 && requested <= current ? requested : current;
   const id = encodeURIComponent(clubId);
-  const [club, reports] = await Promise.all([
+  const [club, reports, annual] = await Promise.all([
     apiGetJson<ClubPage>(`/clubs/${id}`),
     apiGetJson<{ items: MonthlyReportSummary[] }>(`/clubs/${id}/monthly-reports?fiscalYear=${fiscalYear}`),
+    apiGetJson<{ items: AnnualReportSummary[] }>(`/clubs/${id}/annual-reports`),
   ]);
+  const annualReport = annual.items.find((a) => a.fiscalYear === fiscalYear);
   const canSubmit = club.me.permissions.includes('club_report:submit') && club.status === 'active';
   const byMonth = new Map(reports.items.map((r) => [r.reportMonth.slice(0, 7), r]));
   const thisMonth = bangkokToday().slice(0, 7);
@@ -46,7 +55,7 @@ export default async function ClubReportsPage({
     <>
       <PageHeader
         eyebrow="Reports"
-        title="รายงานรายเดือน"
+        title="รายงานของชมรม"
         description={`${club.nameTh} · ปีงบประมาณ ${fiscalYear} — รายงานการประชุมและกิจกรรมให้ที่ปรึกษาทุกสิ้นเดือน (ระเบียบข้อ 16)`}
         back={{ href: `/clubs/${club.id}`, label: club.nameTh }}
         actions={
@@ -66,7 +75,26 @@ export default async function ClubReportsPage({
           </nav>
         }
       />
+      <Bento tone="cream" className="mb-3 sm:mb-4">
+        <div className="flex flex-wrap items-center justify-between gap-3">
+          <div>
+            <BentoTitle>รายงานประจำปีงบประมาณ {fiscalYear}</BentoTitle>
+            <p className="text-sm text-stone">เสนอสโมสรก่อนสิ้นวาระ 30 วัน (ภายใน 31 ส.ค.)</p>
+          </div>
+          {annualReport ? (
+            <Link href={`/annual-reports/${annualReport.id}`} className="inline-flex items-center gap-2 text-sm text-matcha-700 underline">
+              <Badge tone={STATUS_TONES[annualReport.status]}>{ANNUAL_STATUS_LABELS[annualReport.status]}</Badge>
+              เปิดรายงานประจำปี
+            </Link>
+          ) : canSubmit ? (
+            <CreateAnnualReportButton clubId={club.id} fiscalYear={fiscalYear} />
+          ) : (
+            <Badge tone="neutral">ยังไม่มีรายงานประจำปี</Badge>
+          )}
+        </div>
+      </Bento>
       <Bento>
+        <BentoTitle className="mb-3">รายงานรายเดือน</BentoTitle>
         <ul className="grid gap-2 sm:grid-cols-2 lg:grid-cols-3">
           {fiscalMonths(fiscalYear).map((month) => {
             const report = byMonth.get(month);

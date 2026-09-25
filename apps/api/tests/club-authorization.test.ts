@@ -86,7 +86,7 @@ describe('ข้อมูลตั้งต้นของชมรม', () => {
          FROM roles r WHERE r.code IN ('club_officer', 'club_president') ORDER BY r.code`,
     );
     expect(rows).toEqual([
-      { code: 'club_officer', name_th: 'เจ้าหน้าที่สโมสร', is_system: false, is_privileged: true, permissions: ['club_application:review'] },
+      { code: 'club_officer', name_th: 'เจ้าหน้าที่สโมสร', is_system: false, is_privileged: true, permissions: ['club_application:review', 'club_report:review'] },
       { code: 'club_president', name_th: 'นายกสโมสร', is_system: false, is_privileged: true, permissions: ['club_application:approve'] },
     ]);
   });

@@ -1,8 +1,18 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { getRequiredAuth, requireAuth, requireClubPermission } from '../middlewares/auth.js';
+import { getRequiredAuth, requireAuth, requireClubPermission, requirePermission } from '../middlewares/auth.js';
+import {
+  acknowledgeAnnual,
+  createAnnualReport,
+  getAnnualReport,
+  getClubAnnualReports,
+  getReportOverview,
+  saveAnnualReport,
+  submitAnnual,
+} from '../services/annual-report-service.js';
 import { CLUB_PERMISSIONS } from '../services/club-permissions.js';
 import { fiscalYearOf } from '../services/fiscal-year.js';
+import { PERMISSIONS } from '../services/permissions.js';
 import {
   acknowledgeReport,
   createMonthlyReport,
@@ -78,4 +88,52 @@ reportsRouter.post('/monthly-reports/:id/acknowledge', requireAuth, async (req, 
   const { note } = noteSchema.parse(req.body ?? {});
   await acknowledgeReport(getRequiredAuth(req), reportIdOf(req.params.id), note ?? null);
   res.status(204).end();
+});
+
+// ---------- รายงานประจำปี (เสนอสโมสร) ----------
+
+const annualCreateSchema = z.object({ fiscalYear: z.number().int().min(2500).max(2700) }).strict();
+const annualSaveSchema = z
+  .object({ summary: optionalText(10000).optional(), obstacles: optionalText(5000).optional() })
+  .strict();
+
+// ต้องมีสิทธิ์ชมรม club:view_internal: รายงานประจำปีของชมรม
+reportsRouter.get('/clubs/:clubId/annual-reports', requireAuth, requireClubPermission(CLUB_PERMISSIONS.VIEW_INTERNAL), async (req, res) => {
+  res.json(await getClubAnnualReports(req.params.clubId as string));
+});
+
+// ต้องมีสิทธิ์ชมรม club_report:submit (ตรวจใน service): สร้างร่าง
+reportsRouter.post('/clubs/:clubId/annual-reports', requireAuth, async (req, res) => {
+  const { fiscalYear } = annualCreateSchema.parse(req.body);
+  res.status(201).json({ id: await createAnnualReport(getRequiredAuth(req), clubIdOf(req.params.clubId), fiscalYear) });
+});
+
+// ต้องมีสิทธิ์ชมรม club:view_internal หรือ club_report:review (ตรวจใน service): รายละเอียด
+reportsRouter.get('/annual-reports/:id', requireAuth, async (req, res) => {
+  res.json(await getAnnualReport(getRequiredAuth(req), reportIdOf(req.params.id)));
+});
+
+// ต้องมีสิทธิ์ชมรม club_report:submit (ตรวจใน service): บันทึกร่าง / ส่ง
+reportsRouter.put('/annual-reports/:id', requireAuth, async (req, res) => {
+  const input = annualSaveSchema.parse(req.body);
+  await saveAnnualReport(getRequiredAuth(req), reportIdOf(req.params.id), { summary: input.summary ?? null, obstacles: input.obstacles ?? null });
+  res.status(204).end();
+});
+
+reportsRouter.post('/annual-reports/:id/submit', requireAuth, async (req, res) => {
+  await submitAnnual(getRequiredAuth(req), reportIdOf(req.params.id));
+  res.status(204).end();
+});
+
+// ต้องมี permission club_report:review (ตรวจใน service): เจ้าหน้าที่สโมสรรับทราบ
+reportsRouter.post('/annual-reports/:id/acknowledge', requireAuth, async (req, res) => {
+  const { note } = noteSchema.parse(req.body ?? {});
+  await acknowledgeAnnual(getRequiredAuth(req), reportIdOf(req.params.id), note ?? null);
+  res.status(204).end();
+});
+
+// ต้องมี permission club_report:review: ภาพรวมการส่งรายงานทุกชมรม
+reportsRouter.get('/reports/overview', requireAuth, requirePermission(PERMISSIONS.CLUB_REPORT_REVIEW), async (req, res) => {
+  const { fiscalYear } = yearQuery.parse(req.query);
+  res.json(await getReportOverview(fiscalYear ?? fiscalYearOf()));
 });

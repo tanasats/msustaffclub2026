@@ -176,7 +176,7 @@ Role และ permission เฉพาะระบบนี้ (**เริ่�
 |---|---|---|---|
 | `student` | นิสิต | false | (ยังไม่ผูก) — `is_system`, ระบบให้อัตโนมัติตอน login |
 | `staff` | บุคลากร | false | `club_application:create` — `is_system`, ระบบให้อัตโนมัติตอน login |
-| `club_officer` | เจ้าหน้าที่สโมสร | true | `club_application:review` |
+| `club_officer` | เจ้าหน้าที่สโมสร | true | `club_application:review`, `club_report:review` |
 | `club_president` | นายกสโมสร | true | `club_application:approve` |
 
 Permission ที่ลงทะเบียนแล้ว (ยังไม่ผูกกับ role ใด → ใช้ได้เฉพาะ `super_admin`):
@@ -189,6 +189,7 @@ Permission ที่ลงทะเบียนแล้ว (ยังไม่�
 | `club_application:approve` | อนุมัติขั้นที่ 2: อนุมัติ / ไม่อนุมัติ / ส่งกลับแก้ไข |
 | `club:read_all` | ดูข้อมูลทุกชมรมและทุกคำขอ (อ่านอย่างเดียว) |
 | `club:manage_all` | จัดการทุกชมรมและข้อมูลหลักของชมรม และผ่านสิทธิ์ระดับชมรมทุกข้อ |
+| `club_report:review` | รับทราบรายงานประจำปีของทุกชมรม และดูภาพรวมการส่งรายงาน (ผูกกับ `club_officer`) |
 
 **สิทธิ์ระดับชมรม (club-scoped)** — ได้จากตำแหน่งของผู้ใช้ "ในชมรมนั้น" (กรรมการ/ที่ปรึกษา/สมาชิก) ไม่ใช่ role ของระบบ
 - ตำแหน่ง ↔ สิทธิ์ชมรม เก็บในตาราง `club_positions` / `club_permissions` / `club_position_permissions` (ค่าตั้งต้นดู `docs/design/club-establishment.md` หัวข้อ 3.3) ค่าคงที่อยู่ที่ `src/services/club-permissions.ts` ที่เดียว
