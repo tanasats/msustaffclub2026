@@ -20,17 +20,17 @@ export function MembersEditor({ application }: { application: ApplicationDetail 
 
   return (
     <form onSubmit={handleSubmit}>
-      <p className="mb-2 text-sm text-slate-600">
+      <p className="mb-2 text-sm text-stone">
         รวมกรรมการแล้ว {total} คน (ขั้นต่ำ 5 คน) — กรรมการ {committeeIds.length} คน นับเป็นสมาชิกโดยอัตโนมัติ
       </p>
       <ul className="mb-3 grid gap-1">
         {members.map((member) => (
-          <li key={member.id} className="flex items-center justify-between rounded-md border border-slate-200 px-2 py-1.5 text-sm">
+          <li key={member.id} className="flex items-center justify-between rounded-xl border border-ink/[0.08] bg-white/70 px-2 py-1.5 text-sm">
             <span>
               {member.name ?? member.email}
-              <span className="ml-2 text-xs text-slate-500">{member.orgUnitName ?? member.email}</span>
+              <span className="ml-2 text-xs text-mist">{member.orgUnitName ?? member.email}</span>
             </span>
-            <button type="button" onClick={() => setMembers((prev) => prev.filter((m) => m.id !== member.id))} className="text-red-700 underline">
+            <button type="button" onClick={() => setMembers((prev) => prev.filter((m) => m.id !== member.id))} className="text-beni underline">
               ลบ
             </button>
           </li>

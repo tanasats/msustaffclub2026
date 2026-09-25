@@ -18,7 +18,7 @@ export function GrantRoleForm({ userId, options }: GrantRoleFormProps) {
   const [error, setError] = useState<string | null>(null);
 
   if (options.length === 0) {
-    return <p className="text-sm text-slate-600">ไม่มี role ที่คุณให้เพิ่มได้</p>;
+    return <p className="text-sm text-stone">ไม่มี role ที่คุณให้เพิ่มได้</p>;
   }
 
   async function handleSubmit(event: React.FormEvent) {
@@ -42,7 +42,7 @@ export function GrantRoleForm({ userId, options }: GrantRoleFormProps) {
         <select
           value={roleCode}
           onChange={(e) => setRoleCode(e.target.value)}
-          className="rounded-md border border-slate-300 px-3 py-2"
+          className="field"
         >
           {options.map((option) => (
             <option key={option.code} value={option.code}>
@@ -59,18 +59,18 @@ export function GrantRoleForm({ userId, options }: GrantRoleFormProps) {
           required
           maxLength={500}
           placeholder="เช่น แต่งตั้งตามคำสั่งที่ ..."
-          className="rounded-md border border-slate-300 px-3 py-2"
+          className="field"
         />
       </label>
       {error && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-beni">
           {error}
         </p>
       )}
       <button
         type="submit"
         disabled={pending || !reason.trim()}
-        className="self-start rounded-md bg-slate-900 px-4 py-2 text-white hover:bg-slate-700 disabled:opacity-50"
+        className="self-start btn btn-primary"
       >
         {pending ? 'กำลังบันทึก...' : 'ให้ role'}
       </button>

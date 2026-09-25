@@ -1,10 +1,11 @@
+import { formatDate } from '@/lib/format';
 import type { ApplicationDetail } from '@/lib/club-application-types';
 import { CONSENT_LABELS } from '@/lib/club-application-types';
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="grid gap-0.5 py-2 sm:grid-cols-4 sm:gap-4">
-      <dt className="text-sm text-slate-600">{label}</dt>
+      <dt className="text-sm text-stone">{label}</dt>
       <dd className="text-sm sm:col-span-3">{children || '-'}</dd>
     </div>
   );
@@ -14,9 +15,9 @@ function Row({ label, children }: { label: string; children: React.ReactNode }) 
 export function ApplicationSummary({ application: a }: { application: ApplicationDetail }) {
   return (
     <div className="grid gap-4">
-      <section className="rounded-lg border border-slate-200 bg-white p-4 sm:p-6">
-        <h2 className="font-semibold">ข้อมูลชมรม</h2>
-        <dl className="mt-2 divide-y divide-slate-100">
+      <section className="bento p-5 sm:p-6">
+        <h2 className="font-serif text-lg font-medium">ข้อมูลชมรม</h2>
+        <dl className="mt-2 divide-y divide-ink/[0.06]">
           <Row label="ประเภท">
             {a.category?.nameTh}
             {a.categoryDetail ? ` (${a.categoryDetail})` : ''}
@@ -38,25 +39,25 @@ export function ApplicationSummary({ application: a }: { application: Applicatio
         </dl>
       </section>
 
-      <section className="rounded-lg border border-slate-200 bg-white p-4 sm:p-6">
-        <h2 className="font-semibold">ที่ปรึกษาชมรม</h2>
+      <section className="bento p-5 sm:p-6">
+        <h2 className="font-serif text-lg font-medium">ที่ปรึกษาชมรม</h2>
         <ul className="mt-2 grid gap-1 text-sm">
           {a.advisors.map((adv) => (
             <li key={adv.email}>
               {adv.sortOrder}. {adv.user?.name ?? adv.email} — {CONSENT_LABELS[adv.consentStatus]}
             </li>
           ))}
-          {a.advisors.length === 0 && <li className="text-slate-600">-</li>}
+          {a.advisors.length === 0 && <li className="text-stone">-</li>}
         </ul>
       </section>
 
-      <section className="rounded-lg border border-slate-200 bg-white p-4 sm:p-6">
-        <h2 className="font-semibold">คณะกรรมการบริหาร ({a.committee.length} คน)</h2>
-        <ul className="mt-2 divide-y divide-slate-100 text-sm">
+      <section className="bento p-5 sm:p-6">
+        <h2 className="font-serif text-lg font-medium">คณะกรรมการบริหาร ({a.committee.length} คน)</h2>
+        <ul className="mt-2 divide-y divide-ink/[0.06] text-sm">
           {a.committee.map((c) => (
             <li key={c.user.id} className="py-2">
               <span className="font-medium">{c.positionTitle}</span>: {c.user.name ?? c.user.email}
-              <span className="block text-xs text-slate-500">
+              <span className="block text-xs text-mist">
                 {[c.user.orgUnitName, c.workLocation, c.contactPhone].filter(Boolean).join(' · ')}
               </span>
             </li>
@@ -64,49 +65,41 @@ export function ApplicationSummary({ application: a }: { application: Applicatio
         </ul>
       </section>
 
-      <section className="rounded-lg border border-slate-200 bg-white p-4 sm:p-6">
-        <h2 className="font-semibold">สมาชิกตั้งต้นเพิ่มเติม ({a.members.length} คน)</h2>
+      <section className="bento p-5 sm:p-6">
+        <h2 className="font-serif text-lg font-medium">สมาชิกตั้งต้นเพิ่มเติม ({a.members.length} คน)</h2>
         <ul className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
           {a.members.map((m) => (
             <li key={m.id}>
-              {m.name ?? m.email} <span className="text-xs text-slate-500">{m.orgUnitName}</span>
+              {m.name ?? m.email} <span className="text-xs text-mist">{m.orgUnitName}</span>
             </li>
           ))}
         </ul>
       </section>
 
-      <section className="rounded-lg border border-slate-200 bg-white p-4 sm:p-6">
-        <h2 className="font-semibold">แผนงานกิจกรรมประจำปี</h2>
+      <section className="bento p-5 sm:p-6">
+        <h2 className="font-serif text-lg font-medium">แผนงานกิจกรรมประจำปี</h2>
         {a.activities.length === 0 ? (
-          <p className="mt-2 text-sm text-slate-600">-</p>
+          <p className="mt-2 text-sm text-stone">-</p>
         ) : (
-          <div className="mt-2 overflow-x-auto">
-            <table className="w-full text-left text-sm">
-              <thead className="text-slate-600">
-                <tr>
-                  <th className="py-1 pr-3 font-normal">วันที่</th>
-                  <th className="py-1 pr-3 font-normal">เวลา</th>
-                  <th className="py-1 pr-3 font-normal">กิจกรรม</th>
-                  <th className="py-1 font-normal">หมายเหตุ</th>
-                </tr>
-              </thead>
-              <tbody>
-                {a.activities.map((act, i) => (
-                  <tr key={i} className="border-t border-slate-100">
-                    <td className="py-1 pr-3">{act.activityDate ?? '-'}</td>
-                    <td className="py-1 pr-3">{act.activityTime ?? '-'}</td>
-                    <td className="py-1 pr-3">{act.title}</td>
-                    <td className="py-1">{act.note ?? '-'}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <ol className="mt-3 grid gap-2">
+            {a.activities.map((act, i) => (
+              <li key={i} className="flex gap-4 rounded-xl border border-ink/[0.06] bg-cream/40 p-3">
+                <div className="w-24 shrink-0 text-sm">
+                  <p className="font-medium text-matcha-800">{formatDate(act.activityDate)}</p>
+                  {act.activityTime && <p className="text-xs text-mist">{act.activityTime}</p>}
+                </div>
+                <div className="min-w-0 text-sm">
+                  <p className="text-ink">{act.title}</p>
+                  {act.note && <p className="mt-0.5 text-xs text-stone">{act.note}</p>}
+                </div>
+              </li>
+            ))}
+          </ol>
         )}
       </section>
 
-      <details className="rounded-lg border border-slate-200 bg-white p-4 sm:p-6">
-        <summary className="cursor-pointer font-semibold">ระเบียบข้อบังคับของชมรม</summary>
+      <details className="bento p-5 sm:p-6">
+        <summary className="cursor-pointer font-serif text-lg font-medium">ระเบียบข้อบังคับของชมรม</summary>
         <pre className="mt-3 whitespace-pre-wrap font-sans text-sm leading-relaxed">{a.regulationText}</pre>
       </details>
     </div>

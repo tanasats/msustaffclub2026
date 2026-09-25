@@ -16,7 +16,7 @@ interface Row {
   bio: string;
 }
 
-const inputClass = 'rounded-md border border-slate-300 px-2 py-1.5 text-sm';
+const inputClass = 'field !min-h-10 !px-3 text-sm';
 const PRESIDENT = 'president';
 
 // คณะกรรมการบริหาร: ผู้ยื่นเป็นประธานเสมอ ตำแหน่งอื่นยืดหยุ่น (ตั้งชื่อตำแหน่งเองได้)
@@ -58,18 +58,18 @@ export function CommitteeEditor({ application, positions }: { application: Appli
         {rows.map((row, index) => {
           const isPresident = row.positionCode === PRESIDENT;
           return (
-            <li key={row.userId} className="rounded-md border border-slate-200 p-3">
+            <li key={row.userId} className="rounded-xl border border-ink/[0.08] bg-white/70 p-3">
               <div className="flex items-start justify-between gap-2">
                 <p className="text-sm font-medium">{row.label}</p>
                 {!isPresident && (
-                  <button type="button" onClick={() => setRows((prev) => prev.filter((_, i) => i !== index))} className="text-sm text-red-700 underline">
+                  <button type="button" onClick={() => setRows((prev) => prev.filter((_, i) => i !== index))} className="text-sm text-beni underline">
                     ลบ
                   </button>
                 )}
               </div>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
                 {isPresident ? (
-                  <p className="text-sm text-slate-600">ตำแหน่ง: ประธานชมรม (ผู้ยื่นคำขอ)</p>
+                  <p className="text-sm text-stone">ตำแหน่ง: ประธานชมรม (ผู้ยื่นคำขอ)</p>
                 ) : (
                   <select
                     value={row.positionCode}

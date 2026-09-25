@@ -2,6 +2,7 @@
 
 import { useRouter } from 'next/navigation';
 import { useState } from 'react';
+import { Icon } from '@/components/ui/icons';
 import { publicEnv } from '@/lib/public-env';
 
 // สร้างคำขอจัดตั้งชมรม (ฉบับร่าง) แล้วไปหน้ากรอกรายละเอียด
@@ -36,8 +37,8 @@ export function CreateApplicationForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} className="flex flex-col gap-2 sm:flex-row sm:items-end">
-      <label className="flex w-full flex-col gap-1 text-sm">
+    <form onSubmit={handleSubmit} className="grid gap-3">
+      <label className="grid gap-1.5 text-sm text-stone">
         ชื่อชมรมที่ขอจัดตั้ง
         <input
           value={nameTh}
@@ -45,18 +46,15 @@ export function CreateApplicationForm() {
           required
           maxLength={200}
           placeholder="เช่น ชมรมดนตรีไทย"
-          className="rounded-md border border-slate-300 px-3 py-2"
+          className="field"
         />
       </label>
-      <button
-        type="submit"
-        disabled={pending || !nameTh.trim()}
-        className="shrink-0 rounded-md bg-slate-900 px-4 py-2 text-white hover:bg-slate-700 disabled:opacity-50"
-      >
+      <button type="submit" disabled={pending || !nameTh.trim()} className="btn btn-primary">
+        <Icon name="plus" className="size-[18px]" />
         {pending ? 'กำลังสร้าง...' : 'เริ่มยื่นคำขอ'}
       </button>
       {error && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-beni">
           {error}
         </p>
       )}

@@ -39,13 +39,13 @@ export function UserPicker({ excludeIds, onSelect, placeholder = 'ค้นห�
         value={query}
         onChange={(e) => setQuery(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+        className="w-full field"
       />
       {query.trim().length >= 2 && (
-        <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-md border border-slate-200 bg-white shadow">
-          {searching && <li className="p-2 text-sm text-slate-500">กำลังค้นหา...</li>}
+        <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-ink/[0.08] bg-white/70 bg-white shadow">
+          {searching && <li className="p-2 text-sm text-mist">กำลังค้นหา...</li>}
           {!searching && visible.length === 0 && (
-            <li className="p-2 text-sm text-slate-500">ไม่พบ (ผู้ใช้ต้องเคยเข้าสู่ระบบแล้ว)</li>
+            <li className="p-2 text-sm text-mist">ไม่พบ (ผู้ใช้ต้องเคยเข้าสู่ระบบแล้ว)</li>
           )}
           {visible.map((user) => (
             <li key={user.id}>
@@ -56,10 +56,10 @@ export function UserPicker({ excludeIds, onSelect, placeholder = 'ค้นห�
                   setQuery('');
                   setResults([]);
                 }}
-                className="w-full p-2 text-left text-sm hover:bg-slate-50"
+                className="w-full p-2 text-left text-sm hover:bg-matcha-50/60"
               >
                 <span className="font-medium">{user.name ?? user.email}</span>
-                <span className="block text-xs text-slate-500">
+                <span className="block text-xs text-mist">
                   {user.email}
                   {user.orgUnitName ? ` · ${user.orgUnitName}` : ''}
                 </span>

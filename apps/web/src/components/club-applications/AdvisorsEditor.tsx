@@ -40,18 +40,18 @@ export function AdvisorsEditor({ application }: { application: ApplicationDetail
   return (
     <form onSubmit={handleSubmit}>
       <ul className="mb-3 grid gap-2">
-        {advisors.length === 0 && <li className="text-sm text-slate-600">ยังไม่ได้ระบุที่ปรึกษา</li>}
+        {advisors.length === 0 && <li className="text-sm text-stone">ยังไม่ได้ระบุที่ปรึกษา</li>}
         {advisors.map((advisor, index) => (
-          <li key={advisor.key} className="flex items-center justify-between rounded-md border border-slate-200 p-2 text-sm">
+          <li key={advisor.key} className="flex items-center justify-between rounded-xl border border-ink/[0.08] bg-white/70 p-2 text-sm">
             <span>
               {index + 1}. {advisor.label}
-              <span className="block text-xs text-slate-500">
+              <span className="block text-xs text-mist">
                 {advisor.email}
                 {advisor.consent ? ` · ${advisor.consent}` : ''}
                 {!advisor.userId ? ' · ยังไม่เคยเข้าสู่ระบบ' : ''}
               </span>
             </span>
-            <button type="button" onClick={() => setAdvisors((prev) => prev.filter((a) => a.key !== advisor.key))} className="text-red-700 underline">
+            <button type="button" onClick={() => setAdvisors((prev) => prev.filter((a) => a.key !== advisor.key))} className="text-beni underline">
               ลบ
             </button>
           </li>
@@ -71,7 +71,7 @@ export function AdvisorsEditor({ application }: { application: ApplicationDetail
               value={email}
               onChange={(e) => setEmail(e.target.value)}
               placeholder="หรือพิมพ์อีเมล @msu.ac.th (กรณีที่ปรึกษายังไม่เคยเข้าสู่ระบบ)"
-              className="w-full rounded-md border border-slate-300 px-3 py-2 text-sm"
+              className="w-full field"
             />
             <button
               type="button"
@@ -81,7 +81,7 @@ export function AdvisorsEditor({ application }: { application: ApplicationDetail
                 add({ key: value, label: value, email: value, userId: null });
                 setEmail('');
               }}
-              className="shrink-0 rounded-md border border-slate-300 px-3 text-sm hover:bg-slate-50"
+              className="btn btn-secondary shrink-0"
             >
               เพิ่ม
             </button>

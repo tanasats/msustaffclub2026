@@ -33,7 +33,7 @@ export function RevokeRoleButton({ userId, roleCode, roleName }: RevokeRoleButto
 
   if (!open) {
     return (
-      <button type="button" onClick={() => setOpen(true)} className="text-sm text-red-700 underline">
+      <button type="button" onClick={() => setOpen(true)} className="text-sm text-beni underline">
         ถอน
       </button>
     );
@@ -47,10 +47,10 @@ export function RevokeRoleButton({ userId, roleCode, roleName }: RevokeRoleButto
         maxLength={500}
         placeholder={`เหตุผลที่ถอน ${roleName}`}
         aria-label={`เหตุผลที่ถอน ${roleName}`}
-        className="rounded-md border border-slate-300 px-3 py-1.5 text-sm"
+        className="field !min-h-10 text-sm"
       />
       {error && (
-        <p role="alert" className="text-sm text-red-700">
+        <p role="alert" className="text-sm text-beni">
           {error}
         </p>
       )}
@@ -59,11 +59,11 @@ export function RevokeRoleButton({ userId, roleCode, roleName }: RevokeRoleButto
           type="button"
           onClick={handleConfirm}
           disabled={pending || !reason.trim()}
-          className="rounded-md bg-red-700 px-3 py-1.5 text-sm text-white hover:bg-red-600 disabled:opacity-50"
+          className="btn btn-danger !min-h-10 text-sm"
         >
           {pending ? 'กำลังถอน...' : 'ยืนยันถอน'}
         </button>
-        <button type="button" onClick={() => setOpen(false)} className="text-sm text-slate-600 underline">
+        <button type="button" onClick={() => setOpen(false)} className="text-sm text-stone underline">
           ยกเลิก
         </button>
       </div>

@@ -5,7 +5,7 @@ import type { ApplicationDetail, ClubCategory } from '@/lib/club-application-typ
 import { SaveBar } from './SaveBar';
 import { useSave } from './useSave';
 
-const inputClass = 'rounded-md border border-slate-300 px-3 py-2 text-sm';
+const inputClass = 'field';
 
 interface GeneralInfoFormProps {
   application: ApplicationDetail;
@@ -73,7 +73,7 @@ export function GeneralInfoForm({ application, categories }: GeneralInfoFormProp
         <legend className="mb-1 text-sm">วัตถุประสงค์ของการจัดตั้งชมรม * (อย่างน้อย 1 ข้อ)</legend>
         {objectives.map((objective, index) => (
           <div key={index} className="flex gap-2">
-            <span className="pt-2 text-sm text-slate-500">{index + 1}.</span>
+            <span className="pt-2 text-sm text-mist">{index + 1}.</span>
             <input
               value={objective}
               onChange={(e) => setObjectives((prev) => prev.map((o, i) => (i === index ? e.target.value : o)))}
@@ -83,14 +83,14 @@ export function GeneralInfoForm({ application, categories }: GeneralInfoFormProp
             <button
               type="button"
               onClick={() => setObjectives((prev) => (prev.length > 1 ? prev.filter((_, i) => i !== index) : ['']))}
-              className="text-sm text-red-700 underline"
+              className="text-sm text-beni underline"
             >
               ลบ
             </button>
           </div>
         ))}
         {objectives.length < 20 && (
-          <button type="button" onClick={() => setObjectives((prev) => [...prev, ''])} className="justify-self-start text-sm text-blue-700 underline">
+          <button type="button" onClick={() => setObjectives((prev) => [...prev, ''])} className="justify-self-start text-sm text-matcha-700 underline">
             + เพิ่มวัตถุประสงค์
           </button>
         )}
@@ -130,7 +130,7 @@ export function GeneralInfoForm({ application, categories }: GeneralInfoFormProp
           onChange={set('regulationText')}
           rows={16}
           maxLength={100000}
-          className={`${inputClass} font-mono text-xs leading-relaxed`}
+          className={`${inputClass} !min-h-80 text-sm leading-7`}
         />
       </label>
 

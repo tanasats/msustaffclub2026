@@ -13,13 +13,13 @@ export function SaveBar({ pending, error, saved, label = 'บันทึก', d
       <button
         type="submit"
         disabled={pending || disabled}
-        className="rounded-md bg-slate-900 px-4 py-2 text-sm text-white hover:bg-slate-700 disabled:opacity-50"
+        className="btn btn-primary"
       >
         {pending ? 'กำลังบันทึก...' : label}
       </button>
-      {saved && !error && <span className="text-sm text-green-700">บันทึกแล้ว</span>}
+      {saved && !error && <span className="text-sm text-matcha-700">บันทึกแล้ว</span>}
       {error && (
-        <span role="alert" className="text-sm text-red-700">
+        <span role="alert" className="text-sm text-beni">
           {error}
         </span>
       )}

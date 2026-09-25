@@ -1,1 +1,86 @@
 @import 'tailwindcss';
+
+/*
+ * ระบบดีไซน์ "Washi & Matcha" — มินิมอลแบบญี่ปุ่น สงบ เรียบหรู
+ * washi = กระดาษญี่ปุ่น (พื้นหลัง), matcha = สีหลัก, ink = ตัวอักษร, beni = แดงหม่น (อันตราย), kin = ทองหม่น (สิทธิ์สูง)
+ */
+@theme {
+  --color-washi: #faf8f3;
+  --color-cream: #f3eee3;
+  --color-sand: #e6ddcb;
+  --color-ink: #2a2b26;
+  --color-stone: #6e6a60;
+  --color-mist: #9c978b;
+
+  --color-matcha-50: #f1f4ec;
+  --color-matcha-100: #e2e9d8;
+  --color-matcha-200: #c7d4b5;
+  --color-matcha-300: #a3b78c;
+  --color-matcha-500: #6b8a55;
+  --color-matcha-600: #52703f;
+  --color-matcha-700: #3f5b33;
+  --color-matcha-800: #334a2a;
+  --color-matcha-900: #263822;
+
+  --color-beni: #a0473c;
+  --color-beni-50: #f7ebe8;
+  --color-kin: #8a6d34;
+  --color-kin-50: #f5eedf;
+
+  --radius-bento: 16px;
+
+  --font-sans: var(--font-plex-thai), ui-sans-serif, system-ui, sans-serif;
+  --font-serif: var(--font-serif-thai), ui-serif, Georgia, serif;
+}
+
+@layer base {
+  html {
+    -webkit-tap-highlight-color: transparent;
+  }
+  body {
+    @apply bg-washi font-sans text-ink antialiased;
+    /* แสงนุ่ม ๆ มุมบน ให้พื้นดูเหมือนกระดาษ ไม่แบน */
+    background-image:
+      radial-gradient(60rem 30rem at 100% -10%, rgb(226 233 216 / 0.45), transparent 60%),
+      radial-gradient(40rem 24rem at -10% 110%, rgb(243 238 227 / 0.9), transparent 60%);
+    background-attachment: fixed;
+  }
+  ::selection {
+    @apply bg-matcha-200 text-matcha-900;
+  }
+  :focus-visible {
+    @apply outline-2 outline-offset-2 outline-matcha-600;
+  }
+}
+
+@utility bento {
+  @apply rounded-bento border border-ink/[0.08] bg-white/75 backdrop-blur-sm;
+}
+
+@utility field {
+  @apply min-h-11 w-full rounded-xl border border-ink/[0.12] bg-white/90 px-3.5 py-2 text-[15px] text-ink placeholder:text-mist
+    transition focus:border-matcha-500 focus:outline-none focus:ring-4 focus:ring-matcha-100;
+}
+
+/* เว้นพื้นที่ใต้แถบเมนูล่างบนมือถือ (รวมรอยบากหน้าจอ) */
+@utility pb-safe-nav {
+  padding-bottom: calc(5.5rem + env(safe-area-inset-bottom));
+}
+
+/* ปุ่ม: สูงอย่างน้อย 44px เพื่อกดง่ายบนมือถือ */
+@utility btn {
+  @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-[15px] font-medium transition
+    active:scale-[0.98] disabled:pointer-events-none disabled:opacity-45;
+}
+@utility btn-primary {
+  @apply bg-matcha-800 text-washi shadow-sm shadow-matcha-900/10 hover:bg-matcha-700;
+}
+@utility btn-secondary {
+  @apply border border-ink/[0.12] bg-white/80 text-ink hover:border-matcha-300 hover:bg-matcha-50;
+}
+@utility btn-ghost {
+  @apply text-stone hover:bg-ink/[0.04] hover:text-ink;
+}
+@utility btn-danger {
+  @apply border border-beni/25 bg-beni-50 text-beni hover:bg-beni hover:text-washi;
+}
