@@ -39,6 +39,9 @@ export function buildNavigation(current: CurrentUser): NavItem[] {
   if (has('club_application:review') || has('club_application:approve') || has('club:read_all')) {
     items.push({ href: '/club-applications/queue', label: 'ตรวจและอนุมัติคำขอ', shortLabel: 'อนุมัติ', icon: 'inbox', group: 'main' });
   }
+  if (has('club_report:review')) {
+    items.push({ href: '/reports/overview', label: 'ภาพรวมการส่งรายงาน', shortLabel: 'รายงาน', icon: 'check', group: 'main' });
+  }
   if (has('user_role:assign')) {
     items.push({ href: '/admin/users', label: 'จัดการสิทธิ์ผู้ใช้', shortLabel: 'สิทธิ์', icon: 'shield', group: 'admin' });
   }
