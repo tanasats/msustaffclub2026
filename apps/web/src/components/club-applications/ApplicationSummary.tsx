@@ -1,5 +1,7 @@
 import { formatDate } from '@/lib/format';
-import type { ApplicationDetail } from '@/lib/club-application-types';
+import { FileLink } from '@/components/files/FileLink';
+import { Badge } from '@/components/ui/Badge';
+import { advisorDisplayName, type ApplicationDetail } from '@/lib/club-application-types';
 import { CONSENT_LABELS } from '@/lib/club-application-types';
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
@@ -41,10 +43,33 @@ export function ApplicationSummary({ application: a }: { application: Applicatio
 
       <section className="bento p-5 sm:p-6">
         <h2 className="font-serif text-lg font-medium">ที่ปรึกษาชมรม</h2>
-        <ul className="mt-2 grid gap-1 text-sm">
+        <ul className="mt-2 grid gap-2 text-sm">
           {a.advisors.map((adv) => (
-            <li key={adv.email}>
-              {adv.sortOrder}. {adv.user?.name ?? adv.email} — {CONSENT_LABELS[adv.consentStatus]}
+            <li key={adv.sortOrder} className="rounded-xl border border-ink/[0.08] p-3">
+              <p className="flex flex-wrap items-center gap-2">
+                <span className="font-medium">
+                  {adv.sortOrder}. {advisorDisplayName(adv)}
+                </span>
+                <Badge tone={adv.kind === 'external' ? 'kin' : 'matcha'}>{adv.kind === 'external' ? 'บุคคลภายนอก' : 'บุคลากร มมส.'}</Badge>
+                <Badge tone={adv.consentStatus === 'accepted' ? 'matcha' : adv.consentStatus === 'declined' ? 'beni' : 'neutral'}>
+                  {adv.kind === 'external' ? (adv.consentFile ? 'แนบใบคำยินยอมแล้ว' : 'ยังไม่แนบใบคำยินยอม') : CONSENT_LABELS[adv.consentStatus]}
+                </Badge>
+              </p>
+              {adv.external && (
+                <p className="mt-1 text-xs text-stone">
+                  {[adv.external.position, adv.external.organization, adv.external.email, adv.external.phone].filter(Boolean).join(' · ')}
+                </p>
+              )}
+              {adv.consentFile && (
+                <div className="mt-1 flex flex-wrap items-center gap-2">
+                  <FileLink fileId={adv.consentFile.id} label={adv.consentFile.originalName ?? 'ใบคำยินยอม'} />
+                  {adv.consentVerified ? (
+                    <span className="text-xs text-matcha-700">✓ เจ้าหน้าที่ตรวจแล้ว ({adv.consentVerified.byName ?? '-'})</span>
+                  ) : (
+                    <span className="text-xs text-mist">รอเจ้าหน้าที่ตรวจเอกสาร</span>
+                  )}
+                </div>
+              )}
             </li>
           ))}
           {a.advisors.length === 0 && <li className="text-stone">-</li>}

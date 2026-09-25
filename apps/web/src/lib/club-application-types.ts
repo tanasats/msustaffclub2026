@@ -30,6 +30,37 @@ export interface PersonRef {
   orgUnitName: string | null;
 }
 
+export interface ExternalPerson {
+  prefixTh: string | null;
+  firstNameTh: string;
+  lastNameTh: string;
+  organization: string;
+  position: string | null;
+  email: string | null;
+  phone: string | null;
+}
+
+export interface ApplicationAdvisor {
+  kind: 'internal' | 'external';
+  email: string | null;
+  user: { id: string; name: string | null } | null;
+  external: (ExternalPerson & { id: string }) | null;
+  sortOrder: number;
+  consentStatus: 'pending' | 'accepted' | 'declined';
+  respondedAt: string | null;
+  consentFile: { id: string; originalName: string | null } | null;
+  consentVerified: { at: string; byName: string | null } | null;
+}
+
+// ชื่อที่แสดงของที่ปรึกษา (บุคลากรหรือบุคคลภายนอก)
+export function advisorDisplayName(advisor: ApplicationAdvisor): string {
+  if (advisor.external) {
+    const { prefixTh, firstNameTh, lastNameTh } = advisor.external;
+    return `${prefixTh ?? ''}${firstNameTh} ${lastNameTh}`;
+  }
+  return advisor.user?.name ?? advisor.email ?? '-';
+}
+
 export interface ApplicationDetail {
   id: string;
   type: 'establish' | 'renewal';
@@ -48,13 +79,7 @@ export interface ApplicationDetail {
   contactPhone: string | null;
   contactEmail: string | null;
   regulationText: string | null;
-  advisors: {
-    email: string;
-    user: { id: string; name: string | null } | null;
-    sortOrder: number;
-    consentStatus: 'pending' | 'accepted' | 'declined';
-    respondedAt: string | null;
-  }[];
+  advisors: ApplicationAdvisor[];
   committee: {
     user: PersonRef;
     position: { code: string; nameTh: string };

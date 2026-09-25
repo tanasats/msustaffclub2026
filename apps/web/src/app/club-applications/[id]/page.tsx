@@ -1,5 +1,6 @@
 import { redirect } from 'next/navigation';
 import { ActionButton } from '@/components/club-applications/ActionButton';
+import { FileLink } from '@/components/files/FileLink';
 import { ActivitiesEditor } from '@/components/club-applications/ActivitiesEditor';
 import { AdvisorsEditor } from '@/components/club-applications/AdvisorsEditor';
 import { ApplicationSummary } from '@/components/club-applications/ApplicationSummary';
@@ -12,11 +13,12 @@ import { Bento, BentoTitle } from '@/components/ui/Bento';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { apiGetJson } from '@/lib/api-server';
 import { getCurrentUser } from '@/lib/auth';
-import type {
-  ApplicationDetail,
-  ClubCategory,
-  ClubPosition,
-  ValidationIssue,
+import {
+  advisorDisplayName,
+  type ApplicationDetail,
+  type ClubCategory,
+  type ClubPosition,
+  type ValidationIssue,
 } from '@/lib/club-application-types';
 
 function Section({ title, children, tone = 'paper' }: { title: string; children: React.ReactNode; tone?: 'paper' | 'cream' }) {
@@ -56,6 +58,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
         apiGetJson<{ issues: ValidationIssue[] }>(`${base}/validation`),
       ])
     : [null, null, null];
+  const externalAdvisors = application.advisors.filter((a) => a.kind === 'external');
   const allAdvisorsAccepted =
     application.advisors.length > 0 && application.advisors.every((a) => a.consentStatus === 'accepted');
   const latestNote = [...application.events].reverse().find((e) => e.toStatus === status && e.note)?.note;
@@ -129,6 +132,25 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
 
         {canReview && (
           <Section title="ตรวจคำขอ (ขั้นที่ 1 — เจ้าหน้าที่สโมสร)">
+            {externalAdvisors.length > 0 && (
+              <div className="mb-4 grid gap-2">
+                <p className="text-sm text-stone">ตรวจใบคำยินยอมของที่ปรึกษาภายนอกให้ครบก่อนกด &quot;ตรวจผ่าน&quot; (ถ้าเอกสารไม่ถูกต้อง ให้ส่งกลับแก้ไข)</p>
+                {externalAdvisors.map((adv) => (
+                  <div key={adv.sortOrder} className="flex flex-col gap-2 rounded-xl border border-ink/[0.08] bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="text-sm">
+                      <p className="font-medium">{advisorDisplayName(adv)}</p>
+                      <p className="text-xs text-stone">{adv.external?.organization}</p>
+                      {adv.consentFile && <FileLink fileId={adv.consentFile.id} label="เปิดใบคำยินยอม" />}
+                    </div>
+                    {adv.consentVerified ? (
+                      <span className="text-sm text-matcha-700">✓ ยืนยันเอกสารแล้ว</span>
+                    ) : (
+                      <ActionButton path={`${base}/advisors/${adv.sortOrder}/verify-consent`} label="ยืนยันเอกสารถูกต้อง" tone="neutral" />
+                    )}
+                  </div>
+                ))}
+              </div>
+            )}
             <div className="flex flex-wrap gap-2">
               <ActionButton path={`${base}/review`} body={{ decision: 'pass' }} label="ตรวจผ่าน ส่งนายกสโมสร" note="optional" />
               <ActionButton path={`${base}/review`} body={{ decision: 'return' }} label="ส่งกลับแก้ไข" note="required" tone="neutral" />
