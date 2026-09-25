@@ -11,7 +11,7 @@ const idOf = (value: unknown) => parseIdParam(value, 'FILE_NOT_FOUND', 'ไม�
 
 const uploadSchema = z
   .object({
-    purpose: z.enum(['advisor_consent']),
+    purpose: z.enum(['advisor_consent', 'club_logo']),
     fileName: requiredText(500),
     mimeType: z.string().min(1).max(100),
     sizeBytes: z.number().int().positive(),

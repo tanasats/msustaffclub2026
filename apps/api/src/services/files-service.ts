@@ -1,12 +1,14 @@
 import { randomUUID } from 'node:crypto';
-import { withTransaction } from '../db/pool.js';
+import { withTransaction, type DbClient } from '../db/pool.js';
 import { AppError } from '../errors.js';
 import { logger } from '../logger.js';
 import {
   findFile,
   insertFile,
+  isLogoFileInUse,
   lockFile,
   markFileUploaded,
+  softDeleteFile,
   type FilePurpose,
   type FileRecord,
 } from '../repositories/files-repository.js';
@@ -19,9 +21,14 @@ const DOWNLOAD_URL_TTL_SECONDS = 5 * 60;
 const MAX_FILE_NAME_LENGTH = 200;
 
 interface FilePolicy {
-  // permission ที่ต้องมีเพื่อขออัปโหลด
-  uploadPermission: PermissionCode;
+  /**
+   * permission ระบบที่ต้องมีเพื่อขออัปโหลด
+   * null = ต้อง login เท่านั้น แล้วตรวจสิทธิ์ตอน "ผูกไฟล์" เข้ากับข้อมูล (เช่น ตราชมรมใช้สิทธิ์ระดับชมรม ซึ่งยังไม่รู้ตอนอัปโหลด)
+   */
+  uploadPermission: PermissionCode | null;
   mimeTypes: readonly string[];
+  // ชื่อชนิดไฟล์สำหรับข้อความแจ้งผู้ใช้
+  typeLabel: string;
   maxBytes: number;
   keyPrefix: string;
 }
@@ -31,8 +38,17 @@ export const FILE_POLICIES: Record<FilePurpose, FilePolicy> = {
   advisor_consent: {
     uploadPermission: PERMISSIONS.CLUB_APPLICATION_CREATE,
     mimeTypes: ['application/pdf', 'image/jpeg', 'image/png'],
+    typeLabel: 'PDF, JPG, PNG',
     maxBytes: 10 * 1024 * 1024,
     keyPrefix: 'advisor-consents',
+  },
+  // ไม่รับ SVG เพราะฝังสคริปต์ได้
+  club_logo: {
+    uploadPermission: null,
+    mimeTypes: ['image/png', 'image/jpeg', 'image/webp'],
+    typeLabel: 'PNG, JPG, WebP',
+    maxBytes: 2 * 1024 * 1024,
+    keyPrefix: 'club-logos',
   },
 };
 
@@ -78,11 +94,11 @@ export interface UploadTicket {
  */
 export async function requestUpload(auth: AuthContext, input: UploadRequest): Promise<UploadTicket> {
   const policy = FILE_POLICIES[input.purpose];
-  if (!hasPermission(auth, policy.uploadPermission)) {
+  if (policy.uploadPermission && !hasPermission(auth, policy.uploadPermission)) {
     throw new AppError(403, 'FORBIDDEN', 'ไม่มีสิทธิ์อัปโหลดไฟล์ประเภทนี้');
   }
   if (!policy.mimeTypes.includes(input.mimeType)) {
-    throw new AppError(422, 'FILE_TYPE_NOT_ALLOWED', 'ชนิดไฟล์ไม่รองรับ (รองรับ PDF, JPG, PNG)');
+    throw new AppError(422, 'FILE_TYPE_NOT_ALLOWED', `ชนิดไฟล์ไม่รองรับ (รองรับ ${policy.typeLabel})`);
   }
   if (input.sizeBytes > policy.maxBytes) {
     throw new AppError(422, 'FILE_TOO_LARGE', `ไฟล์ใหญ่เกิน ${policy.maxBytes / 1024 / 1024} MB`);
@@ -138,4 +154,44 @@ export async function getDownloadUrl(auth: AuthContext, fileId: string): Promise
   const url = await storage.createDownloadUrl(file.objectKey, file.originalName, DOWNLOAD_URL_TTL_SECONDS);
   logger.info({ fileId: file.id, userId: auth.user.id }, 'ออก URL ดาวน์โหลดไฟล์');
   return { url, expiresAt: new Date(Date.now() + DOWNLOAD_URL_TTL_SECONDS * 1000) };
+}
+
+/**
+ * ตรวจไฟล์ก่อนผูกเข้ากับข้อมูล: ต้องอัปโหลดเสร็จแล้ว, วัตถุประสงค์ตรง และเป็นไฟล์ที่ผู้ใช้อัปโหลดเอง
+ * (กันการนำ id ไฟล์ของคนอื่นมาผูก) ล็อกแถวไฟล์ไว้จนจบ transaction
+ */
+export async function assertAttachableFile(auth: AuthContext, fileId: string, purpose: FilePurpose, client: DbClient): Promise<void> {
+  const file = await lockFile(fileId, client);
+  if (!file || file.uploadedBy !== auth.user.id || file.purpose !== purpose) {
+    throw new AppError(422, 'FILE_NOT_ATTACHABLE', 'ไม่พบไฟล์ที่อัปโหลด กรุณาอัปโหลดใหม่');
+  }
+  if (file.status !== 'uploaded') {
+    throw new AppError(409, 'FILE_NOT_UPLOADED', 'ไฟล์ยังอัปโหลดไม่เสร็จ');
+  }
+}
+
+// URL แสดงไฟล์อายุสั้น (ใช้กับไฟล์ที่ผู้เรียกตรวจสิทธิ์แล้ว เช่น ตราชมรม) null = ไม่มีไฟล์/ยังไม่อัปโหลด
+export async function createFileViewUrl(fileId: string): Promise<string | null> {
+  const file = await findFile(fileId);
+  if (!file || file.status !== 'uploaded') return null;
+  return storage.createDownloadUrl(file.objectKey, file.originalName, DOWNLOAD_URL_TTL_SECONDS);
+}
+
+/**
+ * ลบไฟล์ตราที่ถูกแทนที่ ถ้าไม่มีคำขอหรือชมรมใดใช้แล้ว
+ * แถวไฟล์ soft delete ใน transaction ส่วน object ใน bucket ลบหลัง commit (ลบไม่สำเร็จ = log ไว้ ไม่ทำให้รายการล้ม)
+ */
+export async function discardLogoFileIfUnused(fileId: string): Promise<void> {
+  const objectKey = await withTransaction(async (client) => {
+    const file = await lockFile(fileId, client);
+    if (!file || (await isLogoFileInUse(fileId, client))) return null;
+    await softDeleteFile(fileId, client);
+    return file.objectKey;
+  });
+  if (!objectKey) return;
+  try {
+    await storage.deleteObject(objectKey);
+  } catch (err) {
+    logger.error({ err, fileId }, 'ลบไฟล์ตราที่ไม่ได้ใช้ออกจากที่เก็บไม่สำเร็จ');
+  }
 }

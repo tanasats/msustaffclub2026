@@ -7,6 +7,8 @@ import { ApplicationSummary } from '@/components/club-applications/ApplicationSu
 import { CommitteeEditor } from '@/components/club-applications/CommitteeEditor';
 import { EventTimeline } from '@/components/club-applications/EventTimeline';
 import { GeneralInfoForm } from '@/components/club-applications/GeneralInfoForm';
+import { ClubLogo } from '@/components/clubs/ClubLogo';
+import { LogoUploader } from '@/components/clubs/LogoUploader';
 import { MembersEditor } from '@/components/club-applications/MembersEditor';
 import { StatusBadge } from '@/components/club-applications/StatusBadge';
 import { Bento, BentoTitle } from '@/components/ui/Bento';
@@ -174,6 +176,13 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
         {canEdit && categories && positions ? (
           <>
             <Section title="1. ข้อมูลชมรม">
+              <div className="mb-5 flex flex-col gap-3 border-b border-ink/[0.06] pb-5 sm:flex-row sm:items-center">
+                <ClubLogo path={`/club-applications/${application.id}/logo`} fileId={application.logoFileId} name={application.nameTh} />
+                <div className="grid gap-1">
+                  <p className="text-sm font-medium">ตราสัญลักษณ์ชมรม (ไม่บังคับ)</p>
+                  <LogoUploader attachPath={`/club-applications/${application.id}/logo`} hasLogo={Boolean(application.logoFileId)} />
+                </div>
+              </div>
               <GeneralInfoForm application={application} categories={categories.items} />
             </Section>
             <Section title="2. ที่ปรึกษาชมรม (1–2 คน)">

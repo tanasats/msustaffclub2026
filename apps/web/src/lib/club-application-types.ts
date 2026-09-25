@@ -74,6 +74,7 @@ export interface ApplicationDetail {
   history: string | null;
   motto: string | null;
   logoMeaning: string | null;
+  logoFileId: string | null;
   objectives: string[];
   officeLocation: string | null;
   contactPhone: string | null;

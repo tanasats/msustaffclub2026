@@ -6,6 +6,7 @@ export interface ClubListItem {
   status: 'active' | 'suspended' | 'dissolved';
   category: { code: string; nameTh: string };
   motto: string | null;
+  logoFileId: string | null;
   memberCount: number;
   establishedOn: string;
   myMembershipStatus: 'pending' | 'active' | null;
@@ -19,6 +20,7 @@ export interface ClubPage {
   categoryDetail: string | null;
   motto: string | null;
   logoMeaning: string | null;
+  logoFileId: string | null;
   history: string | null;
   objectives: string[];
   officeLocation: string | null;

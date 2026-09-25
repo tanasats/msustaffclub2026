@@ -12,10 +12,10 @@ export async function insertClubFromApplication(
 ): Promise<string> {
   const result = await db.query<{ id: string }>(
     `INSERT INTO clubs (
-       name_th, category_id, category_detail, motto, logo_meaning, history, objectives,
+       name_th, category_id, category_detail, motto, logo_meaning, logo_file_id, history, objectives,
        office_location, contact_phone, contact_email, regulation_text, established_on, registered_until
      )
-     SELECT name_th, category_id, category_detail, motto, logo_meaning, history, objectives,
+     SELECT name_th, category_id, category_detail, motto, logo_meaning, logo_file_id, history, objectives,
             office_location, contact_phone, contact_email, regulation_text, $2::date, $3::date
        FROM club_applications
       WHERE id = $1
@@ -112,6 +112,7 @@ export interface ClubListItem {
   status: 'active' | 'suspended' | 'dissolved';
   category: { code: string; nameTh: string };
   motto: string | null;
+  logoFileId: string | null;
   memberCount: number;
   establishedOn: string;
   // สถานะของผู้ใช้ปัจจุบันในชมรมนี้ (null = ไม่ได้เป็นสมาชิก/ไม่ได้สมัคร)
@@ -139,7 +140,7 @@ export async function listClubs(filter: ClubListFilter, db: Queryable = pool): P
   const result = await db.query<ClubListItem & { total: number }>(
     `SELECT c.id, c.name_th AS "nameTh", c.status,
             json_build_object('code', cat.code, 'nameTh', cat.name_th) AS category,
-            c.motto,
+            c.motto, c.logo_file_id AS "logoFileId",
             (SELECT count(*)::int FROM club_memberships m WHERE m.club_id = c.id AND m.status = 'active') AS "memberCount",
             to_char(c.established_on, 'YYYY-MM-DD') AS "establishedOn",
             (SELECT m.status FROM club_memberships m
@@ -172,6 +173,7 @@ export interface ClubDetailRow {
   categoryDetail: string | null;
   motto: string | null;
   logoMeaning: string | null;
+  logoFileId: string | null;
   history: string | null;
   objectives: string[];
   officeLocation: string | null;
@@ -187,7 +189,8 @@ export async function findClubDetail(clubId: string, db: Queryable = pool): Prom
   const result = await db.query<ClubDetailRow>(
     `SELECT c.id, c.name_th AS "nameTh", c.status,
             json_build_object('code', cat.code, 'nameTh', cat.name_th) AS category,
-            c.category_detail AS "categoryDetail", c.motto, c.logo_meaning AS "logoMeaning", c.history, c.objectives,
+            c.category_detail AS "categoryDetail", c.motto, c.logo_meaning AS "logoMeaning",
+            c.logo_file_id AS "logoFileId", c.history, c.objectives,
             c.office_location AS "officeLocation", c.contact_phone AS "contactPhone", c.contact_email AS "contactEmail",
             c.regulation_text AS "regulationText",
             to_char(c.established_on, 'YYYY-MM-DD') AS "establishedOn",
@@ -310,4 +313,28 @@ export async function findCurrentMembershipStatus(
     [clubId, userId],
   );
   return result.rows[0]?.status ?? null;
+}
+
+// ตราสัญลักษณ์ของชมรม (null ตัวนอก = ไม่พบชมรม)
+export async function findClubLogoFileId(clubId: string, db: Queryable = pool): Promise<{ logoFileId: string | null } | null> {
+  const result = await db.query<{ logoFileId: string | null }>(
+    'SELECT logo_file_id AS "logoFileId" FROM clubs WHERE id = $1 AND deleted_at IS NULL',
+    [clubId],
+  );
+  return result.rows[0] ?? null;
+}
+
+/**
+ * เปลี่ยนตราของชมรม แล้วคืนค่าไฟล์เดิม (เพื่อลบถ้าไม่มีใครใช้แล้ว)
+ * subquery "old" ล็อกแถว (FOR UPDATE) และอ่านค่าเดิมก่อน UPDATE เพราะ RETURNING ปกติเห็นเฉพาะค่าใหม่
+ */
+export async function replaceClubLogo(clubId: string, fileId: string | null, db: Queryable): Promise<{ previousFileId: string | null } | null> {
+  const result = await db.query<{ previousFileId: string | null }>(
+    `UPDATE clubs c SET logo_file_id = $2
+       FROM (SELECT id, logo_file_id FROM clubs WHERE id = $1 AND deleted_at IS NULL FOR UPDATE) old
+      WHERE c.id = old.id
+      RETURNING old.logo_file_id AS "previousFileId"`,
+    [clubId, fileId],
+  );
+  return result.rows[0] ?? null;
 }
