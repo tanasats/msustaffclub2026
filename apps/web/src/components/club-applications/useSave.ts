@@ -11,7 +11,7 @@ export function useSave() {
   const [error, setError] = useState<string | null>(null);
   const [saved, setSaved] = useState(false);
 
-  async function save(method: 'POST' | 'PUT' | 'PATCH', path: string, body?: unknown): Promise<boolean> {
+  async function save(method: 'POST' | 'PUT' | 'PATCH' | 'DELETE', path: string, body?: unknown): Promise<boolean> {
     setPending(true);
     setError(null);
     setSaved(false);
