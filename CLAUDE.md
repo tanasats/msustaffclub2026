@@ -118,6 +118,8 @@ docker-compose.yml      # postgres + garage สำหรับ dev
 - รัน migration: `pnpm --filter api migrate up`
 - ย้อน migration ล่าสุด (dev เท่านั้น): `pnpm --filter api migrate down`
 - seed ผู้ดูแลระบบสูงสุด: `pnpm --filter api seed:super-admin` (เจ้าของ `INITIAL_SUPER_ADMIN_EMAIL` ต้อง login ด้วย Google 1 ครั้งก่อน)
+- สร้าง key + bucket ของ Garage (dev และ test): `bash docker/garage/setup.sh` (รันซ้ำได้)
+- ตั้ง CORS ของ bucket ให้หน้าเว็บอัปโหลดได้: `pnpm --filter api storage:cors` (รันซ้ำได้)
 
 ## 6. มาตรฐานการเขียนโค้ด
 - ชื่อตัวแปร/ฟังก์ชันเป็นภาษาอังกฤษ camelCase, ชื่อ component เป็น PascalCase

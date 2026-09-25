@@ -11,9 +11,12 @@
     "typecheck": "tsc --noEmit",
     "migrate": "node --env-file=.env node_modules/node-pg-migrate/bin/node-pg-migrate.js -m migrations -j sql",
     "migrate:test": "node --env-file=.env node_modules/node-pg-migrate/bin/node-pg-migrate.js -m migrations -d TEST_DATABASE_URL",
-    "seed:super-admin": "node --env-file=.env --import tsx scripts/seed-super-admin.ts"
+    "seed:super-admin": "node --env-file=.env --import tsx scripts/seed-super-admin.ts",
+    "storage:cors": "node --env-file=.env --import tsx scripts/setup-bucket-cors.ts"
   },
   "dependencies": {
+    "@aws-sdk/client-s3": "3.1140.0",
+    "@aws-sdk/s3-request-presigner": "3.1140.0",
     "cookie-parser": "1.4.7",
     "cors": "2.8.6",
     "express": "5.2.1",

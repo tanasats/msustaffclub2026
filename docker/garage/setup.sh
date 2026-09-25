@@ -13,7 +13,11 @@ if [[ ! -f "$API_ENV" ]]; then
   exit 1
 fi
 
-BUCKET="$(grep -E '^S3_BUCKET=' "$API_ENV" | cut -d= -f2- | tr -d '[:space:]')"
+env_value() {
+  grep -E "^$1=" "$API_ENV" | cut -d= -f2- | tr -d '[:space:]'
+}
+BUCKET="$(env_value S3_BUCKET)"
+TEST_BUCKET="$(env_value TEST_S3_BUCKET)"
 if [[ -z "$BUCKET" ]]; then
   echo "ต้องกำหนด S3_BUCKET ใน $API_ENV" >&2
   exit 1
@@ -37,15 +41,17 @@ else
   echo "สร้าง access key '$KEY_NAME' แล้ว"
 fi
 
-if garage bucket info "$BUCKET" >/dev/null 2>&1; then
-  echo "มี bucket '$BUCKET' อยู่แล้ว"
-else
-  garage bucket create "$BUCKET" >/dev/null
-  echo "สร้าง bucket '$BUCKET' แล้ว"
-fi
-
-# ให้ key อ่าน/เขียน/เป็นเจ้าของ bucket (bucket ยังเป็น private ไม่เปิดสาธารณะ)
-garage bucket allow --read --write --owner "$BUCKET" --key "$KEY_NAME" >/dev/null
+# สร้าง bucket ของ dev และของ test (ถ้ากำหนด) แล้วให้ key อ่าน/เขียนได้ (bucket ยังเป็น private)
+for name in "$BUCKET" "$TEST_BUCKET"; do
+  [[ -z "$name" ]] && continue
+  if garage bucket info "$name" >/dev/null 2>&1; then
+    echo "มี bucket '$name' อยู่แล้ว"
+  else
+    garage bucket create "$name" >/dev/null
+    echo "สร้าง bucket '$name' แล้ว"
+  fi
+  garage bucket allow --read --write --owner "$name" --key "$KEY_NAME" >/dev/null
+done
 
 KEY_INFO="$(garage key info "$KEY_NAME" --show-secret)"
 ACCESS_KEY="$(printf '%s\n' "$KEY_INFO" | awk -F': *' '/^Key ID/ {print $2; exit}' | tr -d '[:space:]')"
