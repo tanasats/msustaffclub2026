@@ -1,5 +1,6 @@
 import { formatDate } from '@/lib/format';
 import { ClubLogo } from '@/components/clubs/ClubLogo';
+import { RenewalContextPanel } from '@/components/renewals/RenewalContextPanel';
 import { FileLink } from '@/components/files/FileLink';
 import { Badge } from '@/components/ui/Badge';
 import { advisorDisplayName, type ApplicationDetail } from '@/lib/club-application-types';
@@ -80,30 +81,40 @@ export function ApplicationSummary({ application: a }: { application: Applicatio
         </ul>
       </section>
 
-      <section className="bento p-5 sm:p-6">
-        <h2 className="font-serif text-lg font-medium">คณะกรรมการบริหาร ({a.committee.length} คน)</h2>
-        <ul className="mt-2 divide-y divide-ink/[0.06] text-sm">
-          {a.committee.map((c) => (
-            <li key={c.user.id} className="py-2">
-              <span className="font-medium">{c.positionTitle}</span>: {c.user.name ?? c.user.email}
-              <span className="block text-xs text-mist">
-                {[c.user.orgUnitName, c.workLocation, c.contactPhone].filter(Boolean).join(' · ')}
-              </span>
-            </li>
-          ))}
-        </ul>
-      </section>
+      {a.renewal && a.clubId ? (
+        <section className="bento p-5 sm:p-6">
+          <h2 className="mb-3 font-serif text-lg font-medium">คณะกรรมการและสมาชิกปัจจุบันของชมรม</h2>
+          <RenewalContextPanel context={a.renewal} clubId={a.clubId} fiscalYear={a.fiscalYear} />
+        </section>
+      ) : (
+        <>
+          <section className="bento p-5 sm:p-6">
+            <h2 className="font-serif text-lg font-medium">คณะกรรมการบริหาร ({a.committee.length} คน)</h2>
+            <ul className="mt-2 divide-y divide-ink/[0.06] text-sm">
+              {a.committee.map((c) => (
+                <li key={c.user.id} className="py-2">
+                  <span className="font-medium">{c.positionTitle}</span>: {c.user.name ?? c.user.email}
+                  <span className="block text-xs text-mist">
+                    {[c.user.orgUnitName, c.workLocation, c.contactPhone].filter(Boolean).join(' · ')}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          </section>
 
-      <section className="bento p-5 sm:p-6">
-        <h2 className="font-serif text-lg font-medium">สมาชิกตั้งต้นเพิ่มเติม ({a.members.length} คน)</h2>
-        <ul className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
-          {a.members.map((m) => (
-            <li key={m.id}>
-              {m.name ?? m.email} <span className="text-xs text-mist">{m.orgUnitName}</span>
-            </li>
-          ))}
-        </ul>
-      </section>
+          <section className="bento p-5 sm:p-6">
+            <h2 className="font-serif text-lg font-medium">สมาชิกตั้งต้นเพิ่มเติม ({a.members.length} คน)</h2>
+            <ul className="mt-2 grid gap-1 text-sm sm:grid-cols-2">
+              {a.members.map((m) => (
+                <li key={m.id}>
+                  {m.name ?? m.email} <span className="text-xs text-mist">{m.orgUnitName}</span>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+        </>
+      )}
 
       <section className="bento p-5 sm:p-6">
         <h2 className="font-serif text-lg font-medium">แผนงานกิจกรรมประจำปี</h2>

@@ -7,6 +7,7 @@ import { ClubLogo } from '@/components/clubs/ClubLogo';
 import { CommitteeManager } from '@/components/clubs/CommitteeManager';
 import { EndCommitteeTermButton } from '@/components/clubs/EndCommitteeTermButton';
 import { LogoUploader } from '@/components/clubs/LogoUploader';
+import { RenewalPanel, type RenewalStatus } from '@/components/renewals/RenewalPanel';
 import { MembershipPanel } from '@/components/clubs/MembershipPanel';
 import { RemoveMemberButton } from '@/components/clubs/RemoveMemberButton';
 import { Badge } from '@/components/ui/Badge';
@@ -20,6 +21,7 @@ import type { ClubPosition } from '@/lib/club-application-types';
 import type { ClubMember, ClubPage, CommitteeHistoryItem, MembershipRequest } from '@/lib/club-types';
 import { committeeEndReasonLabel } from '@/lib/committee-labels';
 import { formatDate, formatDateTime } from '@/lib/format';
+import { bangkokToday } from '@/lib/thai-date';
 
 // ใช้หาแถวประธานเพื่อเลือกแสดงปุ่มเท่านั้น (API ตรวจกฎจริง)
 const PRESIDENT_CODE = 'president';
@@ -46,7 +48,8 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
   const canEditProfile = club.me.permissions.includes('club_profile:edit') && club.status === 'active';
   const canReviewAchievements = club.me.permissions.includes('club_achievement:manage') && club.status === 'active';
   const canSubmitAchievement = club.me.membershipStatus === 'active' && club.status === 'active';
-  const [members, requests, positions, history, achievements, achievementQueue, activities] = await Promise.all([
+  const expired = club.registeredUntil < bangkokToday();
+  const [members, requests, positions, history, achievements, achievementQueue, activities, renewal] = await Promise.all([
     canViewInternal ? apiGetJson<{ items: ClubMember[]; total: number }>(`/clubs/${club.id}/members?pageSize=100`) : null,
     canApproveMembers ? apiGetJson<{ items: MembershipRequest[] }>(`/clubs/${club.id}/membership-requests`) : null,
     canManageCommittee ? apiGetJson<{ items: ClubPosition[] }>('/club-positions') : null,
@@ -54,6 +57,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
     apiGetJson<AchievementPage>(`/clubs/${club.id}/achievements?pageSize=50`),
     canReviewAchievements ? apiGetJson<{ items: AchievementItem[] }>(`/clubs/${club.id}/achievement-reviews`) : null,
     apiGetJson<{ fiscalYear: number; items: ActivityItem[] }>(`/clubs/${club.id}/activities`),
+    canViewInternal ? apiGetJson<RenewalStatus>(`/clubs/${club.id}/renewal`) : null,
   ]);
   const statusLabel = STATUS_LABEL[club.status];
   const myId = current.user.id;
@@ -73,6 +77,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
           <div className="flex flex-wrap gap-1.5">
             <Badge tone="matcha">{club.category.nameTh}</Badge>
             {statusLabel && <Badge tone="beni">{statusLabel}</Badge>}
+            {expired && <Badge tone="beni">ทะเบียนหมดอายุ</Badge>}
             {club.me.positions.map((position) => (
               <Badge key={position} tone="kin">
                 {position}
@@ -135,6 +140,11 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
             <InfoRow label="สถานที่ทำการ" value={club.officeLocation} />
             <InfoRow label="ติดต่อ" value={[club.contactPhone, club.contactEmail].filter(Boolean).join(' · ')} />
           </dl>
+          {renewal && (
+            <div className="mt-3 border-t border-ink/[0.08] pt-3">
+              <RenewalPanel clubId={club.id} status={renewal} />
+            </div>
+          )}
         </Bento>
 
         {requests && (

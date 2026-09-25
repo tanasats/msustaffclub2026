@@ -61,12 +61,23 @@ export function advisorDisplayName(advisor: ApplicationAdvisor): string {
   return advisor.user?.name ?? advisor.email ?? '-';
 }
 
+export interface RenewalContext {
+  registeredUntil: string | null;
+  activeMemberCount: number;
+  previousAnnualReport: { id: string; status: 'draft' | 'submitted' | 'acknowledged' } | null;
+  committee: { userId: string; name: string; positionTitle: string; startedOn: string; fiscalYearsServed: number; termWarning: boolean }[];
+}
+
+export const APPLICATION_TYPE_LABELS = { establish: 'คำขอจัดตั้งชมรม', renewal: 'คำขอต่อทะเบียนชมรม' } as const;
+
 export interface ApplicationDetail {
   id: string;
   type: 'establish' | 'renewal';
   status: ApplicationStatus;
   fiscalYear: number;
   clubId: string | null;
+  // เฉพาะคำขอต่อทะเบียน: กรรมการ/สมาชิกจริงของชมรม และรายงานประจำปีของปีที่ผ่านมา
+  renewal: RenewalContext | null;
   applicant: { id: string; name: string | null; email: string };
   nameTh: string;
   category: { id: string; code: string; nameTh: string; requiresDetail: boolean } | null;

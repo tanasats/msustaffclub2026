@@ -11,11 +11,13 @@ import { ClubLogo } from '@/components/clubs/ClubLogo';
 import { LogoUploader } from '@/components/clubs/LogoUploader';
 import { MembersEditor } from '@/components/club-applications/MembersEditor';
 import { StatusBadge } from '@/components/club-applications/StatusBadge';
+import { RenewalContextPanel } from '@/components/renewals/RenewalContextPanel';
 import { Bento, BentoTitle } from '@/components/ui/Bento';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { apiGetJson } from '@/lib/api-server';
 import { getCurrentUser } from '@/lib/auth';
 import {
+  APPLICATION_TYPE_LABELS,
   advisorDisplayName,
   type ApplicationDetail,
   type ClubCategory,
@@ -70,7 +72,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
       <PageHeader
         eyebrow="Club Application"
         title={application.nameTh}
-        description={`คำขอจัดตั้งชมรม ปีงบประมาณ ${application.fiscalYear} · ผู้ยื่น ${application.applicant.name ?? application.applicant.email}`}
+        description={`${APPLICATION_TYPE_LABELS[application.type]} ปีงบประมาณ ${application.fiscalYear} · ผู้ยื่น ${application.applicant.name ?? application.applicant.email}`}
         back={isApplicant ? { href: '/club-applications', label: 'คำขอของฉัน' } : { href: '/', label: 'หน้าหลัก' }}
         actions={<StatusBadge status={status} />}
       />
@@ -188,12 +190,20 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
             <Section title="2. ที่ปรึกษาชมรม (1–2 คน)">
               <AdvisorsEditor application={application} />
             </Section>
-            <Section title="3. คณะกรรมการบริหารชมรม">
-              <CommitteeEditor application={application} positions={positions.items} />
-            </Section>
-            <Section title="4. รายชื่อสมาชิกตั้งต้น">
-              <MembersEditor application={application} />
-            </Section>
+            {application.renewal && application.clubId ? (
+              <Section title="3–4. คณะกรรมการและสมาชิกปัจจุบันของชมรม">
+                <RenewalContextPanel context={application.renewal} clubId={application.clubId} fiscalYear={application.fiscalYear} />
+              </Section>
+            ) : (
+              <>
+                <Section title="3. คณะกรรมการบริหารชมรม">
+                  <CommitteeEditor application={application} positions={positions.items} />
+                </Section>
+                <Section title="4. รายชื่อสมาชิกตั้งต้น">
+                  <MembersEditor application={application} />
+                </Section>
+              </>
+            )}
             <Section title="5. แผนงานกิจกรรมประจำปี">
               <ActivitiesEditor application={application} />
             </Section>

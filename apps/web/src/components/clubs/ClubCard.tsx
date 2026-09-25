@@ -3,6 +3,7 @@ import { Badge } from '@/components/ui/Badge';
 import { Icon } from '@/components/ui/icons';
 import { ClubLogo } from './ClubLogo';
 import type { ClubListItem } from '@/lib/club-types';
+import { bangkokToday } from '@/lib/thai-date';
 
 // การ์ดชมรมในทำเนียบ (Bento)
 export function ClubCard({ club }: { club: ClubListItem }) {
@@ -13,6 +14,7 @@ export function ClubCard({ club }: { club: ClubListItem }) {
           <Badge tone="matcha">{club.category.nameTh}</Badge>
           {club.myMembershipStatus === 'active' && <Badge tone="kin">สมาชิก</Badge>}
           {club.myMembershipStatus === 'pending' && <Badge tone="sky">รออนุมัติสมาชิก</Badge>}
+          {club.registeredUntil < bangkokToday() && <Badge tone="beni">ทะเบียนหมดอายุ</Badge>}
         </div>
         <div className="mt-3 flex items-start gap-3">
           <ClubLogo path={`/clubs/${club.id}/logo`} fileId={club.logoFileId} name={club.nameTh} size="sm" />
