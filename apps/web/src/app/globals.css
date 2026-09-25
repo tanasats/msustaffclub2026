@@ -3,14 +3,15 @@
 /*
  * ระบบดีไซน์ "Washi & Matcha" — มินิมอลแบบญี่ปุ่น สงบ เรียบหรู
  * washi = กระดาษญี่ปุ่น (พื้นหลัง), matcha = สีหลัก, ink = ตัวอักษร, beni = แดงหม่น (อันตราย), kin = ทองหม่น (สิทธิ์สูง)
+ * สีตัวอักษรทุกสีผ่าน WCAG AA (contrast ≥ 4.5:1) บนพื้นขาวและครีม — ห้ามใช้ตัวอักษรหรือพื้นกล่องแบบโปร่งแสง
  */
 @theme {
   --color-washi: #faf8f3;
   --color-cream: #f3eee3;
   --color-sand: #e6ddcb;
   --color-ink: #2a2b26;
-  --color-stone: #6e6a60;
-  --color-mist: #9c978b;
+  --color-stone: #58544b;
+  --color-mist: #6e6a60;
 
   --color-matcha-50: #f1f4ec;
   --color-matcha-100: #e2e9d8;
@@ -24,7 +25,7 @@
 
   --color-beni: #a0473c;
   --color-beni-50: #f7ebe8;
-  --color-kin: #8a6d34;
+  --color-kin: #7a5f2a;
   --color-kin-50: #f5eedf;
 
   --radius-bento: 16px;
@@ -64,12 +65,13 @@
   }
 }
 
+/* ช่อง Bento: พื้นทึบ (อ่านง่ายกว่าพื้นโปร่งแสง) + เส้นขอบบาง 1px */
 @utility bento {
-  @apply rounded-bento border border-ink/[0.08] bg-white/75 backdrop-blur-sm;
+  @apply rounded-bento border border-ink/[0.10] bg-white;
 }
 
 @utility field {
-  @apply min-h-11 w-full rounded-xl border border-ink/[0.12] bg-white/90 px-3.5 py-2 text-base text-ink placeholder:text-mist
+  @apply min-h-11 w-full rounded-xl border border-ink/[0.12] bg-white px-3.5 py-2 text-base text-ink placeholder:text-mist
     transition focus:border-matcha-500 focus:outline-none focus:ring-4 focus:ring-matcha-100;
 }
 
@@ -81,17 +83,19 @@
 /* ปุ่ม: สูงอย่างน้อย 44px เพื่อกดง่ายบนมือถือ */
 @utility btn {
   @apply inline-flex min-h-11 items-center justify-center gap-2 rounded-xl px-4 text-[0.9375rem] font-medium transition
-    active:scale-[0.98] disabled:pointer-events-none disabled:opacity-45;
+    active:scale-[0.98] disabled:pointer-events-none;
 }
+/* ปุ่มที่กดไม่ได้: ใช้สีทึบ (ไม่ใช้ความโปร่งใส) ตัวอักษรจึงยังอ่านออก */
 @utility btn-primary {
-  @apply bg-matcha-800 text-washi shadow-sm shadow-matcha-900/10 hover:bg-matcha-700;
+  @apply bg-matcha-800 text-washi shadow-sm shadow-matcha-900/10 hover:bg-matcha-700
+    disabled:bg-sand disabled:text-stone disabled:shadow-none;
 }
 @utility btn-secondary {
-  @apply border border-ink/[0.12] bg-white/80 text-ink hover:border-matcha-300 hover:bg-matcha-50;
+  @apply border border-ink/[0.12] bg-white text-ink hover:border-matcha-300 hover:bg-matcha-50 disabled:bg-cream disabled:text-mist;
 }
 @utility btn-ghost {
   @apply text-stone hover:bg-ink/[0.04] hover:text-ink;
 }
 @utility btn-danger {
-  @apply border border-beni/25 bg-beni-50 text-beni hover:bg-beni hover:text-washi;
+  @apply border border-beni/25 bg-beni-50 text-beni hover:bg-beni hover:text-washi disabled:border-ink/[0.10] disabled:bg-cream disabled:text-mist;
 }

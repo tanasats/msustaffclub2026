@@ -11,7 +11,7 @@ export function EventTimeline({ events }: { events: ApplicationDetail['events'] 
           <p className="text-xs text-mist">
             {formatDateTime(event.createdAt)} · {event.actorName ?? 'ระบบ'}
           </p>
-          {event.note && <p className="mt-1 whitespace-pre-line text-ink/80">{event.note}</p>}
+          {event.note && <p className="mt-1 whitespace-pre-line text-ink">{event.note}</p>}
         </li>
       ))}
     </ol>

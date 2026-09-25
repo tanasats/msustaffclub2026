@@ -1,9 +1,9 @@
-// ช่อง Bento: มุมโค้ง 16px + เส้นขอบบาง 1px โปร่งแสง
+// ช่อง Bento: มุมโค้ง 16px + เส้นขอบบาง 1px + พื้นทึบ (อ่านง่าย)
 type Tone = 'paper' | 'cream' | 'matcha';
 
 const TONES: Record<Tone, string> = {
   paper: 'bento',
-  cream: 'rounded-bento border border-ink/[0.08] bg-cream/80',
+  cream: 'rounded-bento border border-ink/[0.10] bg-cream',
   matcha: 'rounded-bento border border-matcha-900/20 bg-matcha-800 text-washi',
 };
 

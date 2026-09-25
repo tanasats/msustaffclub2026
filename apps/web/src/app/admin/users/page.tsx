@@ -49,7 +49,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
             <li key={user.id}>
               <Link
                 href={`/admin/users/${user.id}`}
-                className="flex flex-col gap-2 p-4 hover:bg-matcha-50/60 sm:flex-row sm:items-center sm:justify-between"
+                className="flex flex-col gap-2 p-4 hover:bg-matcha-50 sm:flex-row sm:items-center sm:justify-between"
               >
                 <div>
                   <p className="font-medium">

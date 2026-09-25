@@ -83,7 +83,7 @@ export function ApplicationSummary({ application: a }: { application: Applicatio
         ) : (
           <ol className="mt-3 grid gap-2">
             {a.activities.map((act, i) => (
-              <li key={i} className="flex gap-4 rounded-xl border border-ink/[0.06] bg-cream/40 p-3">
+              <li key={i} className="flex gap-4 rounded-xl border border-ink/[0.06] bg-cream p-3">
                 <div className="w-24 shrink-0 text-sm">
                   <p className="font-medium text-matcha-800">{formatDate(act.activityDate)}</p>
                   {act.activityTime && <p className="text-xs text-mist">{act.activityTime}</p>}

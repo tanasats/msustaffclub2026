@@ -48,7 +48,7 @@ export function ActivitiesEditor({ application }: { application: ApplicationDeta
       <ul className="grid gap-2">
         {rows.length === 0 && <li className="text-sm text-stone">ยังไม่มีกิจกรรม</li>}
         {rows.map((row, index) => (
-          <li key={index} className="grid gap-2 rounded-xl border border-ink/[0.08] bg-white/70 p-2 sm:grid-cols-[9rem_8rem_1fr_1fr_auto]">
+          <li key={index} className="grid gap-2 rounded-xl border border-ink/[0.08] bg-white p-2 sm:grid-cols-[9rem_8rem_1fr_1fr_auto]">
             <input type="date" value={row.activityDate} onChange={(e) => update(index, { activityDate: e.target.value })} aria-label="วันที่" className={inputClass} />
             <input value={row.activityTime} onChange={(e) => update(index, { activityTime: e.target.value })} placeholder="เวลา" aria-label="เวลา" maxLength={100} className={inputClass} />
             <input value={row.title} onChange={(e) => update(index, { title: e.target.value })} placeholder="กิจกรรม" aria-label="กิจกรรม" maxLength={500} className={inputClass} />

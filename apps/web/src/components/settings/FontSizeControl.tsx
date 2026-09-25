@@ -42,7 +42,7 @@ export function FontSizeControl({ initial }: { initial: FontScale }) {
     <fieldset>
       <legend className="mb-1 text-[0.9375rem] text-ink">ขนาดตัวอักษร</legend>
       <p className="mb-3 text-sm text-stone">ระบบจะจำค่านี้ไว้ในบัญชีของคุณ ใช้ได้ทุกอุปกรณ์</p>
-      <div role="radiogroup" aria-label="ขนาดตัวอักษร" className="grid grid-cols-4 gap-1.5 rounded-xl bg-cream/70 p-1.5 lg:grid-cols-2">
+      <div role="radiogroup" aria-label="ขนาดตัวอักษร" className="grid grid-cols-4 gap-1.5 rounded-xl bg-cream p-1.5 lg:grid-cols-2">
         {OPTIONS.map((option) => {
           const selected = option.value === value;
           return (
@@ -53,7 +53,7 @@ export function FontSizeControl({ initial }: { initial: FontScale }) {
               aria-checked={selected}
               onClick={() => choose(option.value)}
               className={`flex min-h-16 flex-col items-center justify-center gap-0.5 rounded-lg transition ${
-                selected ? 'bg-white text-matcha-800 shadow-sm ring-1 ring-matcha-200' : 'text-stone hover:bg-white/60'
+                selected ? 'bg-white text-matcha-800 shadow-sm ring-1 ring-matcha-200' : 'text-stone hover:bg-white'
               }`}
             >
               <span className={`font-serif leading-none ${option.sample}`} aria-hidden="true">

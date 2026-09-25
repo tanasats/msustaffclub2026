@@ -58,7 +58,7 @@ export function CommitteeEditor({ application, positions }: { application: Appli
         {rows.map((row, index) => {
           const isPresident = row.positionCode === PRESIDENT;
           return (
-            <li key={row.userId} className="rounded-xl border border-ink/[0.08] bg-white/70 p-3">
+            <li key={row.userId} className="rounded-xl border border-ink/[0.08] bg-white p-3">
               <div className="flex items-start justify-between gap-2">
                 <p className="text-sm font-medium">{row.label}</p>
                 {!isPresident && (

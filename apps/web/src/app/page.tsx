@@ -68,7 +68,7 @@ export default async function HomePage() {
           <div>
             <p className="text-sm text-matcha-200">{greetingOf()}</p>
             <h1 className="mt-3 font-serif text-3xl leading-snug font-medium sm:text-4xl">คุณ{firstName}</h1>
-            <p className="mt-3 max-w-md text-[0.9375rem] leading-relaxed text-matcha-100/90">
+            <p className="mt-3 max-w-md text-[0.9375rem] leading-relaxed text-matcha-50">
               ระบบบริหารจัดการชมรมบุคลากร มหาวิทยาลัยมหาสารคาม — ชมรมกีฬา ดนตรี วิชาการ และอีกหลากหลาย
             </p>
           </div>
@@ -166,7 +166,7 @@ export default async function HomePage() {
                 <span className="inline-flex size-7 shrink-0 items-center justify-center rounded-full border border-matcha-300 font-serif text-sm text-matcha-700">
                   {index + 1}
                 </span>
-                <span className="pt-0.5 text-ink/85">{step}</span>
+                <span className="pt-0.5 text-ink">{step}</span>
               </li>
             ))}
           </ol>

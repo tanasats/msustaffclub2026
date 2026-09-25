@@ -25,7 +25,7 @@ export function MembersEditor({ application }: { application: ApplicationDetail 
       </p>
       <ul className="mb-3 grid gap-1">
         {members.map((member) => (
-          <li key={member.id} className="flex items-center justify-between rounded-xl border border-ink/[0.08] bg-white/70 px-2 py-1.5 text-sm">
+          <li key={member.id} className="flex items-center justify-between rounded-xl border border-ink/[0.08] bg-white px-2 py-1.5 text-sm">
             <span>
               {member.name ?? member.email}
               <span className="ml-2 text-xs text-mist">{member.orgUnitName ?? member.email}</span>

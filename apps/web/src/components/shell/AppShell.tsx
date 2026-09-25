@@ -86,7 +86,7 @@ function NavList({ nav, active, collapsed, onNavigate }: { nav: NavItem[]; activ
 
 function ProfileFooter({ user, collapsed, onNavigate }: { user: ShellUser; collapsed: boolean; onNavigate?: () => void }) {
   return (
-    <div className={`flex items-center gap-3 rounded-xl border border-ink/[0.06] bg-cream/60 p-2.5 ${collapsed ? 'flex-col' : ''}`}>
+    <div className={`flex items-center gap-3 rounded-xl border border-ink/[0.06] bg-cream p-2.5 ${collapsed ? 'flex-col' : ''}`}>
       <Avatar name={user.name} email={user.email} pictureUrl={user.pictureUrl} size="sm" />
       {!collapsed && (
         <div className="min-w-0 flex-1 leading-tight">
@@ -132,7 +132,7 @@ export function AppShell({ user, nav, children }: AppShellProps) {
     <div className="min-h-dvh">
       {/* ---------- Sidebar (จอใหญ่) ---------- */}
       <aside
-        className={`fixed inset-y-3 left-3 z-30 hidden flex-col justify-between rounded-bento border border-ink/[0.08] bg-white/70 p-3 backdrop-blur-md transition-[width] duration-300 lg:flex ${
+        className={`fixed inset-y-3 left-3 z-30 hidden flex-col justify-between rounded-bento border border-ink/[0.08] bg-white p-3 transition-[width] duration-300 lg:flex ${
           collapsed ? 'w-[4.75rem]' : 'w-[16.5rem]'
         }`}
       >
@@ -155,7 +155,7 @@ export function AppShell({ user, nav, children }: AppShellProps) {
       </aside>
 
       {/* ---------- แถบบน (มือถือ/แท็บเล็ต) ---------- */}
-      <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-ink/[0.06] bg-washi/85 px-4 py-2 backdrop-blur-md lg:hidden">
+      <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-ink/[0.06] bg-washi px-4 py-2 lg:hidden">
         <Brand collapsed={false} />
         <button
           type="button"
@@ -203,7 +203,7 @@ export function AppShell({ user, nav, children }: AppShellProps) {
       {/* ---------- แถบเมนูล่าง (มือถือ) ---------- */}
       <nav
         aria-label="เมนูลัด"
-        className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30 grid auto-cols-fr grid-flow-col rounded-bento border border-ink/[0.08] bg-white/85 p-1.5 shadow-lg shadow-ink/5 backdrop-blur-md lg:hidden"
+        className="fixed inset-x-3 bottom-[max(0.75rem,env(safe-area-inset-bottom))] z-30 grid auto-cols-fr grid-flow-col rounded-bento border border-ink/[0.08] bg-white p-1.5 shadow-lg shadow-ink/5 lg:hidden"
       >
         {tabItems.map((item) => {
           const isActive = item.href === active;

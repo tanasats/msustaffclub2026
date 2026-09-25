@@ -42,7 +42,7 @@ export function AdvisorsEditor({ application }: { application: ApplicationDetail
       <ul className="mb-3 grid gap-2">
         {advisors.length === 0 && <li className="text-sm text-stone">ยังไม่ได้ระบุที่ปรึกษา</li>}
         {advisors.map((advisor, index) => (
-          <li key={advisor.key} className="flex items-center justify-between rounded-xl border border-ink/[0.08] bg-white/70 p-2 text-sm">
+          <li key={advisor.key} className="flex items-center justify-between rounded-xl border border-ink/[0.08] bg-white p-2 text-sm">
             <span>
               {index + 1}. {advisor.label}
               <span className="block text-xs text-mist">
