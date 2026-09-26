@@ -24,6 +24,8 @@ interface AchievementFormProps {
   mode: { kind: 'create'; clubId: string } | { kind: 'edit'; achievement: AchievementDetail };
   // วันนี้ตามเวลาประเทศไทย (YYYY-MM-DD) ใช้จำกัดวันที่ในฟอร์ม
   today: string;
+  // ค่าเริ่มต้นของฟอร์มใหม่ (เช่น "สร้างเป็นผลงาน" จากผลการแข่งขัน)
+  prefill?: Partial<Pick<AchievementDetail, 'title' | 'achievedOn' | 'level' | 'category' | 'award' | 'organizer' | 'description'>>;
 }
 
 function Field({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
@@ -36,10 +38,10 @@ function Field({ label, children, hint }: { label: string; children: React.React
   );
 }
 
-export function AchievementForm({ mode, today }: AchievementFormProps) {
+export function AchievementForm({ mode, today, prefill }: AchievementFormProps) {
   const router = useRouter();
   const fileInputId = useId();
-  const initial = mode.kind === 'edit' ? mode.achievement : null;
+  const initial = mode.kind === 'edit' ? mode.achievement : (prefill ?? null);
   const [title, setTitle] = useState(initial?.title ?? '');
   const [achievedOn, setAchievedOn] = useState(initial?.achievedOn ?? '');
   const [level, setLevel] = useState<AchievementLevel>(initial?.level ?? 'university');
@@ -47,7 +49,7 @@ export function AchievementForm({ mode, today }: AchievementFormProps) {
   const [award, setAward] = useState(initial?.award ?? '');
   const [organizer, setOrganizer] = useState(initial?.organizer ?? '');
   const [description, setDescription] = useState(initial?.description ?? '');
-  const [files, setFiles] = useState<AchievementFile[]>(initial?.files ?? []);
+  const [files, setFiles] = useState<AchievementFile[]>(mode.kind === 'edit' ? (mode.achievement.files ?? []) : []);
   const [uploading, setUploading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -187,7 +189,13 @@ export function AchievementForm({ mode, today }: AchievementFormProps) {
       )}
       <div className="flex flex-wrap gap-2">
         <button type="submit" disabled={saving || uploading} className="btn btn-primary">
-          {saving ? 'กำลังบันทึก...' : mode.kind === 'create' ? 'ส่งให้กรรมการรับรอง' : initial?.status === 'returned' ? 'บันทึกและส่งใหม่' : 'บันทึกการแก้ไข'}
+          {saving
+            ? 'กำลังบันทึก...'
+            : mode.kind === 'create'
+              ? 'ส่งให้กรรมการรับรอง'
+              : mode.achievement.status === 'returned'
+                ? 'บันทึกและส่งใหม่'
+                : 'บันทึกการแก้ไข'}
         </button>
         <button type="button" onClick={() => router.back()} className="btn btn-ghost">
           ยกเลิก

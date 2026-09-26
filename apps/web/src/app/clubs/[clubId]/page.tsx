@@ -264,11 +264,16 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
           <Bento className="lg:col-span-3">
             <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <BentoTitle>กีฬาของชมรม</BentoTitle>
-              {athletes && (
-                <Link href={`/clubs/${club.id}/athletes`} className="btn btn-secondary !min-h-10 text-sm">
-                  รายชื่อนักกีฬา ({athletes.items.length})
+              <div className="flex flex-wrap gap-2">
+                <Link href={`/clubs/${club.id}/competitions`} className="btn btn-secondary !min-h-10 text-sm">
+                  การแข่งขัน
                 </Link>
-              )}
+                {athletes && (
+                  <Link href={`/clubs/${club.id}/athletes`} className="btn btn-secondary !min-h-10 text-sm">
+                    รายชื่อนักกีฬา ({athletes.items.length})
+                  </Link>
+                )}
+              </div>
             </div>
             {clubSports.items.length === 0 ? (
               <p className="text-sm text-stone">ชมรมยังไม่ได้เลือกชนิดกีฬา</p>
