@@ -12,6 +12,7 @@ import { activitiesRouter } from './routes/activities.js';
 import { reportsRouter } from './routes/reports.js';
 import { sportsRouter } from './routes/sports.js';
 import { competitionsRouter } from './routes/competitions.js';
+import { selectionsRouter } from './routes/selections.js';
 import { adminRolesRouter } from './routes/admin-roles.js';
 import { createAuthRouter } from './routes/auth.js';
 import { clubApplicationsRouter } from './routes/club-applications.js';
@@ -47,6 +48,7 @@ export function createApp(): express.Express {
   app.use(reportsRouter);
   app.use(sportsRouter);
   app.use(competitionsRouter);
+  app.use(selectionsRouter);
   app.use(adminRolesRouter);
   app.use(meRouter);
   app.use(filesRouter);

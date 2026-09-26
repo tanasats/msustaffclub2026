@@ -83,6 +83,7 @@ describe('สิทธิ์เข้าถึง /admin', () => {
       super_admin: false,
       club_officer: false,
       club_president: false,
+      sport_selection_committee: false,
       user: false,
       staff: false,
       test_helper: true,
@@ -121,7 +122,7 @@ describe('ให้ role', () => {
     await testRole();
     expect((await grant(who, target.id, 'test_helper')).status).toBe(204);
 
-    for (const code of ['club_officer', 'club_president', 'super_admin']) {
+    for (const code of ['club_officer', 'club_president', 'sport_selection_committee', 'super_admin']) {
       const res = await grant(who, target.id, code);
       expect(res.status).toBe(403);
       expect(res.body.error.code).toBe('SUPER_ADMIN_ONLY');
