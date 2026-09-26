@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { EndAthleteButton } from '@/components/sports/EndAthleteButton';
 import { Bento, BentoTitle } from '@/components/ui/Bento';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -39,7 +40,9 @@ export default async function AthletesPage({ params }: { params: Promise<{ clubI
                 {list.map((a) => (
                   <li key={a.id} className="flex flex-wrap items-center justify-between gap-2 py-2 text-sm">
                     <span>
-                      <span className="font-medium">{a.name ?? a.email}</span>
+                      <Link href={`/clubs/${club.id}/athletes/${a.userId}`} className="font-medium underline-offset-2 hover:underline">
+                        {a.name ?? a.email}
+                      </Link>
                       {a.eventOrPosition && <span className="text-stone"> · {a.eventOrPosition}</span>}
                       <span className="block text-xs text-mist">
                         {a.orgUnitName ?? '—'} · ตั้งแต่ {formatDate(a.since)}

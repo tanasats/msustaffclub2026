@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useState } from 'react';
 import { useSave } from '@/components/club-applications/useSave';
 import type { Sport } from '@/lib/sport-types';
@@ -26,6 +27,9 @@ function SportRow({ sport }: { sport: Sport }) {
         >
           {sport.isActive ? 'ปิดใช้งาน' : 'เปิดใช้งาน'}
         </button>
+        <Link href={`/admin/sports/${sport.id}`} className="text-xs text-matcha-700 underline">
+          ค่าสถิติ
+        </Link>
         {!sport.isActive && <span className="text-xs text-beni">ปิดใช้งาน</span>}
         {error && <span role="alert" className="text-xs text-beni">{error}</span>}
       </span>
