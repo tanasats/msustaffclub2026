@@ -42,6 +42,9 @@ export function buildNavigation(current: CurrentUser): NavItem[] {
   if (has('club_report:review')) {
     items.push({ href: '/reports/overview', label: 'ภาพรวมการส่งรายงาน', shortLabel: 'รายงาน', icon: 'check', group: 'main' });
   }
+  if (has('sport:manage')) {
+    items.push({ href: '/admin/sports', label: 'ชนิดกีฬา', shortLabel: 'กีฬา', icon: 'award', group: 'admin' });
+  }
   if (has('user_role:assign')) {
     items.push({ href: '/admin/users', label: 'จัดการสิทธิ์ผู้ใช้', shortLabel: 'สิทธิ์', icon: 'shield', group: 'admin' });
   }

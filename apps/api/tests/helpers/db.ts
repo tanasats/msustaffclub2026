@@ -7,7 +7,7 @@ import { pool } from '../../src/db/pool.js';
  */
 export async function resetDatabase(): Promise<void> {
   await pool.query(
-    `TRUNCATE club_annual_reports, club_report_meetings, club_monthly_reports, club_activity_files, club_activity_participants, club_activities, club_planned_activities, club_achievement_events, club_achievement_files, club_achievements, club_committee_events, club_membership_events, club_application_events, club_application_activities, club_application_members,
+    `TRUNCATE club_athletes, club_sports, club_annual_reports, club_report_meetings, club_monthly_reports, club_activity_files, club_activity_participants, club_activities, club_planned_activities, club_achievement_events, club_achievement_files, club_achievements, club_committee_events, club_membership_events, club_application_events, club_application_activities, club_application_members,
               club_application_committee, club_application_advisors, club_applications,
               club_memberships, club_committee_members, club_advisors, clubs,
               role_change_logs, sessions, user_roles, user_preferences, external_persons, files, student_profiles, staff_profiles, erp_org_units, users`,
@@ -15,6 +15,8 @@ export async function resetDatabase(): Promise<void> {
   // ลบเฉพาะ role ที่ test สร้าง (ชื่อขึ้นต้นด้วย test_) role และการผูก permission จาก migration ต้องคงอยู่
   await pool.query("DELETE FROM role_permissions WHERE role_id IN (SELECT id FROM roles WHERE code LIKE 'test\\_%')");
   await pool.query("DELETE FROM roles WHERE code LIKE 'test\\_%'");
+  // ชนิดกีฬาที่ test สร้าง (รหัสขึ้นต้นด้วย test_) — ชนิดกีฬาตั้งต้นจาก migration ต้องคงอยู่
+  await pool.query("DELETE FROM sports WHERE code LIKE 'test\\_%'");
 }
 
 export interface TestUserInput {
