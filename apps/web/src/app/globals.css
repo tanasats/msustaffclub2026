@@ -99,3 +99,61 @@
 @utility btn-danger {
   @apply border border-beni/25 bg-beni-50 text-beni hover:bg-beni hover:text-washi disabled:border-ink/[0.10] disabled:bg-cream disabled:text-mist;
 }
+
+/* ---------- เอกสารสำหรับพิมพ์ (A4, ฟอนต์ Sarabun) ----------
+   บนจอแสดงเป็นแผ่นกระดาษ, ตอนพิมพ์ใช้ขอบกระดาษของ @page และขึ้นหน้าใหม่ทุกแผ่น */
+@page {
+  size: A4;
+  margin: 2cm 2cm 2cm 2.5cm;
+}
+
+.doc-page {
+  width: 210mm;
+  min-height: 297mm;
+  margin: 0 auto 1.5rem;
+  padding: 2cm 2cm 2cm 2.5cm;
+  background: #fff;
+  color: #000;
+  font-family: var(--font-sarabun), serif;
+  font-size: 14pt;
+  line-height: 1.55;
+  box-shadow: 0 1px 3px rgb(0 0 0 / 0.12);
+}
+
+.doc-page table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.doc-page th,
+.doc-page td {
+  border: 1px solid #000;
+  padding: 0.15rem 0.4rem;
+  vertical-align: top;
+}
+
+@media print {
+  html,
+  body {
+    background: #fff !important;
+  }
+
+  .doc-page {
+    width: auto;
+    min-height: auto;
+    margin: 0;
+    /* เว้นบนเล็กน้อย: สระ/วรรณยุกต์บนของบรรทัดแรกไม่ล้นข้ามไปท้ายหน้าก่อนหน้า */
+    padding: 0.5em 0 0;
+    box-shadow: none;
+    break-after: page;
+  }
+
+  .doc-page:last-child {
+    break-after: auto;
+  }
+
+  /* ปุ่ม/ป้ายของโหมดพัฒนา Next.js เป็น position: fixed จะซ้ำทุกหน้าตอนพิมพ์ */
+  nextjs-portal {
+    display: none !important;
+  }
+}

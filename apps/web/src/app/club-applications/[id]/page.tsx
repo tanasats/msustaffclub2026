@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { ActionButton } from '@/components/club-applications/ActionButton';
 import { FileLink } from '@/components/files/FileLink';
@@ -74,7 +75,14 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
         title={application.nameTh}
         description={`${APPLICATION_TYPE_LABELS[application.type]} ปีงบประมาณ ${application.fiscalYear} · ผู้ยื่น ${application.applicant.name ?? application.applicant.email}`}
         back={isApplicant ? { href: '/club-applications', label: 'คำขอของฉัน' } : { href: '/', label: 'หน้าหลัก' }}
-        actions={<StatusBadge status={status} />}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <StatusBadge status={status} />
+            <Link href={`${base}/document`} className="btn btn-secondary !min-h-10 text-sm">
+              เอกสารสำหรับพิมพ์
+            </Link>
+          </div>
+        }
       />
 
       {latestNote && (status === 'returned' || status === 'rejected' || status === 'draft') && (

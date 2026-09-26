@@ -145,3 +145,30 @@ export interface ValidationIssue {
   code: string;
   message: string;
 }
+
+// ข้อมูลสำหรับพิมพ์ชุดเอกสารคำขอ (GET /club-applications/:id/document)
+export interface ApplicationDocument {
+  id: string;
+  type: 'establish' | 'renewal';
+  status: ApplicationStatus;
+  fiscalYear: number;
+  submittedAt: string | null;
+  nameTh: string;
+  applicant: { name: string; orgUnitName: string | null };
+  categoryCode: string | null;
+  categoryDetail: string | null;
+  categories: { code: string; nameTh: string }[];
+  history: string | null;
+  motto: string | null;
+  logoMeaning: string | null;
+  logoFileId: string | null;
+  objectives: string[];
+  officeLocation: string | null;
+  contactPhone: string | null;
+  contactEmail: string | null;
+  regulationText: string | null;
+  advisors: { name: string; orgUnitName: string | null; kind: 'internal' | 'external'; consentStatus: 'pending' | 'accepted' | 'declined'; respondedAt: string | null }[];
+  committee: { name: string; positionCode: string; positionTitle: string; orgUnitName: string | null; workLocation: string | null; contactPhone: string | null; bio: string | null }[];
+  members: { name: string; orgUnitName: string | null }[];
+  activities: { activityDate: string | null; activityTime: string | null; title: string; note: string | null }[];
+}
