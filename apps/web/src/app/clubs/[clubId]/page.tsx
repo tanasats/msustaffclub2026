@@ -8,6 +8,9 @@ import { CommitteeManager } from '@/components/clubs/CommitteeManager';
 import { EndCommitteeTermButton } from '@/components/clubs/EndCommitteeTermButton';
 import { LogoUploader } from '@/components/clubs/LogoUploader';
 import { RenewalPanel, type RenewalStatus } from '@/components/renewals/RenewalPanel';
+import { AthleteRegister } from '@/components/sports/AthleteRegister';
+import { ClubSportsEditor } from '@/components/sports/ClubSportsEditor';
+import { EndAthleteButton } from '@/components/sports/EndAthleteButton';
 import { MembershipPanel } from '@/components/clubs/MembershipPanel';
 import { RemoveMemberButton } from '@/components/clubs/RemoveMemberButton';
 import { Badge } from '@/components/ui/Badge';
@@ -21,6 +24,7 @@ import type { ClubPosition } from '@/lib/club-application-types';
 import type { ClubMember, ClubPage, CommitteeHistoryItem, MembershipRequest } from '@/lib/club-types';
 import { committeeEndReasonLabel } from '@/lib/committee-labels';
 import { formatDate, formatDateTime } from '@/lib/format';
+import type { Athlete, ClubSport, Sport } from '@/lib/sport-types';
 import { bangkokToday } from '@/lib/thai-date';
 
 // ใช้หาแถวประธานเพื่อเลือกแสดงปุ่มเท่านั้น (API ตรวจกฎจริง)
@@ -49,7 +53,9 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
   const canReviewAchievements = club.me.permissions.includes('club_achievement:manage') && club.status === 'active';
   const canSubmitAchievement = club.me.membershipStatus === 'active' && club.status === 'active';
   const expired = club.registeredUntil < bangkokToday();
-  const [members, requests, positions, history, achievements, achievementQueue, activities, renewal] = await Promise.all([
+  const isMember = club.me.membershipStatus === 'active';
+  const canManageSports = club.me.permissions.includes('club_sport:manage') && club.status === 'active';
+  const [members, requests, positions, history, achievements, achievementQueue, activities, renewal, clubSports, allSports, athletes] = await Promise.all([
     canViewInternal ? apiGetJson<{ items: ClubMember[]; total: number }>(`/clubs/${club.id}/members?pageSize=100`) : null,
     canApproveMembers ? apiGetJson<{ items: MembershipRequest[] }>(`/clubs/${club.id}/membership-requests`) : null,
     canManageCommittee ? apiGetJson<{ items: ClubPosition[] }>('/club-positions') : null,
@@ -58,7 +64,11 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
     canReviewAchievements ? apiGetJson<{ items: AchievementItem[] }>(`/clubs/${club.id}/achievement-reviews`) : null,
     apiGetJson<{ fiscalYear: number; items: ActivityItem[] }>(`/clubs/${club.id}/activities`),
     canViewInternal ? apiGetJson<RenewalStatus>(`/clubs/${club.id}/renewal`) : null,
+    apiGetJson<{ enabled: boolean; items: ClubSport[] }>(`/clubs/${club.id}/sports`),
+    canManageSports ? apiGetJson<{ items: Sport[] }>('/sports') : null,
+    canViewInternal || isMember ? apiGetJson<{ items: Athlete[] }>(`/clubs/${club.id}/athletes`) : null,
   ]);
+  const myAthleteRows = (athletes?.items ?? []).filter((a) => a.userId === current.user.id);
   const statusLabel = STATUS_LABEL[club.status];
   const myId = current.user.id;
   const presidentId = club.committee.find((c) => c.positionCode === PRESIDENT_CODE)?.userId ?? null;
@@ -249,6 +259,51 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
             {club.advisors.length === 0 && <li className="text-sm text-stone">—</li>}
           </ul>
         </Bento>
+
+        {clubSports.enabled && (
+          <Bento className="lg:col-span-3">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+              <BentoTitle>กีฬาของชมรม</BentoTitle>
+              {athletes && (
+                <Link href={`/clubs/${club.id}/athletes`} className="btn btn-secondary !min-h-10 text-sm">
+                  รายชื่อนักกีฬา ({athletes.items.length})
+                </Link>
+              )}
+            </div>
+            {clubSports.items.length === 0 ? (
+              <p className="text-sm text-stone">ชมรมยังไม่ได้เลือกชนิดกีฬา</p>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {clubSports.items.map((s) => (
+                  <Badge key={s.sportId} tone="matcha">
+                    {s.nameTh} · นักกีฬา {s.athleteCount} คน
+                  </Badge>
+                ))}
+              </div>
+            )}
+            {allSports && (
+              <div className="mt-3">
+                <ClubSportsEditor clubId={club.id} sports={allSports.items} selected={clubSports.items.map((s) => s.sportId)} />
+              </div>
+            )}
+            {isMember && club.status === 'active' && (
+              <div className="mt-4 grid gap-3 border-t border-ink/[0.06] pt-4">
+                {myAthleteRows.length > 0 && (
+                  <ul className="flex flex-wrap gap-3 text-sm">
+                    {myAthleteRows.map((a) => (
+                      <li key={a.id} className="inline-flex items-center gap-2 rounded-xl border border-ink/[0.08] px-3 py-1.5">
+                        คุณเป็นนักกีฬา{a.sportName}
+                        {a.eventOrPosition && ` (${a.eventOrPosition})`}
+                        <EndAthleteButton athleteId={a.id} label="เลิก" />
+                      </li>
+                    ))}
+                  </ul>
+                )}
+                <AthleteRegister clubId={club.id} sports={clubSports.items.filter((s) => !myAthleteRows.some((a) => a.sportId === s.sportId))} />
+              </div>
+            )}
+          </Bento>
+        )}
 
         <Bento className="lg:col-span-3">
           <div className="mb-3 flex flex-wrap items-center justify-between gap-2">

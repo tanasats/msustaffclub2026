@@ -64,15 +64,18 @@ describe('ข้อมูลตั้งต้นของชมรม', () => {
     const view = 'club:view_internal';
     const activity = 'club_activity:manage';
     const achievement = 'club_achievement:manage';
+    // club_sport:manage + ตำแหน่งผู้จัดการทีม/โค้ช เพิ่มในระยะที่ 5 (ยืนยันแล้ว)
+    const sport = 'club_sport:manage';
     expect(matrix).toEqual({
-      president: [view, achievement, activity, 'club_committee:manage', 'club_finance:manage', 'club_member:approve', 'club_profile:edit', 'club_report:submit'],
-      vice_president: [view, achievement, activity, 'club_member:approve', 'club_profile:edit'],
-      secretary: [view, achievement, activity, 'club_member:approve', 'club_profile:edit', 'club_report:submit'],
+      president: [view, achievement, activity, 'club_committee:manage', 'club_finance:manage', 'club_member:approve', 'club_profile:edit', 'club_report:submit', sport],
+      vice_president: [view, achievement, activity, 'club_member:approve', 'club_profile:edit', sport],
+      secretary: [view, achievement, activity, 'club_member:approve', 'club_profile:edit', 'club_report:submit', sport],
       assistant_secretary: [view, achievement, activity],
       treasurer: [view, achievement, activity, 'club_finance:manage'],
       assistant_treasurer: [view, achievement, activity],
       public_relations: [view, achievement, activity, 'club_profile:edit'],
       committee_member: [view, achievement, activity],
+      team_manager: [view, activity, sport],
       advisor: [view, 'club_report:acknowledge'],
       member: [],
     });
@@ -86,7 +89,7 @@ describe('ข้อมูลตั้งต้นของชมรม', () => {
          FROM roles r WHERE r.code IN ('club_officer', 'club_president') ORDER BY r.code`,
     );
     expect(rows).toEqual([
-      { code: 'club_officer', name_th: 'เจ้าหน้าที่สโมสร', is_system: false, is_privileged: true, permissions: ['club_application:review', 'club_report:review'] },
+      { code: 'club_officer', name_th: 'เจ้าหน้าที่สโมสร', is_system: false, is_privileged: true, permissions: ['club_application:review', 'club_report:review', 'sport:manage'] },
       { code: 'club_president', name_th: 'นายกสโมสร', is_system: false, is_privileged: true, permissions: ['club_application:approve'] },
     ]);
   });

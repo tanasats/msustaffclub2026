@@ -14,6 +14,7 @@ import {
   type MembershipEndReason,
   type MembershipRecord,
 } from '../repositories/memberships-repository.js';
+import { endAthletesOfMember } from '../repositories/sports-repository.js';
 import type { AuthContext } from './authorization.js';
 import { hasClubPermission } from './club-authorization.js';
 import { CLUB_PERMISSIONS } from './club-permissions.js';
@@ -92,6 +93,7 @@ export async function leaveClub(auth: AuthContext, clubId: string, note: string 
       throw new AppError(409, 'COMMITTEE_MUST_RESIGN_FIRST', 'คุณเป็นกรรมการของชมรมนี้ ต้องพ้นจากตำแหน่งกรรมการก่อนจึงลาออกจากชมรมได้');
     }
     await endMembership(current.id, bangkokDateString(), 'resigned', client);
+    await endAthletesOfMember(clubId, auth.user.id, auth.user.id, client);
     await insertMembershipEvent({ membershipId: current.id, actorUserId: auth.user.id, action: 'left', note }, client);
   });
 }
@@ -162,6 +164,7 @@ export async function removeMember(
       throw new AppError(409, 'COMMITTEE_MUST_RESIGN_FIRST', 'สมาชิกคนนี้เป็นกรรมการ ต้องให้พ้นจากตำแหน่งกรรมการก่อน');
     }
     await endMembership(membershipId, bangkokDateString(), reason, client);
+    await endAthletesOfMember(clubId, membership.userId, auth.user.id, client);
     await insertMembershipEvent({ membershipId, actorUserId: auth.user.id, action: 'removed', note }, client);
   });
 }
