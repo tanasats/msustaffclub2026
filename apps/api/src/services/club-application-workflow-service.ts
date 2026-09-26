@@ -29,6 +29,7 @@ import { hasPermission, type AuthContext } from './authorization.js';
 import { collectSubmissionIssues, notFound } from './club-application-service.js';
 import { isEligibleForClub } from './club-rules.js';
 import { bangkokDateString, fiscalYearRange } from './fiscal-year.js';
+import { endCurrentAdvisors, updateClubFromRenewal } from '../repositories/renewals-repository.js';
 import { PERMISSIONS, type PermissionCode } from './permissions.js';
 
 // ---------- ตัวช่วย ----------
@@ -249,13 +250,17 @@ export async function decideApplication(
       return { status: 'rejected', clubId: null };
     }
 
-    if (app.type !== 'establish') {
-      throw new AppError(422, 'NOT_SUPPORTED', 'ยังไม่รองรับการอนุมัติคำขอประเภทนี้');
-    }
     // ข้อมูลอาจเปลี่ยนระหว่างรออนุมัติ (เช่น สมาชิกถูกปิดบัญชี, มีชมรมชื่อซ้ำเกิดขึ้น) จึงตรวจซ้ำ
     await assertReadyToSubmit(client, applicationId);
 
     const today = bangkokDateString();
+    if (app.type === 'renewal') {
+      const clubId = app.clubId!;
+      await approveRenewal(clubId, applicationId, app.fiscalYear, today, client);
+      await markDecided(applicationId, 'approved', auth.user.id, note, clubId, client);
+      await transition(client, app, auth.user.id, 'approved', note);
+      return { status: 'approved', clubId };
+    }
     let clubId: string;
     try {
       clubId = await insertClubFromApplication(applicationId, today, fiscalYearRange(app.fiscalYear).end, client);
@@ -294,4 +299,24 @@ export async function listOfficerQueue(auth: AuthContext, statuses?: Application
     ...(canApprove || canReadAll ? (['reviewed'] as const) : []),
   ];
   return listApplicationsByStatus(statuses && statuses.length > 0 ? statuses : defaults, 100);
+}
+
+/**
+ * อนุมัติต่อทะเบียน (ใน transaction เดียวกับการเปลี่ยนสถานะ):
+ * ปรับข้อมูล/ระเบียบของชมรมตามคำขอ + ขยายทะเบียนถึงสิ้นปีงบประมาณใหม่
+ * + ที่ปรึกษาชุดเดิมสิ้นสุด แล้วบันทึกชุดใหม่ที่ยินยอม + แผนกิจกรรมปีใหม่
+ * กรรมการและสมาชิกไม่เปลี่ยน (ใช้ข้อมูลจริงของชมรม)
+ */
+async function approveRenewal(clubId: string, applicationId: string, fiscalYear: number, today: string, client: DbClient): Promise<void> {
+  try {
+    await updateClubFromRenewal(clubId, applicationId, fiscalYearRange(fiscalYear).end, client);
+  } catch (err) {
+    if ((err as { code?: string }).code === '23505') {
+      throw new AppError(409, 'CLUB_NAME_TAKEN', 'มีชมรมที่ใช้ชื่อนี้อยู่แล้ว');
+    }
+    throw err;
+  }
+  await endCurrentAdvisors(clubId, today, client);
+  await insertAdvisorsFromApplication(clubId, applicationId, fiscalYear, today, client);
+  await insertPlannedActivitiesFromApplication(clubId, applicationId, fiscalYear, client);
 }

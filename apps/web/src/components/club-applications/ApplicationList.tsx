@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Icon } from '@/components/ui/icons';
 import { formatDateTime } from '@/lib/format';
@@ -35,6 +36,7 @@ export function ApplicationList({ items, emptyMessage }: ApplicationListProps) {
               </span>
               <span className="mt-2 flex flex-wrap items-center gap-2">
                 <StatusBadge status={item.status} />
+                {item.type === 'renewal' && <Badge tone="kin">ต่อทะเบียน</Badge>}
                 {item.myConsentStatus && (
                   <span className="text-xs text-stone">การยินยอมของคุณ: {CONSENT_LABELS[item.myConsentStatus]}</span>
                 )}

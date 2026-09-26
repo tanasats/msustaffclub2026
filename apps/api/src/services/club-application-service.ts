@@ -40,7 +40,9 @@ import {
   updateExternalPerson,
   type ExternalPersonInput,
 } from '../repositories/external-persons-repository.js';
+import { listCurrentCommittee } from '../repositories/clubs-repository.js';
 import { findFile } from '../repositories/files-repository.js';
+import { countActiveMembers, findAnnualReportStatus } from '../repositories/renewals-repository.js';
 import { findActiveUserIdsByEmail, findUserSummariesByIds, type UserSummary } from '../repositories/users-repository.js';
 import { hasPermission, type AuthContext } from './authorization.js';
 import {
@@ -57,6 +59,14 @@ import {
 import { buddhistYearOf, fiscalYearOf, toThaiDigits } from './fiscal-year.js';
 import { registerFileReadAccess } from './files-service.js';
 import { PERMISSIONS } from './permissions.js';
+import { getRenewalContext } from './renewal-service.js';
+
+// คำขอต่อทะเบียนใช้กรรมการ/สมาชิกจริงของชมรม (แก้ผ่านหน้าชมรม) จึงแก้ในคำขอไม่ได้
+function assertEstablish(app: ApplicationBase): void {
+  if (app.type !== 'establish') {
+    throw new AppError(409, 'NOT_APPLICABLE_FOR_RENEWAL', 'คำขอต่อทะเบียนใช้กรรมการและสมาชิกปัจจุบันของชมรม แก้ไขได้ที่หน้าชมรม');
+  }
+}
 
 export function notFound(): AppError {
   return new AppError(404, 'APPLICATION_NOT_FOUND', 'ไม่พบคำขอ');
@@ -361,6 +371,7 @@ export async function replaceCommittee(auth: AuthContext, applicationId: string,
 
   await withTransaction(async (client) => {
     const app = await lockForEdit(client, auth, applicationId);
+    assertEstablish(app);
     const positions = new Map((await listClubPositions(client)).map((p) => [p.code, p]));
     checkPositionLimits(inputs, positions);
 
@@ -395,7 +406,7 @@ export async function replaceCommittee(auth: AuthContext, applicationId: string,
 export async function replaceMembers(auth: AuthContext, applicationId: string, userIds: string[]): Promise<void> {
   const unique = [...new Set(userIds)];
   await withTransaction(async (client) => {
-    await lockForEdit(client, auth, applicationId);
+    assertEstablish(await lockForEdit(client, auth, applicationId));
     await loadEligibleUsers(unique, client);
     await replaceMemberRows(applicationId, unique, client);
   });
@@ -464,6 +475,8 @@ export async function getApplicationDetail(auth: AuthContext, applicationId: str
     listApplicationEvents(applicationId),
   ]);
   if (!detail) throw notFound();
+  // คำขอต่อทะเบียน: กรรมการ/สมาชิกปัจจุบันของชมรม และรายงานประจำปีของปีที่ผ่านมา
+  const renewal = detail.type === 'renewal' && detail.clubId ? await getRenewalContext(detail.clubId, detail.fiscalYear) : null;
 
   return {
     id: detail.id,
@@ -471,6 +484,7 @@ export async function getApplicationDetail(auth: AuthContext, applicationId: str
     status: detail.status,
     fiscalYear: detail.fiscalYear,
     clubId: detail.clubId,
+    renewal,
     applicant: { id: detail.applicantUserId, name: detail.applicantName, email: detail.applicantEmail },
     nameTh: detail.nameTh,
     category: detail.categoryId
@@ -577,6 +591,10 @@ export async function collectSubmissionIssues(applicationId: string, db: Queryab
   if (missingConsent.length > 0) {
     add('EXTERNAL_CONSENT_REQUIRED', 'กรุณาแนบใบคำยินยอมที่ลงนามแล้วของที่ปรึกษาภายนอกให้ครบ');
   }
+  if (detail.type === 'renewal' && detail.clubId) {
+    await addRenewalIssues(detail.clubId, detail.fiscalYear, advisors, add, db);
+    return issues;
+  }
   const committeeUserIds = new Set(committee.map((c) => c.userId));
   if (advisors.some((a) => a.userId && committeeUserIds.has(a.userId))) {
     add('ADVISOR_IN_COMMITTEE', 'ที่ปรึกษาต้องไม่เป็นกรรมการของชมรม');
@@ -597,4 +615,32 @@ export async function collectSubmissionIssues(applicationId: string, db: Queryab
     add('MIN_MEMBERS', `ต้องมีสมาชิกตั้งต้นอย่างน้อย ${MIN_INITIAL_MEMBERS} คน (นับรวมกรรมการ) ตอนนี้มี ${activeMembers.size} คน`);
   }
   return issues;
+}
+
+/**
+ * เงื่อนไขเพิ่มของคำขอต่อทะเบียน: กรรมการ/สมาชิกใช้ข้อมูลจริงของชมรม (ไม่ได้กรอกในคำขอ)
+ * - สมาชิก active ของชมรม ≥ MIN_INITIAL_MEMBERS
+ * - ส่งรายงานประจำปีของปีงบประมาณที่ผ่านมาแล้ว (ส่งแล้วหรือสโมสรรับทราบแล้ว)
+ * - ที่ปรึกษาที่เสนอต้องไม่เป็นกรรมการชุดปัจจุบัน
+ */
+async function addRenewalIssues(
+  clubId: string,
+  fiscalYear: number,
+  advisors: { userId: string | null }[],
+  add: (code: string, message: string) => void,
+  db: Queryable,
+): Promise<void> {
+  const committee = await listCurrentCommittee(clubId, db);
+  const committeeUserIds = new Set(committee.map((c) => c.userId));
+  if (advisors.some((a) => a.userId && committeeUserIds.has(a.userId))) {
+    add('ADVISOR_IN_COMMITTEE', 'ที่ปรึกษาต้องไม่เป็นกรรมการของชมรม');
+  }
+  const activeMembers = await countActiveMembers(clubId, db);
+  if (activeMembers < MIN_INITIAL_MEMBERS) {
+    add('MIN_MEMBERS', `ชมรมต้องมีสมาชิกอย่างน้อย ${MIN_INITIAL_MEMBERS} คน ตอนนี้มี ${activeMembers} คน`);
+  }
+  const annual = await findAnnualReportStatus(clubId, fiscalYear - 1, db);
+  if (!annual || annual.status === 'draft') {
+    add('ANNUAL_REPORT_REQUIRED', `กรุณาส่งรายงานประจำปีงบประมาณ ${fiscalYear - 1} ให้สโมสรก่อนยื่นต่อทะเบียน`);
+  }
 }

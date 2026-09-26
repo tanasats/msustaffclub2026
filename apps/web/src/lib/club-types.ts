@@ -9,6 +9,7 @@ export interface ClubListItem {
   logoFileId: string | null;
   memberCount: number;
   establishedOn: string;
+  registeredUntil: string;
   myMembershipStatus: 'pending' | 'active' | null;
 }
 

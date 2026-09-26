@@ -115,6 +115,7 @@ export interface ClubListItem {
   logoFileId: string | null;
   memberCount: number;
   establishedOn: string;
+  registeredUntil: string;
   // สถานะของผู้ใช้ปัจจุบันในชมรมนี้ (null = ไม่ได้เป็นสมาชิก/ไม่ได้สมัคร)
   myMembershipStatus: 'pending' | 'active' | null;
 }
@@ -143,6 +144,7 @@ export async function listClubs(filter: ClubListFilter, db: Queryable = pool): P
             c.motto, c.logo_file_id AS "logoFileId",
             (SELECT count(*)::int FROM club_memberships m WHERE m.club_id = c.id AND m.status = 'active') AS "memberCount",
             to_char(c.established_on, 'YYYY-MM-DD') AS "establishedOn",
+            to_char(c.registered_until, 'YYYY-MM-DD') AS "registeredUntil",
             (SELECT m.status FROM club_memberships m
               WHERE m.club_id = c.id AND m.user_id = $4 AND m.status IN ('pending', 'active')) AS "myMembershipStatus",
             count(*) OVER ()::int AS total

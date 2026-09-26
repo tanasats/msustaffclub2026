@@ -4,6 +4,7 @@ import { getRequiredAuth, requireAuth, requireClubPermission } from '../middlewa
 import { CLUB_PERMISSIONS } from '../services/club-permissions.js';
 import { getClubLogoUrl, setClubLogo } from '../services/club-logo-service.js';
 import { getClubPage, listClubDirectory, listClubMembers } from '../services/club-service.js';
+import { createRenewal, getRenewalStatus } from '../services/renewal-service.js';
 import {
   appointCommitteeMember,
   COMMITTEE_END_REASONS,
@@ -197,4 +198,16 @@ clubsRouter.put('/clubs/:clubId/logo', requireAuth, async (req, res) => {
   const { fileId } = logoSchema.parse(req.body);
   await setClubLogo(getRequiredAuth(req), clubIdOf(req.params.clubId), fileId);
   res.status(204).end();
+});
+
+// ---------- ต่อทะเบียน ----------
+
+// ต้องมีสิทธิ์ชมรม club:view_internal: สถานะการต่อทะเบียน (ช่วงเวลา, คำขอปีถัดไป)
+clubsRouter.get('/clubs/:clubId/renewal', requireAuth, requireClubPermission(CLUB_PERMISSIONS.VIEW_INTERNAL), async (req, res) => {
+  res.json(await getRenewalStatus(getRequiredAuth(req), req.params.clubId as string));
+});
+
+// ต้องมีสิทธิ์ชมรม club_report:submit (ตรวจใน service): ยื่นต่อทะเบียน (สร้างคำขอฉบับร่าง)
+clubsRouter.post('/clubs/:clubId/renewals', requireAuth, async (req, res) => {
+  res.status(201).json({ id: await createRenewal(getRequiredAuth(req), clubIdOf(req.params.clubId)) });
 });
