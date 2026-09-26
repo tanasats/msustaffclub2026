@@ -1,36 +1,10 @@
+import { DOTS, Fill, Page, Signature, Title } from '@/components/print/DocParts';
 import { PrintToolbar } from '@/components/print/PrintToolbar';
 import { sarabun } from '@/components/print/sarabun';
 import { thaiDateParts, thaiDigits, thaiLongDate } from '@/components/print/thai-doc';
 import { apiGetJson } from '@/lib/api-server';
 import type { ApplicationDocument } from '@/lib/club-application-types';
 import { publicEnv } from '@/lib/public-env';
-
-const DOTS = '....................................';
-
-// ช่องกรอก: มีค่า → แสดงค่า, ไม่มี → เส้นประให้เขียนเอง
-function Fill({ value, dots = DOTS }: { value: string | null | undefined; dots?: string }) {
-  return value ? <span className="font-bold">{value}</span> : <span>{dots}</span>;
-}
-
-// เส้นลงนาม (ลงนามด้วยมือ) พร้อมชื่อในวงเล็บ และหมายเหตุการยืนยันในระบบ (ถ้ามี)
-function Signature({ name, role, note }: { name: string | null; role: string; note?: string | null }) {
-  return (
-    <div className="text-center">
-      <p>ลงชื่อ.....................................................</p>
-      <p>( {name ?? '.............................................'} )</p>
-      <p>{role}</p>
-      {note && <p className="text-[11pt] text-neutral-600">{note}</p>}
-    </div>
-  );
-}
-
-function Page({ children, className = '' }: { children: React.ReactNode; className?: string }) {
-  return <section className={`doc-page ${className}`}>{children}</section>;
-}
-
-function Title({ children }: { children: React.ReactNode }) {
-  return <h2 className="mb-6 text-center font-bold">{children}</h2>;
-}
 
 /**
  * ระเบียบข้อบังคับ (ข้อความล้วน) จัดรูปแบบตามต้นฉบับ:
