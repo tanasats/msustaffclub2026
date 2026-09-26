@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { Badge } from '@/components/ui/Badge';
 import { Bento, BentoTitle } from '@/components/ui/Bento';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -20,6 +21,11 @@ export default async function AnnouncementPage({ params }: { params: Promise<{ i
         title={a.title}
         description={[KIND_LABELS[a.kind], a.sportName, a.eventName, `ปีงบประมาณ ${a.fiscalYear}`, `ประกาศ ${formatDateTime(a.closedAt)}`].filter(Boolean).join(' · ')}
         back={{ href: '/announcements', label: 'ประกาศผลคัดเลือก' }}
+        actions={
+          <Link href={`/selections/${a.id}/announcement/document`} className="btn btn-secondary !min-h-10 text-sm">
+            เอกสารสำหรับพิมพ์
+          </Link>
+        }
       />
       <div className="grid gap-3 sm:gap-4 lg:grid-cols-2">
         {groups.map(([decision, label]) => {
