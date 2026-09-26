@@ -93,13 +93,17 @@ async function openRound(s: Awaited<ReturnType<typeof setup>>) {
 }
 
 describe('สิทธิ์', () => {
-  it('ยังไม่ผูก sport_selection:manage กับ role ใด → เจ้าหน้าที่สโมสร/บุคลากร 403 เฉพาะ super_admin ใช้ได้', async () => {
+  it('เฉพาะ super_admin และ role คณะกรรมการคัดเลือก ใช้ได้ → เจ้าหน้าที่สโมสร/บุคลากร 403', async () => {
     const s = await setup();
     const officer = await actor(['user', 'staff', 'club_officer']);
     const body = { kind: 'representative', title: 'x', sportId: s.running, fiscalYear: FY };
     expect((await post(officer, '/selection-rounds', body)).status).toBe(403);
     expect((await get(s.a, '/selection-rounds')).status).toBe(403);
     expect((await post(s.admin, '/selection-rounds', body)).status).toBe(201);
+    // role คณะกรรมการคัดเลือก (ผู้ใช้ยืนยันให้ผูก sport_selection:manage)
+    const committee = await actor(['user', 'staff', 'sport_selection_committee']);
+    expect((await post(committee, '/selection-rounds', body)).status).toBe(201);
+    expect((await get(committee, '/selection-rounds')).status).toBe(200);
   });
 
   it('ตัวแทนต้องระบุชนิดกีฬา รางวัลต้องไม่ระบุ; ปีงบประมาณเฉพาะปีนี้/ปีที่แล้ว', async () => {

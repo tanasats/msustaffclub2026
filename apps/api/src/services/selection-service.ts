@@ -22,7 +22,7 @@ function roundNotFound(): AppError {
   return new AppError(404, 'ROUND_NOT_FOUND', 'ไม่พบรอบคัดเลือก');
 }
 
-// permission ระบบ sport_selection:manage (ยังไม่ผูกกับ role ใด → เฉพาะ super_admin จนกว่าผู้ใช้กำหนด)
+// permission ระบบ sport_selection:manage (ผูกกับ role คณะกรรมการคัดเลือก — super_admin ผ่านทุก permission)
 function assertManager(auth: AuthContext): void {
   if (!hasPermission(auth, PERMISSIONS.SPORT_SELECTION_MANAGE)) {
     throw new AppError(403, 'FORBIDDEN', 'ไม่มีสิทธิ์จัดการการคัดเลือก');
