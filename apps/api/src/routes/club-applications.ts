@@ -14,6 +14,7 @@ import {
   updateGeneral,
   validateForSubmission,
 } from '../services/club-application-service.js';
+import { getApplicationDocument } from '../services/application-document-service.js';
 import { getApplicationLogoUrl, setApplicationLogo } from '../services/club-logo-service.js';
 import { redirectToImage } from './responses.js';
 import {
@@ -273,4 +274,9 @@ clubApplicationsRouter.put('/club-applications/:id/logo', requireAuth, async (re
 // ต้อง login เท่านั้น (ต้องดูคำขอนี้ได้ ตรวจใน service): รูปตรา
 clubApplicationsRouter.get('/club-applications/:id/logo', requireAuth, async (req, res) => {
   redirectToImage(res, await getApplicationLogoUrl(getRequiredAuth(req), idOf(req.params.id)));
+});
+
+// ต้อง login เท่านั้น (ต้องดูคำขอนี้ได้ ตรวจใน service): ข้อมูลสำหรับพิมพ์ชุดเอกสารตามแบบฟอร์มสโมสร
+clubApplicationsRouter.get('/club-applications/:id/document', requireAuth, async (req, res) => {
+  res.json(await getApplicationDocument(getRequiredAuth(req), idOf(req.params.id)));
 });

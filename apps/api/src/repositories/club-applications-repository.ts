@@ -719,3 +719,16 @@ export async function replaceApplicationLogo(id: string, fileId: string | null, 
   );
   return result.rows[0] ?? { previousFileId: null };
 }
+
+// หน่วยงานของผู้ใช้หลายคน (ใช้กับเอกสารพิมพ์ เช่น "สังกัด" ของที่ปรึกษา)
+export async function findOrgUnitNames(userIds: string[], db: Queryable = pool): Promise<Map<string, string | null>> {
+  const result = await db.query<{ userId: string; orgUnitName: string | null }>(
+    `SELECT u.id AS "userId", ou.name_th AS "orgUnitName"
+       FROM users u
+       LEFT JOIN staff_profiles sp ON sp.user_id = u.id
+       LEFT JOIN org_units ou ON ou.id = sp.org_unit_id
+      WHERE u.id = ANY($1::uuid[])`,
+    [userIds],
+  );
+  return new Map(result.rows.map((row) => [row.userId, row.orgUnitName]));
+}
