@@ -42,6 +42,11 @@ export function buildNavigation(current: CurrentUser): NavItem[] {
   if (has('club_report:review')) {
     items.push({ href: '/reports/overview', label: 'ภาพรวมการส่งรายงาน', shortLabel: 'รายงาน', icon: 'check', group: 'main' });
   }
+  if (has('sport_selection:manage')) {
+    items.push({ href: '/selections', label: 'การคัดเลือกนักกีฬา', shortLabel: 'คัดเลือก', icon: 'award', group: 'main' });
+  }
+  // ต้อง login เท่านั้น: ประกาศผลคัดเลือก
+  items.push({ href: '/announcements', label: 'ประกาศผลคัดเลือก', shortLabel: 'ประกาศ', icon: 'scroll', group: 'main' });
   if (has('sport:manage')) {
     items.push({ href: '/admin/sports', label: 'ชนิดกีฬา', shortLabel: 'กีฬา', icon: 'award', group: 'admin' });
   }

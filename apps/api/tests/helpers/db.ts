@@ -7,7 +7,7 @@ import { pool } from '../../src/db/pool.js';
  */
 export async function resetDatabase(): Promise<void> {
   await pool.query(
-    `TRUNCATE sport_result_stats, sport_competition_results, sport_competitions, club_athletes, club_sports, club_annual_reports, club_report_meetings, club_monthly_reports, club_activity_files, club_activity_participants, club_activities, club_planned_activities, club_achievement_events, club_achievement_files, club_achievements, club_committee_events, club_membership_events, club_application_events, club_application_activities, club_application_members,
+    `TRUNCATE selection_candidates, selection_rounds, sport_result_stats, sport_competition_results, sport_competitions, club_athletes, club_sports, club_annual_reports, club_report_meetings, club_monthly_reports, club_activity_files, club_activity_participants, club_activities, club_planned_activities, club_achievement_events, club_achievement_files, club_achievements, club_committee_events, club_membership_events, club_application_events, club_application_activities, club_application_members,
               club_application_committee, club_application_advisors, club_applications,
               club_memberships, club_committee_members, club_advisors, clubs,
               role_change_logs, sessions, user_roles, user_preferences, external_persons, files, student_profiles, staff_profiles, erp_org_units, users`,
