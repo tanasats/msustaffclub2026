@@ -1,8 +1,8 @@
 import { NextResponse, type NextRequest } from 'next/server';
 
-// เพื่อ UX เท่านั้น: ไม่มี cookie session → ส่งไปหน้า login ทันที
+// เพื่อ UX เท่านั้น: ไม่มี cookie session → ส่งไปหน้า login ทันที (ยกเว้นหน้าแรก = landing page และหน้า login)
 // (ไม่ได้ตรวจว่า session ใช้ได้จริง การตรวจจริงและตรวจสิทธิ์อยู่ที่ API เสมอ)
-const PUBLIC_PATHS = ['/login'];
+const PUBLIC_PATHS = ['/', '/login'];
 
 export function proxy(request: NextRequest) {
   const cookieName = process.env.SESSION_COOKIE_NAME;
