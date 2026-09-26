@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { ActionButton } from '@/components/club-applications/ActionButton';
 import { AnnualReportEditor } from '@/components/reports/AnnualReportEditor';
 import { Badge } from '@/components/ui/Badge';
@@ -34,7 +35,14 @@ export default async function AnnualReportPage({ params }: { params: Promise<{ i
             ? { href: `/clubs/${r.clubId}/reports?fiscalYear=${r.fiscalYear}`, label: 'รายงานของชมรม' }
             : { href: `/reports/overview?fiscalYear=${r.fiscalYear}`, label: 'ภาพรวมการส่งรายงาน' }
         }
-        actions={<Badge tone={STATUS_TONES[r.status]}>{ANNUAL_STATUS_LABELS[r.status]}</Badge>}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={STATUS_TONES[r.status]}>{ANNUAL_STATUS_LABELS[r.status]}</Badge>
+            <Link href={`${base}/document`} className="btn btn-secondary !min-h-10 text-sm">
+              เอกสารสำหรับพิมพ์
+            </Link>
+          </div>
+        }
       />
       <div className="grid gap-3 sm:gap-4">
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-4 lg:grid-cols-5">

@@ -1,6 +1,7 @@
 // ตัวช่วยจัดรูปแบบข้อความในเอกสารราชการ (เลขไทย, วันที่แบบไทย)
 
 const THAI_DIGITS = ['๐', '๑', '๒', '๓', '๔', '๕', '๖', '๗', '๘', '๙'];
+const THAI_MONTHS_SHORT = ['ม.ค.', 'ก.พ.', 'มี.ค.', 'เม.ย.', 'พ.ค.', 'มิ.ย.', 'ก.ค.', 'ส.ค.', 'ก.ย.', 'ต.ค.', 'พ.ย.', 'ธ.ค.'];
 export const THAI_MONTHS = ['มกราคม', 'กุมภาพันธ์', 'มีนาคม', 'เมษายน', 'พฤษภาคม', 'มิถุนายน', 'กรกฎาคม', 'สิงหาคม', 'กันยายน', 'ตุลาคม', 'พฤศจิกายน', 'ธันวาคม'];
 
 export function thaiDigits(value: number | string): string {
@@ -18,4 +19,10 @@ export function thaiDateParts(value: string | Date): { day: string; month: strin
 export function thaiLongDate(value: string | Date): string {
   const { day, month, year } = thaiDateParts(value);
   return `${day} ${month} ${year}`;
+}
+
+// วันที่แบบย่อสำหรับตาราง เช่น ๒ ก.ย. ๒๕๖๙
+export function thaiShortDate(value: string | Date): string {
+  const { day, month, year } = thaiDateParts(value);
+  return `${day} ${THAI_MONTHS_SHORT[THAI_MONTHS.indexOf(month)]} ${year}`;
 }

@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { ActionButton } from '@/components/club-applications/ActionButton';
 import { ReportEditor } from '@/components/reports/ReportEditor';
 import { Badge } from '@/components/ui/Badge';
@@ -27,7 +28,14 @@ export default async function MonthlyReportPage({ params }: { params: Promise<{ 
         title={`รายงานประจำเดือน${thaiMonthLabel(r.reportMonth)}`}
         description={r.clubName}
         back={{ href: `/clubs/${r.clubId}/reports?fiscalYear=${r.fiscalYear}`, label: 'รายงานรายเดือน' }}
-        actions={<Badge tone={STATUS_TONES[r.status]}>{REPORT_STATUS_LABELS[r.status]}</Badge>}
+        actions={
+          <div className="flex flex-wrap items-center gap-2">
+            <Badge tone={STATUS_TONES[r.status]}>{REPORT_STATUS_LABELS[r.status]}</Badge>
+            <Link href={`${base}/document`} className="btn btn-secondary !min-h-10 text-sm">
+              เอกสารสำหรับพิมพ์
+            </Link>
+          </div>
+        }
       />
       <div className="grid gap-3 sm:gap-4 lg:grid-cols-3">
         <Bento className="lg:col-span-2">
