@@ -1,0 +1,58 @@
+# ตรวจทุก PR: lint, typecheck, test (test ใช้ PostgreSQL + Garage จริงตาม CLAUDE.md หัวข้อ 15)
+name: CI
+
+on:
+  pull_request:
+  workflow_call:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 12.6.0
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 24.13.1
+          cache: pnpm
+
+      - run: pnpm install --frozen-lockfile
+
+      # env ของ test: ค่าหลอกสำหรับ Google (test mock การเรียกภายนอกทั้งหมด), secret ของ Garage สุ่มต่อรอบ
+      # S3_ACCESS_KEY/S3_SECRET_KEY เขียนโดย docker/garage/setup.sh
+      - name: เตรียม env
+        run: |
+          cp apps/api/.env.example apps/api/.env
+          sed -i -e 's/^GOOGLE_CLIENT_ID=.*/GOOGLE_CLIENT_ID=ci.apps.googleusercontent.com/' \
+                 -e 's/^GOOGLE_CLIENT_SECRET=.*/GOOGLE_CLIENT_SECRET=ci-secret/' apps/api/.env
+          {
+            echo "GARAGE_RPC_SECRET=$(openssl rand -hex 32)"
+            echo "GARAGE_ADMIN_TOKEN=$(openssl rand -hex 32)"
+          } > .env
+
+      - name: เปิด PostgreSQL + Garage
+        run: |
+          docker compose up -d --wait postgres
+          docker compose up -d garage
+          bash docker/garage/setup.sh
+
+      - run: pnpm lint
+
+      # สร้าง next-env.d.ts และชนิดของ route (ไฟล์ที่ไม่ได้ commit) ก่อน typecheck ฝั่ง web
+      - run: pnpm --filter web exec next typegen
+
+      - run: pnpm typecheck
+
+      - run: pnpm test
