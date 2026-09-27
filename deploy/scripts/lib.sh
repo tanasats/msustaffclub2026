@@ -2,8 +2,8 @@
 set -euo pipefail
 APP_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$APP_DIR"
-if [[ ! -f .env ]]; then
-  echo "ไม่พบ $APP_DIR/.env (คัดลอกจาก deploy/env/deploy.env.example)" >&2
+if [[ ! -s .env ]]; then
+  echo "ไม่พบ $APP_DIR/.env หรือไฟล์ว่าง — กู้จาก backup (env.tgz) หรือคัดลอกจาก deploy/env/deploy.env.example" >&2
   exit 1
 fi
 set -a
@@ -28,11 +28,52 @@ require_writable() {
   done
 }
 
+# ไฟล์ env ของแต่ละ service และตัวแปรที่ต้องมีค่า
+ENV_SERVICES="postgres garage api web"
+required_vars_of() {
+  case "$1" in
+    postgres) echo "POSTGRES_USER POSTGRES_PASSWORD POSTGRES_DB" ;;
+    garage) echo "GARAGE_RPC_SECRET GARAGE_ADMIN_TOKEN" ;;
+    api) echo "DATABASE_URL WEB_URL CORS_ORIGIN GOOGLE_CLIENT_ID GOOGLE_CLIENT_SECRET GOOGLE_REDIRECT_URI SESSION_COOKIE_NAME S3_ENDPOINT S3_PUBLIC_ENDPOINT S3_BUCKET S3_ACCESS_KEY S3_SECRET_KEY" ;;
+    web) echo "API_URL SESSION_COOKIE_NAME" ;;
+  esac
+}
+
+env_recovery_hint() {
+  echo "วิธีกู้ (docs/deployment.md หัวข้อ 8):" >&2
+  echo "  - container ยังอยู่: ./scripts/recover-env.sh   (ดึงค่ากลับจาก container ที่รันอยู่)" >&2
+  echo "  - จาก backup:       tar xzf backups/<ชุดล่าสุด>/env.tgz -C $APP_DIR" >&2
+}
+
+# ตรวจไฟล์ env ก่อนเริ่มงาน (ไฟล์หาย/ว่าง = หยุดทันที ก่อนแตะระบบ)
+# strict = ตัวแปรสำคัญต้องมีค่าด้วย (ใช้ก่อน deploy/rollback ที่จะสร้าง container ใหม่จากไฟล์เหล่านี้)
+check_env_files() {
+  local strict="${1:-}" problems="" svc file var
+  for svc in $ENV_SERVICES; do
+    file="$APP_DIR/env/$svc.env"
+    if [[ ! -s "$file" ]]; then
+      problems+="  - env/$svc.env: ไม่พบไฟล์หรือไฟล์ว่าง"$'\n'
+      continue
+    fi
+    [[ -n "$strict" ]] || continue
+    for var in $(required_vars_of "$svc"); do
+      grep -Eq "^${var}=.+" "$file" || problems+="  - env/$svc.env: ไม่มีค่า $var"$'\n'
+    done
+  done
+  if [[ -n "$problems" ]]; then
+    echo "ไฟล์ env ไม่ครบ — หยุดก่อนแตะระบบ (container ที่รันอยู่ยังทำงานตามเดิม):" >&2
+    printf '%s' "$problems" >&2
+    env_recovery_hint
+    exit 1
+  fi
+}
+
 if ! docker info >/dev/null 2>&1; then
   echo "ผู้ใช้ $(id -un) ใช้ docker ไม่ได้ — เพิ่มเข้ากลุ่ม docker: sudo usermod -aG docker $(id -un) แล้ว logout/login ใหม่" >&2
   exit 1
 fi
 require_writable "$APP_DIR" "$APP_DIR/.env"
+check_env_files
 
 compose() { docker compose -f "$APP_DIR/compose.yml" "$@"; }
 log() { printf '[%s] %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$*"; }

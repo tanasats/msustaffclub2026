@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # สำรองฐานข้อมูลและไฟล์: ./scripts/backup.sh [ป้ายชื่อ]  (cron รายวัน + deploy.sh เรียกก่อน deploy)
-# ผลลัพธ์: $BACKUP_DIR/<เวลา>-<ป้าย>/{db.dump,garage.tgz}  ลบชุดที่เก่ากว่า BACKUP_KEEP_DAYS วัน
+# ผลลัพธ์: $BACKUP_DIR/<เวลา>-<ป้าย>/{db.dump,garage.tgz,env.tgz}  ลบชุดที่เก่ากว่า BACKUP_KEEP_DAYS วัน
+# env.tgz มี secret ทั้งหมด (รหัสผ่าน DB, Google, S3, Gmail) — ทุกไฟล์สิทธิ์ 600 และปลายทาง BACKUP_REMOTE ต้องปลอดภัยเท่ากัน
 # กู้คืน: docs/deployment.md หัวข้อ 8
 # shellcheck disable=SC1091
 . "$(dirname "$0")/lib.sh"
@@ -24,6 +25,9 @@ docker run --rm \
   -v "msu-club-prod_garage_meta:/meta:ro" \
   -v "msu-club-prod_garage_data:/data:ro" \
   alpine:3.22 tar czf - -C / meta/snapshots data > "$DEST/garage.tgz"
+
+log "สำรองไฟล์ env → $DEST/env.tgz"
+tar czf "$DEST/env.tgz" -C "$APP_DIR" .env env
 
 chmod 600 "$DEST"/*
 log "ขนาด: $(du -sh "$DEST" | cut -f1)"
