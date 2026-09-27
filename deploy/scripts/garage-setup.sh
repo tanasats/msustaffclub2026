@@ -6,6 +6,7 @@
 
 API_ENV="$APP_DIR/env/api.env"
 KEY_NAME="msu-club-api"
+require_writable "$API_ENV"
 BUCKET="$(grep -E '^S3_BUCKET=' "$API_ENV" | cut -d= -f2- | tr -d '[:space:]')"
 [[ -n "$BUCKET" ]] || { echo "ต้องกำหนด S3_BUCKET ใน $API_ENV" >&2; exit 1; }
 
@@ -24,12 +25,12 @@ ACCESS_KEY="$(printf '%s\n' "$KEY_INFO" | awk -F': *' '/^Key ID/ {print $2; exit
 SECRET_KEY="$(printf '%s\n' "$KEY_INFO" | awk -F': *' '/^Secret key/ {print $2; exit}' | tr -d '[:space:]')"
 [[ -n "$ACCESS_KEY" && -n "$SECRET_KEY" ]] || { echo "อ่านค่า key จาก Garage ไม่ได้" >&2; exit 1; }
 
-TMP_FILE="$(mktemp)"
+TMP_FILE="$TMP_PREFIX.api-env"
 awk -v ak="$ACCESS_KEY" -v sk="$SECRET_KEY" '
   /^S3_ACCESS_KEY=/ { print "S3_ACCESS_KEY=" ak; next }
   /^S3_SECRET_KEY=/ { print "S3_SECRET_KEY=" sk; next }
   { print }
 ' "$API_ENV" > "$TMP_FILE"
-cat "$TMP_FILE" > "$API_ENV" && rm -f "$TMP_FILE"
+cat "$TMP_FILE" > "$API_ENV"
 chmod 600 "$API_ENV"
 log "bucket '$BUCKET' พร้อม และบันทึก key ($ACCESS_KEY) ลง env/api.env แล้ว"

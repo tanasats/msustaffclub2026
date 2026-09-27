@@ -91,6 +91,8 @@ deploy/                       ← คัดลอกทั้งโฟลเด�
 sudo adduser --disabled-password deploy && sudo usermod -aG docker deploy
 sudo mkdir -p /opt/msu-club && sudo chown deploy:deploy /opt/msu-club
 # คัดลอกโฟลเดอร์ deploy/ จาก repo (เช่น git clone แล้ว cp -r deploy/. /opt/msu-club/)
+# ⚠ ทุกไฟล์ใน /opt/msu-club ต้องเป็นของผู้ใช้ที่รันสคริปต์ (ห้ามสร้างด้วย sudo) — ถ้าเผลอ:
+#   sudo chown -R $(id -un):$(id -gn) /opt/msu-club
 
 cd /opt/msu-club
 cp env/deploy.env.example .env

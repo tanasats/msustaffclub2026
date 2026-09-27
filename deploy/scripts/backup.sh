@@ -6,7 +6,9 @@
 . "$(dirname "$0")/lib.sh"
 
 LABEL="${1:-daily}"
-DEST="${BACKUP_DIR:-$APP_DIR/backups}/$(date '+%Y%m%d-%H%M%S')-$LABEL"
+BACKUP_ROOT="${BACKUP_DIR:-$APP_DIR/backups}"
+require_writable "$BACKUP_ROOT"
+DEST="$BACKUP_ROOT/$(date '+%Y%m%d-%H%M%S')-$LABEL"
 mkdir -p "$DEST"
 chmod 700 "$(dirname "$DEST")"
 
