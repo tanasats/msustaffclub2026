@@ -26,6 +26,13 @@ export interface UserPreferences {
   fontScale: FontScale;
 }
 
+// ตัวเลขงานที่ปรึกษาชมรม (จาก /auth/me) ใช้ตัดสินการแสดงเมนูและตัวเลขงานค้าง
+export interface AdvisorSummary {
+  pendingConsents: number;
+  activeClubs: number;
+  reportsToAcknowledge: number;
+}
+
 export interface CurrentUser {
   user: {
     id: string;
@@ -37,6 +44,7 @@ export interface CurrentUser {
   permissions: string[];
   profile: UserProfile;
   preferences: UserPreferences;
+  advisor: AdvisorSummary;
 }
 
 /**

@@ -30,6 +30,8 @@ describe('GET /auth/me', () => {
       // บุคลากรที่ยังไม่มีข้อมูลจาก ERP-HR
       profile: { type: 'staff', staff: null },
       preferences: { fontScale: 'md' },
+      // ไม่ใช่ที่ปรึกษาชมรม → ไม่แสดงเมนูงานที่ปรึกษา
+      advisor: { pendingConsents: 0, activeClubs: 0, reportsToAcknowledge: 0 },
     });
   });
 

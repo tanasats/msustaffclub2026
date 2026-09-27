@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
 import { getRequiredAuth, requireAuth } from '../middlewares/auth.js';
+import { getMyAdvisorWork } from '../services/advisor-work-service.js';
 import { FONT_SCALES, getPreferences, updatePreferences } from '../services/preferences-service.js';
 
 export const meRouter = Router();
@@ -16,4 +17,9 @@ meRouter.get('/me/preferences', requireAuth, async (req, res) => {
 meRouter.patch('/me/preferences', requireAuth, async (req, res) => {
   const { fontScale } = preferencesSchema.parse(req.body);
   res.json(await updatePreferences(getRequiredAuth(req).user.id, { fontScale }));
+});
+
+// ต้อง login เท่านั้น: กล่องงานที่ปรึกษาชมรมของตัวเอง (ไม่เป็นที่ปรึกษา = รายการว่าง)
+meRouter.get('/me/advisor-work', requireAuth, async (req, res) => {
+  res.json(await getMyAdvisorWork(getRequiredAuth(req)));
 });
