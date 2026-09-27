@@ -1,0 +1,86 @@
+# production บน VM: คัดลอกทั้งโฟลเดอร์ deploy/ ไปที่ /opt/msu-club (ดู docs/deployment.md)
+# ทุก port bind ที่ 127.0.0.1 — ภายนอกเข้าได้ทาง nginx บน host เท่านั้น, postgres ไม่เปิด port เลย
+# แท็กของ image อ่านจาก APP_TAG ในไฟล์ .env ข้างไฟล์นี้ (deploy.sh เป็นคนเขียน)
+name: msu-club-prod
+
+x-logging: &logging
+  driver: json-file
+  options:
+    max-size: "10m"
+    max-file: "5"
+
+x-api-image: &api-image ${IMAGE_PREFIX:-ghcr.io/tanasats/msustaffclub2026}-api:${APP_TAG:?ต้องกำหนด APP_TAG ใน .env}
+
+services:
+  postgres:
+    image: postgres:18.6-alpine
+    restart: unless-stopped
+    env_file: ./env/postgres.env
+    volumes:
+      - pgdata:/var/lib/postgresql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U \"$$POSTGRES_USER\" -d \"$$POSTGRES_DB\""]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+    logging: *logging
+
+  garage:
+    image: dxflrs/garage:v2.4.1
+    restart: unless-stopped
+    command: ["/garage", "server", "--single-node"]
+    env_file: ./env/garage.env
+    volumes:
+      - ./garage.toml:/etc/garage.toml:ro
+      - garage_meta:/var/lib/garage/meta
+      - garage_data:/var/lib/garage/data
+    ports:
+      # nginx ส่ง /<bucket>/ มาที่นี่ (presigned URL ของ browser); admin 3903 ไม่เปิดออก host
+      - "127.0.0.1:${GARAGE_S3_PORT:-3900}:3900"
+    logging: *logging
+
+  api:
+    image: *api-image
+    restart: unless-stopped
+    env_file: ./env/api.env
+    depends_on:
+      postgres:
+        condition: service_healthy
+      garage:
+        condition: service_started
+    ports:
+      - "127.0.0.1:${API_PORT:-4000}:4000"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:4000/health | grep -q '\"database\":\"ok\"'"]
+      interval: 10s
+      timeout: 5s
+      retries: 6
+      start_period: 10s
+    logging: *logging
+
+  web:
+    image: ${IMAGE_PREFIX:-ghcr.io/tanasats/msustaffclub2026}-web:${APP_TAG:?ต้องกำหนด APP_TAG ใน .env}
+    restart: unless-stopped
+    env_file: ./env/web.env
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "127.0.0.1:${WEB_PORT:-3000}:3000"
+    logging: *logging
+
+  # รันเฉพาะตอน deploy: docker compose --profile tools run --rm migrate
+  migrate:
+    image: *api-image
+    profiles: ["tools"]
+    env_file: ./env/api.env
+    command: ["node", "node_modules/node-pg-migrate/bin/node-pg-migrate.js", "-m", "migrations", "-j", "sql", "up"]
+    depends_on:
+      postgres:
+        condition: service_healthy
+    logging: *logging
+
+volumes:
+  pgdata:
+  garage_meta:
+  garage_data:

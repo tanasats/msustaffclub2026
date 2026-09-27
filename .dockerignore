@@ -1,0 +1,14 @@
+# ไม่ส่งไฟล์เหล่านี้เข้า docker build (ลดขนาด context และกัน secret หลุดเข้า image)
+**/node_modules
+**/.next
+**/dist
+**/coverage
+**/*.tsbuildinfo
+**/.env
+**/.env.*
+!**/.env.example
+.git
+.github
+.DS_Store
+docs
+deploy

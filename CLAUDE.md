@@ -52,6 +52,7 @@ Web และ API รันบนเครื่อง dev โดยตรง �
 ```
 # apps/api/.env
 PORT=4000
+TRUST_PROXY=                              # production หลัง nginx = 1 (ห้าม true)
 WEB_URL=http://localhost:3000
 CORS_ORIGIN=http://localhost:3000
 DATABASE_URL=postgres://app:app@localhost:5432/app_dev
@@ -102,6 +103,8 @@ NEXT_PUBLIC_API_URL=http://localhost:4000  # ใช้ฝั่ง browser
     /tests
 /docker
   /garage/garage.toml   # config ของ Garage สำหรับ dev
+/deploy                 # production: compose, nginx, env ตัวอย่าง, สคริปต์ deploy/backup (ดู docs/deployment.md)
+/.github/workflows      # CI (ทุก PR) และ Release (build image ไป GHCR)
 /docs
 docker-compose.yml      # postgres + garage สำหรับ dev
 .env.example
@@ -120,6 +123,7 @@ docker-compose.yml      # postgres + garage สำหรับ dev
 - seed ผู้ดูแลระบบสูงสุด: `pnpm --filter api seed:super-admin` (เจ้าของ `INITIAL_SUPER_ADMIN_EMAIL` ต้อง login ด้วย Google 1 ครั้งก่อน)
 - สร้าง key + bucket ของ Garage (dev และ test): `bash docker/garage/setup.sh` (รันซ้ำได้)
 - ตั้ง CORS ของ bucket ให้หน้าเว็บอัปโหลดได้: `pnpm --filter api storage:cors` (รันซ้ำได้)
+- deploy production (บน VM): `./scripts/deploy.sh sha-<commit>` — ขั้นตอนทั้งหมดดู `docs/deployment.md`
 
 ## 6. มาตรฐานการเขียนโค้ด
 - ชื่อตัวแปร/ฟังก์ชันเป็นภาษาอังกฤษ camelCase, ชื่อ component เป็น PascalCase

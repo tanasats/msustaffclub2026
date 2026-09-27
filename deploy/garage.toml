@@ -1,0 +1,22 @@
+# config Garage สำหรับ production (เครื่องเดียว) — วางที่ /opt/msu-club/garage.toml
+# rpc_secret และ admin_token อ่านจาก env/garage.env (GARAGE_RPC_SECRET / GARAGE_ADMIN_TOKEN)
+# replication_factor = 1: ไม่มีสำเนาในตัว ความปลอดภัยของไฟล์จึงขึ้นกับ backup (scripts/backup.sh)
+metadata_dir = "/var/lib/garage/meta"
+data_dir = "/var/lib/garage/data"
+db_engine = "sqlite"
+# ให้ `garage meta snapshot` ใช้ได้ (backup.sh สร้าง snapshot ก่อนสำรอง)
+metadata_auto_snapshot_interval = "6h"
+
+replication_factor = 1
+
+rpc_bind_addr = "[::]:3901"
+rpc_public_addr = "127.0.0.1:3901"
+
+[s3_api]
+s3_region = "garage"
+api_bind_addr = "[::]:3900"
+# ใช้ path-style (https://club.msu.ac.th/<bucket>/<key>) — root_domain นี้ไม่ตรงกับโดเมนจริง จึงไม่ถูกตีความเป็น vhost
+root_domain = ".s3.garage.internal"
+
+[admin]
+api_bind_addr = "[::]:3903"

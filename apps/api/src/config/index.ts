@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { oauthCookiePathOf, parseTrustProxy } from './derive.js';
 
 // แปลงข้อความ "true"/"false" จาก env เป็น boolean (z.coerce.boolean จะถือว่า "false" เป็น true จึงไม่ใช้)
 const booleanString = z.enum(['true', 'false']).transform((value) => value === 'true');
@@ -19,6 +20,8 @@ const requiredString = z.string().trim().min(1);
 const envSchema = z.object({
   NODE_ENV: z.enum(['development', 'test', 'production']).default('development'),
   PORT: z.coerce.number().int().min(1).max(65535),
+  // จำนวน hop หรือ IP ของ reverse proxy ที่เชื่อถือ (production หลัง nginx = 1) ดู config/derive.ts
+  TRUST_PROXY: z.string().optional(),
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace', 'silent']).default('info'),
   WEB_URL: z.url(),
   CORS_ORIGIN: z.url(),
@@ -63,6 +66,7 @@ function loadConfig() {
   return {
     nodeEnv: env.NODE_ENV,
     isProduction: env.NODE_ENV === 'production',
+    trustProxy: parseTrustProxy(env.TRUST_PROXY),
     port: env.PORT,
     logLevel: env.NODE_ENV === 'test' ? 'silent' : env.LOG_LEVEL,
     webUrl: env.WEB_URL,
@@ -74,6 +78,7 @@ function loadConfig() {
       clientId: env.GOOGLE_CLIENT_ID,
       clientSecret: env.GOOGLE_CLIENT_SECRET,
       redirectUri: env.GOOGLE_REDIRECT_URI,
+      oauthCookiePath: oauthCookiePathOf(env.GOOGLE_REDIRECT_URI),
       allowedEmailDomains: env.ALLOWED_EMAIL_DOMAINS,
     },
     initialSuperAdminEmail: env.INITIAL_SUPER_ADMIN_EMAIL?.toLowerCase(),

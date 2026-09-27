@@ -29,6 +29,8 @@ export function createApp(): express.Express {
   const app = express();
 
   app.disable('x-powered-by');
+  // หลัง nginx: ใช้ IP จริงของผู้ใช้จาก X-Forwarded-For (rate limit นับต่อคน ไม่ใช่ต่อ nginx)
+  app.set('trust proxy', config.trustProxy);
   app.use(helmet());
   app.use(requestLogger);
   // อนุญาตเฉพาะ origin ของ web เท่านั้น และส่ง cookie ข้าม origin ได้
