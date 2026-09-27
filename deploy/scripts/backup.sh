@@ -6,7 +6,9 @@
 . "$(dirname "$0")/lib.sh"
 
 LABEL="${1:-daily}"
-DEST="${BACKUP_DIR:-$APP_DIR/backups}/$(date '+%Y%m%d-%H%M%S')-$LABEL"
+BACKUP_ROOT="${BACKUP_DIR:-$APP_DIR/backups}"
+require_writable "$BACKUP_ROOT"
+DEST="$BACKUP_ROOT/$(date '+%Y%m%d-%H%M%S')-$LABEL"
 mkdir -p "$DEST"
 chmod 700 "$(dirname "$DEST")"
 
@@ -17,11 +19,11 @@ compose exec -T postgres sh -c 'pg_dump -U "$POSTGRES_USER" -d "$POSTGRES_DB" -F
 log "สำรองไฟล์ (Garage) → $DEST/garage.tgz"
 # snapshot metadata ให้สอดคล้องกันก่อน แล้วเก็บ snapshot + data (อ่านอย่างเดียว)
 compose exec -T -e RUST_LOG=warn garage /garage meta snapshot >/dev/null
+# tar ส่งออกทาง stdout แล้ว host เขียนไฟล์เอง → ไฟล์เป็นของผู้ใช้ที่รันสคริปต์ (container รันเป็น root)
 docker run --rm \
   -v "msu-club-prod_garage_meta:/meta:ro" \
   -v "msu-club-prod_garage_data:/data:ro" \
-  -v "$DEST:/out" \
-  alpine:3.22 sh -c 'tar czf /out/garage.tgz -C / meta/snapshots data'
+  alpine:3.22 tar czf - -C / meta/snapshots data > "$DEST/garage.tgz"
 
 chmod 600 "$DEST"/*
 log "ขนาด: $(du -sh "$DEST" | cut -f1)"
