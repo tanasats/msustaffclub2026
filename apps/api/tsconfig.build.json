@@ -1,8 +1,9 @@
 {
   "extends": "./tsconfig.json",
   "compilerOptions": {
-    "rootDir": "src",
+    "rootDir": ".",
     "outDir": "dist"
   },
-  "include": ["src"]
+  // รวม scripts/ (seed super_admin ฯลฯ) เพื่อให้รันใน production image ได้โดยไม่ต้องมี tsx
+  "include": ["src", "scripts"]
 }
