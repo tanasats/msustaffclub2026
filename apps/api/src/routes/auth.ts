@@ -16,7 +16,8 @@ import { getUserProfile } from '../services/profile-service.js';
 
 // cookie อายุสั้นที่จำ state/nonce/PKCE verifier ระหว่างไป Google แล้วกลับมา
 const OAUTH_COOKIE_NAME = `${config.session.cookieName}_oauth`;
-const OAUTH_COOKIE_PATH = '/auth/google';
+// path ตาม GOOGLE_REDIRECT_URI (production อยู่ใต้ /api) ดู config/derive.ts
+const OAUTH_COOKIE_PATH = config.google.oauthCookiePath;
 const OAUTH_COOKIE_MAX_AGE_MS = 10 * 60 * 1000;
 
 const baseCookieOptions: CookieOptions = {
