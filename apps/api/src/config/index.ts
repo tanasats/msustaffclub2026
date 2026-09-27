@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { oauthCookiePathOf, parseTrustProxy } from './derive.js';
+import { mailConfigOf, oauthCookiePathOf, parseTrustProxy } from './derive.js';
 
 // แปลงข้อความ "true"/"false" จาก env เป็น boolean (z.coerce.boolean จะถือว่า "false" เป็น true จึงไม่ใช้)
 const booleanString = z.enum(['true', 'false']).transform((value) => value === 'true');
@@ -50,6 +50,15 @@ const envSchema = z.object({
   S3_SECRET_KEY: requiredString,
   S3_BUCKET: requiredString,
   S3_FORCE_PATH_STYLE: booleanString,
+
+  // อีเมลแจ้งเตือน (ตรวจรายละเอียดใน mailConfigOf ของ config/derive.ts)
+  MAIL_TRANSPORT: z.string().optional(),
+  MAIL_FROM_ADDRESS: z.string().optional(),
+  MAIL_FROM_NAME: z.string().optional(),
+  GMAIL_CLIENT_ID: z.string().optional(),
+  GMAIL_CLIENT_SECRET: z.string().optional(),
+  GMAIL_REFRESH_TOKEN: z.string().optional(),
+  MAIL_WORKER_INTERVAL_SECONDS: z.string().optional(),
 });
 
 function loadConfig() {
@@ -103,6 +112,7 @@ function loadConfig() {
       bucket: env.S3_BUCKET,
       forcePathStyle: env.S3_FORCE_PATH_STYLE,
     },
+    mail: mailConfigOf(env),
   } as const;
 }
 

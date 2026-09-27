@@ -17,6 +17,7 @@ import {
   type MonthlyReportRecord,
 } from '../repositories/reports-repository.js';
 import type { AuthContext } from './authorization.js';
+import { notifyMonthlyReportSubmitted } from './notification-service.js';
 import { getClubPermissions, hasClubPermission } from './club-authorization.js';
 import { CLUB_PERMISSIONS, type ClubPermissionCode } from './club-permissions.js';
 import { bangkokDateString, fiscalYearOf } from './fiscal-year.js';
@@ -109,6 +110,8 @@ export async function submitReport(auth: AuthContext, reportId: string): Promise
   await withTransaction(async (client) => {
     await lockDraft(auth, reportId, client);
     await submitMonthlyReport(reportId, auth.user.id, client);
+    // แจ้งที่ปรึกษาทางอีเมล (ใส่คิวใน transaction เดียวกัน)
+    await notifyMonthlyReportSubmitted(client, reportId);
   });
 }
 

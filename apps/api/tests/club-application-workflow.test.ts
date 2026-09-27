@@ -392,3 +392,31 @@ describe('ตรวจ (ขั้นที่ 1) และอนุมัติ 
     expect(res.status).toBe(409);
   });
 });
+
+describe('อีเมลแจ้งเตือนตลอด flow (ใส่คิวใน transaction เดียวกับการเปลี่ยนสถานะ)', () => {
+  it('ขอความยินยอม → ที่ปรึกษา, ตอบ → ผู้ยื่น, ยื่น → ผู้ตรวจ, ตรวจผ่าน → ผู้อนุมัติ, อนุมัติ → ผู้ยื่น', async () => {
+    await pool.query(`INSERT INTO system_settings (key, value) VALUES ('email.enabled', 'true')`);
+    const s = await scenario();
+    await toReviewed(s);
+    expect((await post(s.approver, `/club-applications/${s.id}/decision`, { decision: 'approve' })).status).toBe(200);
+
+    const { rows } = await pool.query<{ kind: string; recipient_email: string }>(
+      'SELECT kind, recipient_email FROM email_outbox ORDER BY created_at, recipient_email',
+    );
+    const who = (kind: string) => rows.filter((r) => r.kind === kind).map((r) => r.recipient_email).sort();
+    expect(who('advisor_nominated')).toEqual([s.advisor1.email, 'advisor.second@msu.ac.th'].sort());
+    expect(who('advisor_responded')).toEqual([s.applicant.email, s.applicant.email]);
+    expect(who('application_queue')).toEqual([s.reviewer.email, s.approver.email].sort());
+    expect(who('application_result')).toEqual([s.applicant.email]);
+  });
+
+  it('รายการหลักล้มเหลว (rollback) → ไม่มีอีเมลค้างในคิว', async () => {
+    await pool.query(`INSERT INTO system_settings (key, value) VALUES ('email.enabled', 'true')`);
+    const s = await scenario();
+    await post(s.applicant, `/club-applications/${s.id}/request-consent`);
+    await pool.query('DELETE FROM email_outbox');
+    // ยื่นทั้งที่ที่ปรึกษายังไม่ยินยอม → 422 และไม่มีอีเมลถึงผู้ตรวจ
+    expect((await post(s.applicant, `/club-applications/${s.id}/submit`)).status).toBe(422);
+    expect((await pool.query('SELECT 1 FROM email_outbox')).rowCount).toBe(0);
+  });
+});

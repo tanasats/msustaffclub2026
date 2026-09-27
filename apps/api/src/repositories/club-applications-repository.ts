@@ -324,12 +324,15 @@ export interface NewApplicationEvent {
   note: string | null;
 }
 
-export async function insertApplicationEvent(input: NewApplicationEvent, db: Queryable): Promise<void> {
-  await db.query(
+// คืน id ของ event (ใช้อ้างอิงเหตุการณ์ เช่น dedupe_key ของอีเมลแจ้งเตือน)
+export async function insertApplicationEvent(input: NewApplicationEvent, db: Queryable): Promise<string> {
+  const result = await db.query<{ id: string }>(
     `INSERT INTO club_application_events (application_id, actor_user_id, from_status, to_status, note)
-     VALUES ($1, $2, $3, $4, $5)`,
+     VALUES ($1, $2, $3, $4, $5)
+     RETURNING id`,
     [input.applicationId, input.actorUserId, input.fromStatus, input.toStatus, input.note],
   );
+  return result.rows[0]!.id;
 }
 
 // ---------- อ่านรายละเอียด ----------
