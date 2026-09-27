@@ -1,12 +1,13 @@
 import Link from 'next/link';
-import { redirect } from 'next/navigation';
 import { StatusBadge } from '@/components/club-applications/StatusBadge';
 import { ProfileDetails } from '@/components/ProfileCard';
+import { Landing } from '@/components/landing/Landing';
 import { Bento, BentoLabel, BentoTitle } from '@/components/ui/Bento';
 import { buttonClass } from '@/components/ui/button';
 import { Icon, type IconName } from '@/components/ui/icons';
 import { apiFetch } from '@/lib/api-server';
 import { getCurrentUser } from '@/lib/auth';
+import { loadPublicStats } from '@/lib/public-stats';
 import type { ApplicationListItem } from '@/lib/club-application-types';
 import { daysLeftInFiscalYear, fiscalYearOf, greetingOf, thaiLongDate } from '@/lib/thai-date';
 
@@ -41,7 +42,8 @@ const STEPS = ['เตรียมข้อมูลชมรม กรรมก
 
 export default async function HomePage() {
   const current = await getCurrentUser();
-  if (!current) redirect('/login');
+  // ยังไม่ได้เข้าสู่ระบบ → หน้าแนะนำระบบ (public) แทนแดชบอร์ด
+  if (!current) return <Landing stats={await loadPublicStats()} />;
   const { user, roles, permissions, profile } = current;
   const has = (permission: string) => roles.includes('super_admin') || permissions.includes(permission);
   const canApply = has('club_application:create');

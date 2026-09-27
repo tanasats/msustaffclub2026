@@ -22,6 +22,7 @@ import { usersRouter } from './routes/users.js';
 import { filesRouter } from './routes/files.js';
 import { healthRouter } from './routes/health.js';
 import { meRouter } from './routes/me.js';
+import { publicRouter } from './routes/public.js';
 
 // สร้าง Express app โดยไม่ listen เพื่อให้ test เรียกผ่าน supertest ได้
 export function createApp(): express.Express {
@@ -38,6 +39,7 @@ export function createApp(): express.Express {
   app.use(loadSession);
 
   app.use(healthRouter);
+  app.use(publicRouter);
   app.use(createAuthRouter());
   app.use(clubMasterRouter);
   app.use(usersRouter);

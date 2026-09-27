@@ -1,3 +1,4 @@
+import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { buttonClass } from '@/components/ui/button';
 import { LogoMark } from '@/components/ui/icons';
@@ -68,6 +69,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
             เข้าสู่ระบบด้วยบัญชี @msu.ac.th
           </a>
           <p className="mt-4 text-center text-sm text-mist">ใช้บัญชี Google ของมหาวิทยาลัยเท่านั้น</p>
+          <p className="mt-8 text-center text-sm">
+            <Link href="/" className="text-matcha-700 underline underline-offset-4 hover:text-matcha-900">
+              รู้จักระบบก่อนเข้าใช้งาน
+            </Link>
+          </p>
         </div>
       </section>
     </main>
