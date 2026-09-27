@@ -70,6 +70,7 @@ deploy/                       ← คัดลอกทั้งโฟลเด�
   scripts/rollback.sh         กลับไปเวอร์ชันก่อนหน้า
   scripts/backup.sh           pg_dump + snapshot Garage + ลบของเก่า + rsync ออกนอก VM
   scripts/garage-setup.sh     สร้าง key + bucket (private) แล้วเขียน key ลง env/api.env
+  scripts/recover-env.sh      กู้ env/*.env ที่หายไป จากค่าที่ container ยังเก็บไว้
 ```
 
 ## 5. เตรียม VM ครั้งแรก (ทำครั้งเดียว)
@@ -170,10 +171,20 @@ downtime ระหว่างสลับ container ไม่กี่วิน
 `scripts/backup.sh` สร้าง `backups/<เวลา>-<ป้าย>/`
 - `db.dump` — `pg_dump -Fc` (บีบอัด, restore บางตารางได้)
 - `garage.tgz` — snapshot metadata ของ Garage (ไฟล์เล็กเก็บใน metadata) + โฟลเดอร์ data (ไฟล์ใหญ่)
+- `env.tgz` — `.env` และ `env/*.env` (**มี secret ทั้งหมด** ไฟล์สิทธิ์ 600 ปลายทาง BACKUP_REMOTE ต้องปลอดภัยเท่ากัน)
 
 ลบชุดที่เก่ากว่า `BACKUP_KEEP_DAYS` (14 วัน) และถ้ากำหนด `BACKUP_REMOTE` จะ `rsync` ออกนอก VM
 **ตอนนี้ยังไม่กำหนดปลายทาง — backup อยู่บน VM เดียวกับระบบ (สคริปต์จะเตือนทุกครั้ง) ควรกำหนดก่อนเปิดใช้จริง**
 ตัวอย่าง: `BACKUP_REMOTE=backup@nas.msu.ac.th:/backups/msu-club` (ตั้ง SSH key ของผู้ใช้ deploy ให้เข้าได้โดยไม่ถามรหัสผ่าน)
+
+**ไฟล์ env หาย/ถูกลบ** — สคริปต์ทุกตัวตรวจไฟล์ env ก่อนเริ่ม ถ้าหายจะหยุดทันทีโดยไม่แตะระบบ (`deploy.sh`/`rollback.sh` ตรวจด้วยว่าตัวแปรสำคัญมีค่า)
+```bash
+# ห้ามสั่ง deploy / rollback / docker compose up / down ก่อนกู้เสร็จ (container ใหม่จะไม่มีค่าเหล่านี้)
+cd /opt/msu-club
+./scripts/recover-env.sh                              # วิธีที่ 1: ดึงค่ากลับจาก container ที่ยังอยู่ (สร้างเฉพาะไฟล์ที่หาย)
+tar xzf backups/<ชุดล่าสุด>/env.tgz -C /opt/msu-club    # วิธีที่ 2: จาก backup (container ถูกลบไปแล้ว)
+docker compose config -q && ./scripts/backup.sh after-recover
+```
 
 **กู้คืนฐานข้อมูล**
 ```bash
@@ -200,7 +211,7 @@ docker compose start garage
 - [ ] redirect URI ของ Google ตรงทุกตัวอักษร, OAuth consent screen เป็น Internal
 - [ ] `docker compose ps` — postgres ไม่มี port ออก host, ที่เหลือเป็น `127.0.0.1:` เท่านั้น
 - [ ] ใบรับรองรวม intermediate chain (ตรวจ: `openssl s_client -connect club.msu.ac.th:443 -servername club.msu.ac.th`)
-- [ ] cron backup ทำงาน และกำหนด `BACKUP_REMOTE` แล้ว
+- [ ] cron backup ทำงาน และกำหนด `BACKUP_REMOTE` แล้ว (backup มีไฟล์ env ที่มี secret — ปลายทางต้องจำกัดสิทธิ์)
 - [ ] ทดลอง restore อย่างน้อย 1 ครั้ง
 - [ ] super_admin คนแรกเข้าใช้ได้
 

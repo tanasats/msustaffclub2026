@@ -9,6 +9,8 @@ if [[ ! "$TAG" =~ ^sha-[0-9a-f]{7,40}$ ]]; then
   echo "วิธีใช้: $0 sha-<commit>   (ดูแท็กจากหน้า GitHub Actions → release)" >&2
   exit 1
 fi
+# ไฟล์ env ต้องครบก่อนทำอะไรทั้งสิ้น (deploy สร้าง container ใหม่จากไฟล์เหล่านี้)
+check_env_files strict
 PREV_TAG="${APP_TAG:-}"
 log "deploy $TAG (เดิม: ${PREV_TAG:-ไม่มี})"
 

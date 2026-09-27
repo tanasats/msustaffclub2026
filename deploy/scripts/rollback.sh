@@ -4,6 +4,7 @@
 # shellcheck disable=SC1091
 . "$(dirname "$0")/lib.sh"
 
+check_env_files strict
 TARGET="${1:-}"
 if [[ -z "$TARGET" ]]; then
   # แท็กล่าสุดใน deployed.log ที่ไม่ใช่แท็กปัจจุบัน
