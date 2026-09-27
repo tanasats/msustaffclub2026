@@ -43,6 +43,19 @@ function Brand({ collapsed }: { collapsed: boolean }) {
   );
 }
 
+// ตัวเลขงานค้างบนเมนู: พื้นทึบ ตัวอักษรตัดกันชัด (compact = วางมุมไอคอนสำหรับเมนูแบบย่อ/แถบล่าง)
+function NavBadge({ count, onDark, compact = false }: { count?: number; onDark: boolean; compact?: boolean }) {
+  if (!count) return null;
+  const tone = onDark ? 'bg-washi text-matcha-900' : 'bg-beni text-white';
+  const position = compact ? 'absolute -top-1.5 -right-2.5' : '';
+  return (
+    <span className={`${position} ${tone} inline-flex min-w-5 items-center justify-center rounded-full px-1.5 text-[0.6875rem] leading-5 font-semibold tabular-nums`}>
+      {count > 99 ? '99+' : count}
+      <span className="sr-only"> งานค้าง</span>
+    </span>
+  );
+}
+
 function NavList({ nav, active, collapsed, onNavigate }: { nav: NavItem[]; active: string | null; collapsed: boolean; onNavigate?: () => void }) {
   const groups: { key: NavItem['group']; label: string }[] = [
     { key: 'main', label: 'เมนู' },
@@ -70,8 +83,12 @@ function NavList({ nav, active, collapsed, onNavigate }: { nav: NavItem[]; activ
                         collapsed ? 'justify-center' : ''
                       } ${isActive ? 'bg-matcha-800 text-washi shadow-sm shadow-matcha-900/15' : 'text-stone hover:bg-matcha-50 hover:text-matcha-800'}`}
                     >
-                      <Icon name={item.icon} className="size-5 shrink-0" />
-                      {!collapsed && <span className="truncate">{item.label}</span>}
+                      <span className="relative shrink-0">
+                        <Icon name={item.icon} className="size-5" />
+                        {collapsed && <NavBadge count={item.badge} onDark={isActive} compact />}
+                      </span>
+                      {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
+                      {!collapsed && <NavBadge count={item.badge} onDark={isActive} />}
                     </Link>
                   </li>
                 );
@@ -126,6 +143,8 @@ export function AppShell({ user, nav, children }: AppShellProps) {
   }, [drawerOpen]);
 
   const tabItems = nav.slice(0, MAX_TAB_ITEMS);
+  // งานค้างของเมนูที่ไม่อยู่ในแถบล่าง (มือถือ) แสดงรวมที่ปุ่มเปิดเมนูแทน
+  const hiddenBadge = nav.slice(MAX_TAB_ITEMS).reduce((sum, item) => sum + (item.badge ?? 0), 0);
   const currentLabel = nav.find((item) => item.href === active)?.label ?? (pathname.startsWith('/settings') ? 'การตั้งค่า' : '');
 
   return (
@@ -160,11 +179,16 @@ export function AppShell({ user, nav, children }: AppShellProps) {
         <button
           type="button"
           onClick={() => setDrawerOpen(true)}
-          aria-label="เปิดเมนู"
+          aria-label={hiddenBadge > 0 ? `เปิดเมนู (มีงานค้าง ${hiddenBadge} รายการ)` : 'เปิดเมนู'}
           aria-expanded={drawerOpen}
-          className="inline-flex size-11 items-center justify-center rounded-xl text-ink transition hover:bg-ink/[0.04]"
+          className="relative inline-flex size-11 items-center justify-center rounded-xl text-ink transition hover:bg-ink/[0.04]"
         >
           <Icon name="menu" />
+          {hiddenBadge > 0 && (
+            <span aria-hidden="true" className="absolute top-1 right-0.5 inline-flex min-w-5 items-center justify-center rounded-full bg-beni px-1.5 text-[0.6875rem] leading-5 font-semibold text-white tabular-nums">
+              {hiddenBadge > 99 ? '99+' : hiddenBadge}
+            </span>
+          )}
         </button>
       </header>
 
@@ -216,7 +240,10 @@ export function AppShell({ user, nav, children }: AppShellProps) {
                 isActive ? 'bg-matcha-800 text-washi' : 'text-stone'
               }`}
             >
-              <Icon name={item.icon} className="size-5" />
+              <span className="relative">
+                <Icon name={item.icon} className="size-5" />
+                <NavBadge count={item.badge} onDark={isActive} compact />
+              </span>
               {item.shortLabel}
             </Link>
           );

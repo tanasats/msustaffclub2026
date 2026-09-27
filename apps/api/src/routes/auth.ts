@@ -12,6 +12,7 @@ import {
   type PendingOAuth,
 } from '../services/auth-service.js';
 import { getPreferences } from '../services/preferences-service.js';
+import { getMyAdvisorSummary } from '../services/advisor-work-service.js';
 import { getUserProfile } from '../services/profile-service.js';
 
 // cookie อายุสั้นที่จำ state/nonce/PKCE verifier ระหว่างไป Google แล้วกลับมา
@@ -107,11 +108,13 @@ export function createAuthRouter(): Router {
   // ต้อง login เท่านั้น: ข้อมูลผู้ใช้ปัจจุบันพร้อม role, permission และข้อมูลนิสิต/บุคลากร
   authRouter.get('/auth/me', requireAuth, async (req, res) => {
     const auth = getRequiredAuth(req);
-    const [profile, preferences] = await Promise.all([
+    // advisor: ตัวเลขงานที่ปรึกษา ใช้ตัดสินว่าจะแสดงเมนู "งานที่ปรึกษาชมรม" หรือไม่ (UX เท่านั้น)
+    const [profile, preferences, advisor] = await Promise.all([
       getUserProfile(auth.user.id, auth.user.email),
       getPreferences(auth.user.id),
+      getMyAdvisorSummary(auth),
     ]);
-    res.json({ user: auth.user, roles: auth.roles, permissions: auth.permissions, profile, preferences });
+    res.json({ user: auth.user, roles: auth.roles, permissions: auth.permissions, profile, preferences, advisor });
   });
 
   // public (ไม่บังคับ login): ลบ session ถ้ามี แล้วลบ cookie

@@ -8,6 +8,8 @@ export interface NavItem {
   shortLabel: string;
   icon: IconName;
   group: 'main' | 'admin';
+  // จำนวนงานค้าง (แสดงเป็นตัวเลขบนเมนู) ไม่มี/0 = ไม่แสดง
+  badge?: number;
 }
 
 /**
@@ -27,13 +29,16 @@ export function buildNavigation(current: CurrentUser): NavItem[] {
   }
   // ต้อง login เท่านั้น: ติดตามสถานะผลงานของตัวเอง
   items.push({ href: '/achievements', label: 'ผลงานของฉัน', shortLabel: 'ผลงาน', icon: 'award', group: 'main' });
-  if (current.profile.type === 'staff') {
+  // แสดงเฉพาะผู้ที่มีคำขอรอยินยอม หรือเป็นที่ปรึกษาชมรมที่ยังอยู่ในวาระ (บุคลากรส่วนใหญ่ไม่ใช่ที่ปรึกษา)
+  const { advisor } = current;
+  if (advisor.pendingConsents > 0 || advisor.activeClubs > 0) {
     items.push({
-      href: '/club-applications/advisor-requests',
+      href: '/advisor',
       label: 'งานที่ปรึกษาชมรม',
       shortLabel: 'ที่ปรึกษา',
       icon: 'leaf',
       group: 'main',
+      badge: advisor.pendingConsents + advisor.reportsToAcknowledge,
     });
   }
   if (has('club_application:review') || has('club_application:approve') || has('club:read_all')) {

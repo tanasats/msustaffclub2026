@@ -44,23 +44,37 @@ export default async function HomePage() {
   const current = await getCurrentUser();
   // ยังไม่ได้เข้าสู่ระบบ → หน้าแนะนำระบบ (public) แทนแดชบอร์ด
   if (!current) return <Landing stats={await loadPublicStats()} />;
-  const { user, roles, permissions, profile } = current;
+  const { user, roles, permissions, profile, advisor } = current;
   const has = (permission: string) => roles.includes('super_admin') || permissions.includes(permission);
   const canApply = has('club_application:create');
-  const isStaff = profile.type === 'staff';
+  const isAdvisor = advisor.pendingConsents > 0 || advisor.activeClubs > 0;
   const canWorkQueue = has('club_application:review') || has('club_application:approve') || has('club:read_all');
 
-  const [mine, advisorRequests, queue] = await Promise.all([
+  const [mine, queue] = await Promise.all([
     canApply ? listOrNull('/club-applications/mine') : null,
-    isStaff ? listOrNull('/club-applications/advisor-requests') : null,
     canWorkQueue ? listOrNull('/club-applications/queue') : null,
   ]);
-  const pendingConsent = advisorRequests?.filter((r) => r.status === 'awaiting_consent' && r.myConsentStatus === 'pending') ?? [];
   const openMine = mine?.filter((a) => !['approved', 'rejected', 'cancelled'].includes(a.status)) ?? [];
   const firstName = (user.name ?? user.email).split(' ')[0];
 
   return (
     <div className="grid grid-cols-2 gap-3 sm:gap-4 lg:grid-cols-4">
+      {/* แจ้งเตือน: ถูกเสนอชื่อเป็นที่ปรึกษาและยังไม่ได้ตอบ */}
+      {advisor.pendingConsents > 0 && (
+        <div role="status" className="col-span-2 flex flex-col gap-3 rounded-bento border border-kin/30 bg-kin-50 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5 lg:col-span-4">
+          <p className="flex items-start gap-3 text-ink">
+            <Icon name="leaf" className="mt-0.5 size-5 shrink-0 text-kin" />
+            <span>
+              <span className="font-medium">คุณถูกเสนอชื่อเป็นที่ปรึกษาชมรม {advisor.pendingConsents} คำขอ</span>
+              <span className="block text-sm text-stone">กรุณาอ่านรายละเอียดแล้วตอบยินยอมหรือปฏิเสธ เพื่อให้ชมรมยื่นคำขอต่อได้</span>
+            </span>
+          </p>
+          <Link href="/advisor" className={buttonClass('primary', 'shrink-0')}>
+            ไปตอบคำขอ
+            <Icon name="arrowRight" className="size-[1.125rem]" />
+          </Link>
+        </div>
+      )}
       {/* ทักทาย */}
       <Bento tone="matcha" className="relative col-span-2 overflow-hidden lg:row-span-2">
         <svg viewBox="0 0 200 200" aria-hidden="true" className="pointer-events-none absolute -right-10 -bottom-12 size-64 opacity-[0.12]">
@@ -108,13 +122,13 @@ export default async function HomePage() {
         </Bento>
       )}
 
-      {isStaff && advisorRequests && (
+      {isAdvisor && (
         <StatTile
-          href="/club-applications/advisor-requests"
+          href="/advisor"
           icon="leaf"
-          label="รอคุณยินยอม"
-          value={pendingConsent.length}
-          hint="คำขอที่เสนอชื่อคุณเป็นที่ปรึกษา"
+          label="งานที่ปรึกษา"
+          value={advisor.pendingConsents + advisor.reportsToAcknowledge}
+          hint="คำขอรอยินยอม และรายงานรอรับทราบ"
         />
       )}
       {canWorkQueue && queue && (
