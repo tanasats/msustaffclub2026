@@ -30,6 +30,12 @@ import { collectSubmissionIssues, notFound } from './club-application-service.js
 import { isEligibleForClub } from './club-rules.js';
 import { bangkokDateString, fiscalYearRange } from './fiscal-year.js';
 import { endCurrentAdvisors, updateClubFromRenewal } from '../repositories/renewals-repository.js';
+import {
+  notifyAdvisorResponded,
+  notifyAdvisorsNominated,
+  notifyApplicationQueue,
+  notifyApplicationResult,
+} from './notification-service.js';
 import { PERMISSIONS, type PermissionCode } from './permissions.js';
 
 // ---------- ตัวช่วย ----------
@@ -72,11 +78,8 @@ async function transition(
   actorUserId: string | null,
   toStatus: ApplicationStatus,
   note: string | null,
-): Promise<void> {
-  await insertApplicationEvent(
-    { applicationId: app.id, actorUserId, fromStatus: app.status, toStatus, note },
-    client,
-  );
+): Promise<string> {
+  return insertApplicationEvent({ applicationId: app.id, actorUserId, fromStatus: app.status, toStatus, note }, client);
 }
 
 async function assertReadyToSubmit(client: DbClient, applicationId: string): Promise<void> {
@@ -99,7 +102,8 @@ export async function requestAdvisorConsent(auth: AuthContext, applicationId: st
     await assertReadyToSubmit(client, applicationId);
     await resetAdvisorConsents(applicationId, client);
     await updateApplicationStatus(applicationId, 'awaiting_consent', client);
-    await transition(client, app, auth.user.id, 'awaiting_consent', null);
+    const eventId = await transition(client, app, auth.user.id, 'awaiting_consent', null);
+    await notifyAdvisorsNominated(client, applicationId, eventId);
   });
 }
 
@@ -124,7 +128,8 @@ export async function submitApplication(auth: AuthContext, applicationId: string
     }
     await assertReadyToSubmit(client, applicationId);
     await markSubmitted(applicationId, client);
-    await transition(client, app, auth.user.id, 'submitted', null);
+    const eventId = await transition(client, app, auth.user.id, 'submitted', null);
+    await notifyApplicationQueue(client, applicationId, 'submitted', auth.user.id, eventId);
   });
 }
 
@@ -164,6 +169,7 @@ export async function respondAsAdvisor(
       await updateApplicationStatus(applicationId, 'draft', client);
       await transition(client, app, auth.user.id, 'draft', note ? `ที่ปรึกษาปฏิเสธ: ${note}` : 'ที่ปรึกษาปฏิเสธ');
     }
+    await notifyAdvisorResponded(client, applicationId, auth.user.name ?? auth.user.email, decision);
   });
 }
 
@@ -192,10 +198,12 @@ export async function reviewApplication(
         throw new AppError(422, 'EXTERNAL_CONSENT_NOT_VERIFIED', 'กรุณาตรวจและยืนยันใบคำยินยอมของที่ปรึกษาภายนอกให้ครบก่อน');
       }
       await markReviewed(applicationId, auth.user.id, client);
-      await transition(client, app, auth.user.id, 'reviewed', note);
+      const eventId = await transition(client, app, auth.user.id, 'reviewed', note);
+      await notifyApplicationQueue(client, applicationId, 'reviewed', auth.user.id, eventId);
     } else {
       await updateApplicationStatus(applicationId, 'returned', client);
-      await transition(client, app, auth.user.id, 'returned', note);
+      const eventId = await transition(client, app, auth.user.id, 'returned', note);
+      await notifyApplicationResult(client, applicationId, 'returned', note, eventId);
     }
   });
 }
@@ -241,12 +249,14 @@ export async function decideApplication(
 
     if (decision === 'return') {
       await updateApplicationStatus(applicationId, 'returned', client);
-      await transition(client, app, auth.user.id, 'returned', note);
+      const eventId = await transition(client, app, auth.user.id, 'returned', note);
+      await notifyApplicationResult(client, applicationId, 'returned', note, eventId);
       return { status: 'returned', clubId: null };
     }
     if (decision === 'reject') {
       await markDecided(applicationId, 'rejected', auth.user.id, note, null, client);
-      await transition(client, app, auth.user.id, 'rejected', note);
+      const eventId = await transition(client, app, auth.user.id, 'rejected', note);
+      await notifyApplicationResult(client, applicationId, 'rejected', note, eventId);
       return { status: 'rejected', clubId: null };
     }
 
@@ -258,7 +268,8 @@ export async function decideApplication(
       const clubId = app.clubId!;
       await approveRenewal(clubId, applicationId, app.fiscalYear, today, client);
       await markDecided(applicationId, 'approved', auth.user.id, note, clubId, client);
-      await transition(client, app, auth.user.id, 'approved', note);
+      const eventId = await transition(client, app, auth.user.id, 'approved', note);
+      await notifyApplicationResult(client, applicationId, 'approved', note, eventId);
       return { status: 'approved', clubId };
     }
     let clubId: string;
@@ -276,7 +287,8 @@ export async function decideApplication(
     await insertPlannedActivitiesFromApplication(clubId, applicationId, app.fiscalYear, client);
 
     await markDecided(applicationId, 'approved', auth.user.id, note, clubId, client);
-    await transition(client, app, auth.user.id, 'approved', note);
+    const eventId = await transition(client, app, auth.user.id, 'approved', note);
+    await notifyApplicationResult(client, applicationId, 'approved', note, eventId);
     return { status: 'approved', clubId };
   });
 }

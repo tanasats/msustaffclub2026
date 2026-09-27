@@ -403,3 +403,9 @@ stateDiagram-v2
 - `GET /me/advisor-work` (ต้อง login เท่านั้น): คำขอที่เสนอชื่อฉัน (ไม่รวมร่าง), รายงานประจำเดือนสถานะ submitted ของชมรมที่ฉันเป็นที่ปรึกษา, ชมรมที่ฉันเป็นที่ปรึกษา
 - หน้าหลักมีแถบแจ้งเตือนเมื่อถูกเสนอชื่อและยังไม่ตอบ; `/club-applications/advisor-requests` เดิม redirect ไป `/advisor`
 - ระยะถัดไป: แจ้งเตือนทางอีเมลจาก staff.club@msu.ac.th (Gmail API, outbox, super_admin เปิด/ปิดได้ ด้วย permission `system_setting:manage`)
+
+## 17. อีเมลแจ้งเตือน (ยืนยันแล้ว)
+- ส่งในนาม staff.club@msu.ac.th ผ่าน Gmail API (สิทธิ์ `gmail.send` เท่านั้น) ตั้งค่าตาม `docs/email-setup.md`
+- เหตุการณ์ (`src/services/notification-events.ts`): ถูกเสนอชื่อเป็นที่ปรึกษา → ที่ปรึกษาบุคลากรที่ยังไม่ตอบ, ที่ปรึกษาตอบ → ผู้ยื่น, ส่งกลับแก้ไข/อนุมัติ/ไม่อนุมัติ → ผู้ยื่น, ยื่นแล้ว → ผู้ถือ role ที่มี review / ตรวจผ่าน → ผู้ถือ role ที่มี approve (ไม่รวมผู้กระทำ และ super_admin ที่ไม่ได้ถือ role นั้น), ส่งรายงานประจำเดือน → ที่ปรึกษาในวาระ
+- outbox (`email_outbox`): ใส่คิวใน transaction ของเหตุการณ์ (`dedupe_key` UNIQUE กันซ้ำ) → worker ส่ง (สัญญาเช่า 10 นาที, ลองซ้ำ 1/5/15/60 นาที, ค้างเกิน 24 ชม. ยกเลิก, เก็บ 90 วัน)
+- `system_settings`: `email.enabled` (ค่าเริ่มต้นปิด), `email.events` (ค่าเริ่มต้นเปิดทุกเหตุการณ์) แก้ที่ `/admin/email` ด้วย permission `system_setting:manage` (ไม่ผูก role → super_admin)

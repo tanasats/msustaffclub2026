@@ -76,6 +76,9 @@ S3_SECRET_KEY=...
 S3_BUCKET=app-files
 S3_FORCE_PATH_STYLE=true
 
+# อีเมลแจ้งเตือน (ดู docs/email-setup.md) — dev/test: log, production: gmail + GMAIL_CLIENT_ID/SECRET/REFRESH_TOKEN
+MAIL_TRANSPORT=log
+
 # apps/web/.env.local
 API_URL=http://localhost:4000              # ใช้ฝั่ง server (Server Component)
 NEXT_PUBLIC_API_URL=http://localhost:4000  # ใช้ฝั่ง browser
@@ -97,6 +100,7 @@ NEXT_PUBLIC_API_URL=http://localhost:4000  # ใช้ฝั่ง browser
     /src/repositories   # SQL ทั้งหมดอยู่ที่นี่เท่านั้น
     /src/db             # pool, transaction helper
     /src/storage        # ตัวครอบ (wrapper) การเรียก S3
+    /src/mail           # ตัวส่งอีเมล (Gmail API / log), แม่แบบอีเมล, worker ส่งจากคิว email_outbox
     /src/config         # อ่านและตรวจสอบ env ด้วย Zod
     /migrations         # ไฟล์ node-pg-migrate
     /scripts            # seed ผู้ดูแลระบบสูงสุด ฯลฯ
@@ -197,6 +201,7 @@ Permission ที่ลงทะเบียนแล้ว (ยังไม่�
 | `club_report:review` | รับทราบรายงานประจำปีของทุกชมรม และดูภาพรวมการส่งรายงาน (ผูกกับ `club_officer`) |
 | `sport:manage` | เพิ่ม/แก้ไข/ปิดใช้งานรายการชนิดกีฬา (ผูกกับ `club_officer`) |
 | `sport_selection:manage` | เปิดรอบคัดเลือกตัวแทน/พิจารณารางวัลนักกีฬา และบันทึกผลการตัดสิน (ผูกกับ `sport_selection_committee`) |
+| `system_setting:manage` | ตั้งค่าระบบ รวมถึงเปิด/ปิดการส่งอีเมลแจ้งเตือน (ไม่ผูก role → เฉพาะ `super_admin`) |
 
 **สิทธิ์ระดับชมรม (club-scoped)** — ได้จากตำแหน่งของผู้ใช้ "ในชมรมนั้น" (กรรมการ/ที่ปรึกษา/สมาชิก) ไม่ใช่ role ของระบบ
 - ตำแหน่ง ↔ สิทธิ์ชมรม เก็บในตาราง `club_positions` / `club_permissions` / `club_position_permissions` (ค่าตั้งต้นดู `docs/design/club-establishment.md` หัวข้อ 3.3) ค่าคงที่อยู่ที่ `src/services/club-permissions.ts` ที่เดียว

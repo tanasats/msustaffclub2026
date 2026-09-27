@@ -58,6 +58,9 @@ export function buildNavigation(current: CurrentUser): NavItem[] {
   if (has('user_role:assign')) {
     items.push({ href: '/admin/users', label: 'จัดการสิทธิ์ผู้ใช้', shortLabel: 'สิทธิ์', icon: 'shield', group: 'admin' });
   }
+  if (has('system_setting:manage')) {
+    items.push({ href: '/admin/email', label: 'อีเมลแจ้งเตือน', shortLabel: 'อีเมล', icon: 'settings', group: 'admin' });
+  }
   return items;
 }
 
