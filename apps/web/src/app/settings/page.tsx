@@ -57,6 +57,17 @@ export default async function SettingsPage() {
           <BentoTitle className="mb-3">{profile.type === 'student' ? 'ข้อมูลนิสิต' : 'ข้อมูลบุคลากร'}</BentoTitle>
           <ProfileDetails profile={profile} />
           {profile.type === 'staff' && <p className="mt-3 text-xs text-mist">ข้อมูลจากระบบ ERP-HR ของมหาวิทยาลัย</p>}
+          {/* PDPA: บอกช่องทางแก้ไขข้อมูลและใช้สิทธิ์ */}
+          <p className="mt-3 text-sm leading-relaxed text-stone">
+            ข้อมูลบุคลากรไม่ถูกต้อง แก้ไขได้ที่งานบริหารบุคคล (ระบบจะปรับปรุงเมื่อเข้าสู่ระบบครั้งถัดไป) · ใช้สิทธิตามกฎหมายคุ้มครองข้อมูลส่วนบุคคล ติดต่อ{' '}
+            <a href="mailto:dpo@msu.ac.th" className="text-matcha-700 underline underline-offset-4">
+              dpo@msu.ac.th
+            </a>{' '}
+            ·{' '}
+            <Link href="/privacy" className="text-matcha-700 underline underline-offset-4">
+              ประกาศความเป็นส่วนตัว
+            </Link>
+          </p>
         </Bento>
 
         <div className="grid gap-3 sm:gap-4">

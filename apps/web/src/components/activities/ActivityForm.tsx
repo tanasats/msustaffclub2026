@@ -206,7 +206,7 @@ export function ActivityForm({ clubId, activity, plans, members, today }: Activi
             <span className="text-xs text-mist">JPG / PNG / WebP ไม่เกิน 10 MB สูงสุด {MAX_PHOTOS} รูป</span>
           </div>
         )}
-        <p className="text-xs text-mist">รายชื่อผู้เข้าร่วมและรูปเห็นเฉพาะสมาชิกชมรมและผู้ดูแล</p>
+        <p className="text-xs text-stone">รายชื่อผู้เข้าร่วมและรูปเห็นเฉพาะสมาชิกชมรมและผู้ดูแล — ถ้ารูปมีบุคคลที่ระบุตัวได้ กรุณาแจ้งผู้ที่อยู่ในภาพ</p>
       </div>
 
       {error && (

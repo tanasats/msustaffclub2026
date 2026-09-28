@@ -243,7 +243,12 @@ export function Landing({ stats }: { stats: PublicStats | null }) {
       <footer className="border-t border-ink/[0.08] bg-cream">
         <div className="mx-auto flex max-w-6xl flex-col gap-1 px-4 py-6 text-sm text-stone sm:flex-row sm:justify-between sm:px-6">
           <p>สโมสรบุคลากร มหาวิทยาลัยมหาสารคาม</p>
-          <p>ระบบบริหารจัดการชมรมบุคลากร</p>
+          <p className="flex flex-wrap gap-x-4">
+            <Link href="/privacy" className="text-matcha-700 underline underline-offset-4 hover:text-matcha-900">
+              ประกาศความเป็นส่วนตัว
+            </Link>
+            <span>ระบบบริหารจัดการชมรมบุคลากร</span>
+          </p>
         </div>
       </footer>
     </div>

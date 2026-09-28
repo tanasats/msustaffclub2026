@@ -39,7 +39,10 @@ function ExternalPersonFields({ value, onChange }: { value: ExternalPerson; onCh
       <input value={value.position ?? ''} onChange={set('position')} placeholder="ตำแหน่ง" aria-label="ตำแหน่ง" maxLength={200} className="field sm:col-span-2" />
       <input type="email" value={value.email ?? ''} onChange={set('email')} placeholder="อีเมล" aria-label="อีเมล" maxLength={200} className="field sm:col-span-3" />
       <input value={value.phone ?? ''} onChange={set('phone')} placeholder="เบอร์โทร" aria-label="เบอร์โทร" maxLength={50} className="field sm:col-span-3" />
-      <p className="text-xs text-mist sm:col-span-6">* จำเป็น และต้องมีอีเมลหรือเบอร์โทรอย่างน้อย 1 ช่องทาง</p>
+      <p className="text-xs text-stone sm:col-span-6">
+        * จำเป็น และต้องมีอีเมลหรือเบอร์โทรอย่างน้อย 1 ช่องทาง — ข้อมูลนี้ใช้ติดต่อเรื่องการเป็นที่ปรึกษาชมรมเท่านั้น
+        กรุณาแจ้งให้ที่ปรึกษาทราบ (ใบคำยินยอมที่พิมพ์จากระบบมีข้อความแจ้งการเก็บข้อมูลแล้ว)
+      </p>
     </div>
   );
 }

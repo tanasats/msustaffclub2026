@@ -1,5 +1,6 @@
 import type { Metadata, Viewport } from 'next';
 import { IBM_Plex_Sans_Thai, Noto_Serif_Thai } from 'next/font/google';
+import { PrivacyGate } from '@/components/privacy/PrivacyGate';
 import { AppShell, type ShellUser } from '@/components/shell/AppShell';
 import { getCurrentUser, type CurrentUser } from '@/lib/auth';
 import { buildNavigation, ROLE_LABELS } from '@/lib/navigation';
@@ -62,7 +63,10 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
     // ขนาดตัวอักษรที่ผู้ใช้ตั้งไว้ (จากฐานข้อมูล) ใส่ตั้งแต่ server render จึงไม่กระพริบเปลี่ยนขนาด
     <html lang="th" data-font-scale={current?.preferences.fontScale ?? 'md'} className={`${sans.variable} ${serif.variable}`}>
       <body className="min-h-dvh">
-        {current && shellUser ? (
+        {current && !current.privacy.acknowledged ? (
+          // PDPA มาตรา 23: แจ้งประกาศความเป็นส่วนตัวก่อนใช้งาน (login ครั้งแรก / ประกาศเปลี่ยนเวอร์ชัน)
+          <PrivacyGate updated={current.privacy.acknowledgedEarlier} />
+        ) : current && shellUser ? (
           <AppShell user={shellUser} nav={buildNavigation(current)}>
             {children}
           </AppShell>

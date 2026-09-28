@@ -45,6 +45,8 @@ export interface CurrentUser {
   profile: UserProfile;
   preferences: UserPreferences;
   advisor: AdvisorSummary;
+  // ประกาศความเป็นส่วนตัว: ยังไม่รับทราบเวอร์ชันปัจจุบัน = แสดงหน้ารับทราบแทนทุกหน้า
+  privacy: { currentVersion: string; acknowledged: boolean; acknowledgedEarlier: boolean };
 }
 
 /**
