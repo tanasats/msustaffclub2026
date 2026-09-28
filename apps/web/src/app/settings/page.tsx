@@ -68,6 +68,9 @@ export default async function SettingsPage() {
               ประกาศความเป็นส่วนตัว
             </Link>
           </p>
+          <Link href="/settings/my-data" className="btn btn-secondary mt-4 !min-h-10 text-sm">
+            ดูและดาวน์โหลดข้อมูลของฉัน
+          </Link>
         </Bento>
 
         <div className="grid gap-3 sm:gap-4">
