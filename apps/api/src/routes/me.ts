@@ -2,6 +2,7 @@ import { Router } from 'express';
 import { z } from 'zod';
 import { getRequiredAuth, requireAuth } from '../middlewares/auth.js';
 import { getMyAdvisorWork } from '../services/advisor-work-service.js';
+import { getMyData } from '../services/my-data-service.js';
 import { acknowledgePrivacyNotice } from '../services/privacy-service.js';
 import { FONT_SCALES, getPreferences, updatePreferences } from '../services/preferences-service.js';
 
@@ -32,4 +33,10 @@ meRouter.post('/me/privacy/acknowledge', requireAuth, async (req, res) => {
   const { version } = acknowledgeSchema.parse(req.body);
   await acknowledgePrivacyNotice(getRequiredAuth(req), version);
   res.status(204).end();
+});
+
+// ต้อง login เท่านั้น: ข้อมูลส่วนบุคคลทั้งหมดของตัวเอง (หน้า "ข้อมูลของฉัน" และไฟล์ดาวน์โหลด) — ห้าม cache
+meRouter.get('/me/data', requireAuth, async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json(await getMyData(getRequiredAuth(req)));
 });

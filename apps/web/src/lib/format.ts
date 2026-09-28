@@ -15,3 +15,10 @@ const dateFormatter = new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', ti
 export function formatDate(value: string | null): string {
   return value ? dateFormatter.format(new Date(`${value}T00:00:00Z`)) : '-';
 }
+
+const timestampDateFormatter = new Intl.DateTimeFormat('th-TH', { dateStyle: 'medium', timeZone: 'Asia/Bangkok' });
+
+// เวลาเต็ม (timestamptz) → เฉพาะวันที่ตามเวลาประเทศไทย เช่น '7 พ.ย. 2569' (formatDate ใช้กับคอลัมน์ date เท่านั้น)
+export function formatTimestampDate(value: string | null): string {
+  return value ? timestampDateFormatter.format(new Date(value)) : '-';
+}
