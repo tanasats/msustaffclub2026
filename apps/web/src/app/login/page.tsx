@@ -74,6 +74,11 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
               รู้จักระบบก่อนเข้าใช้งาน
             </Link>
           </p>
+          <p className="mt-3 text-center text-sm">
+            <Link href="/privacy" className="text-matcha-700 underline underline-offset-4 hover:text-matcha-900">
+              ประกาศความเป็นส่วนตัว
+            </Link>
+          </p>
         </div>
       </section>
     </main>

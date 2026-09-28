@@ -125,6 +125,9 @@ export function CommitteeEditor({ application, positions }: { application: Appli
           );
         })}
       </ul>
+      <p className="mt-2 text-xs text-stone">
+        เบอร์โทร สถานที่ทำงาน และประวัติย่อ ใช้ในเอกสารจัดตั้งชมรม และเห็นเฉพาะกรรมการ ที่ปรึกษา และสโมสรบุคลากร — กรอกเฉพาะข้อมูลที่เจ้าตัวยินดีให้ใช้ติดต่อ
+      </p>
       <div className="mt-3">
         <UserPicker
           excludeIds={rows.map((row) => row.userId)}

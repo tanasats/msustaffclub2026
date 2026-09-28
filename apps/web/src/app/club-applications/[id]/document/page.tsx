@@ -4,6 +4,7 @@ import { sarabun } from '@/components/print/sarabun';
 import { thaiDateParts, thaiDigits, thaiLongDate } from '@/components/print/thai-doc';
 import { apiGetJson } from '@/lib/api-server';
 import type { ApplicationDocument } from '@/lib/club-application-types';
+import { headers } from 'next/headers';
 import { publicEnv } from '@/lib/public-env';
 
 /**
@@ -65,6 +66,9 @@ const UNCHECKED = '☐';
 export default async function ApplicationDocumentPage({ params }: { params: Promise<{ id: string }> }) {
   const { id } = await params;
   const d = await apiGetJson<ApplicationDocument>(`/club-applications/${encodeURIComponent(id)}/document`);
+  // ที่อยู่เว็บจริงจาก request (production หลัง nginx = club.msu.ac.th) ใช้พิมพ์ลิงก์ประกาศความเป็นส่วนตัว
+  const requestHeaders = await headers();
+  const siteOrigin = `${requestHeaders.get('x-forwarded-proto') ?? 'http'}://${requestHeaders.get('host') ?? ''}`.replace(/^http:\/\/(?!localhost)/, 'https://');
   const renewal = d.type === 'renewal';
   const club = `ชมรม${d.nameTh.replace(/^ชมรม/, '')}`;
   const fy = thaiDigits(d.fiscalYear);
@@ -232,6 +236,11 @@ export default async function ApplicationDocumentPage({ params }: { params: Prom
             <div className="mt-4 ml-auto w-1/2">
               <Signature name={a?.name ?? null} role={`ที่ปรึกษา${club}`} note={consentNote(a)} />
             </div>
+            {/* PDPA มาตรา 23: แจ้งการเก็บข้อมูลแก่ที่ปรึกษา (รวมบุคคลภายนอกที่ไม่ได้ใช้ระบบ) */}
+            <p className="mt-3 text-[11pt]">
+              หมายเหตุ ข้อมูลส่วนบุคคลของท่าน (ชื่อ-สกุล หน่วยงาน ตำแหน่ง และช่องทางติดต่อ) ใช้เพื่อการจัดตั้งและบริหารชมรมเท่านั้น
+              รายละเอียดตามประกาศความเป็นส่วนตัวของระบบ {siteOrigin}/privacy
+            </p>
           </div>
         ))}
       </Page>

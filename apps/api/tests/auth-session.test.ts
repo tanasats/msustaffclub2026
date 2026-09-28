@@ -32,6 +32,7 @@ describe('GET /auth/me', () => {
       preferences: { fontScale: 'md' },
       // ไม่ใช่ที่ปรึกษาชมรม → ไม่แสดงเมนูงานที่ปรึกษา
       advisor: { pendingConsents: 0, activeClubs: 0, reportsToAcknowledge: 0 },
+      privacy: { currentVersion: '1.0', acknowledged: false, acknowledgedEarlier: false },
     });
   });
 
