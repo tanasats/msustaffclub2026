@@ -30,6 +30,7 @@ interface FilePolicy {
   // ชื่อชนิดไฟล์สำหรับข้อความแจ้งผู้ใช้
   typeLabel: string;
   maxBytes: number;
+  // path ใน storage (/club-files/<keyPrefix>/<uuid>) — เพิ่มค่าใหม่ต้องแจ้งงานเครือข่ายยกเว้น WAF ของ Cloudflare (docs/deployment.md หัวข้อ 10)
   keyPrefix: string;
 }
 
