@@ -11,6 +11,10 @@
                         ผู้ใช้ (HTTPS 443) → https://club.msu.ac.th
                                    │
                 ┌──────────────────┴───────────────────┐
+                │ Cloudflare (proxy + WAF ของมหาวิทยาลัย) │  ดูแลโดยงานเครือข่าย — หัวข้อ 10
+                └──────────────────┬───────────────────┘
+                                   │
+                ┌──────────────────┴───────────────────┐
                 │ nginx บน host  (ใบรับรอง *.msu.ac.th)    │
                 └───┬───────────────┬──────────────┬───┘
                  /  │         /api/ │ (ตัด /api)   │ /club-files/ (path + Host เดิม)
@@ -65,12 +69,14 @@ deploy/                       ← คัดลอกทั้งโฟลเด�
   compose.yml                 postgres, garage, api, web, migrate (profile tools)
   garage.toml                 config Garage production
   nginx/msu-club.conf         site ของ nginx บน host
+  nginx/cloudflare-realip.conf  ช่วง IP ของ Cloudflare สำหรับ realip (ติดตั้งที่ /etc/nginx/snippets/)
   env/*.env.example           แม่แบบไฟล์ env (api, web, postgres, garage, deploy)
   scripts/deploy.sh           backup → pull → migrate → สลับ → ตรวจสุขภาพ (ไม่ผ่าน = กลับเวอร์ชันเดิมอัตโนมัติ)
   scripts/rollback.sh         กลับไปเวอร์ชันก่อนหน้า
   scripts/backup.sh           pg_dump + snapshot Garage + ลบของเก่า + rsync ออกนอก VM
   scripts/garage-setup.sh     สร้าง key + bucket (private) แล้วเขียน key ลง env/api.env
   scripts/recover-env.sh      กู้ env/*.env ที่หายไป จากค่าที่ container ยังเก็บไว้
+  scripts/update-cloudflare-realip.sh  ติดตั้ง/ปรับปรุงช่วง IP ของ Cloudflare ให้ nginx (nginx -t ไม่ผ่าน = คืนไฟล์เดิม)
 ```
 
 ## 5. เตรียม VM ครั้งแรก (ทำครั้งเดียว)
@@ -117,6 +123,7 @@ docker compose up -d postgres garage
 **5.4 nginx**
 ```bash
 # วางไฟล์ใบรับรองของมหาวิทยาลัยให้ตรงกับ path ใน msu-club.conf (crt ต้องรวม intermediate chain)
+./scripts/update-cloudflare-realip.sh        # ติดตั้ง /etc/nginx/snippets/cloudflare-realip.conf (ต้องมีก่อน msu-club.conf)
 sudo cp deploy/nginx/msu-club.conf /etc/nginx/sites-available/msu-club.conf
 sudo ln -s /etc/nginx/sites-available/msu-club.conf /etc/nginx/sites-enabled/
 sudo nginx -t && sudo systemctl reload nginx
@@ -207,6 +214,7 @@ docker compose start garage
 ## 9. Checklist ก่อนเปิดใช้จริง
 
 - [ ] `NODE_ENV=production` (cookie ได้ `Secure`), `TRUST_PROXY=1`
+- [ ] ติดตั้ง realip ของ Cloudflare แล้ว — `access.log` ของ nginx แสดง IP จริงของผู้ใช้ ไม่ใช่ `104.x`/`172.64–71.x`/`162.158.x`
 - [ ] secret ทุกตัวสุ่มใหม่ ไม่ใช้ค่าจาก dev; ไฟล์ env สิทธิ์ `600`
 - [ ] redirect URI ของ Google ตรงทุกตัวอักษร, OAuth consent screen เป็น Internal
 - [ ] `docker compose ps` — postgres ไม่มี port ออก host, ที่เหลือเป็น `127.0.0.1:` เท่านั้น
@@ -215,7 +223,28 @@ docker compose start garage
 - [ ] ทดลอง restore อย่างน้อย 1 ครั้ง
 - [ ] super_admin คนแรกเข้าใช้ได้
 
-## 10. เรื่องที่ยังเปิดอยู่
+## 10. Cloudflare
+
+`club.msu.ac.th` อยู่หลัง Cloudflare ของมหาวิทยาลัย (proxy + WAF) ซึ่ง**งานเครือข่ายเป็นผู้ดูแล** ทีมระบบแก้กฎของ Cloudflare เองไม่ได้
+
+**IP จริงของผู้ใช้ (realip)** — nginx เห็นแต่ IP ของ Cloudflare ถ้าไม่ตั้ง realip ทำให้ rate limit ของการ login นับรวมผู้ใช้หลายคนเป็น IP เดียว
+- `/etc/nginx/snippets/cloudflare-realip.conf` เชื่อ header `CF-Connecting-IP` **เฉพาะคำขอจากช่วง IP ของ Cloudflare** (คนอื่นปลอมไม่ได้) → `$remote_addr` = IP จริง → nginx ต่อท้าย `X-Forwarded-For` → API (`TRUST_PROXY=1`) อ่านค่าขวาสุด
+- Cloudflare เปลี่ยนช่วง IP นาน ๆ ครั้ง ตรวจและปรับปีละ 1–2 ครั้ง: `./scripts/update-cloudflare-realip.sh` (ดูรายการที่ https://www.cloudflare.com/ips/)
+
+**ข้อยกเว้น WAF สำหรับการอัปโหลดไฟล์** — managed rules ของ Cloudflare เคยบล็อกการอัปโหลดตรา PNG (กฎ XSS/HTML Injection ตรวจเนื้อไฟล์แล้วเข้าใจผิด) จึงขอให้งานเครือข่ายยกเว้น method `PUT` ของ path ต่อไปนี้ (30 ก.ย. 2569)
+
+| Method | Path | ใช้กับ |
+|---|---|---|
+| PUT | `/club-files/club-logos/<uuid>` | ตราสัญลักษณ์ชมรม |
+| PUT | `/club-files/achievement-evidence/<uuid>` | หลักฐานผลงาน/เกียรติบัตร |
+| PUT | `/club-files/activity-photos/<uuid>` | รูปกิจกรรม |
+| PUT | `/club-files/advisor-consents/<uuid>` | ใบคำยินยอมที่ปรึกษา |
+
+- **เพิ่มประเภทไฟล์ใหม่** (`keyPrefix` ใหม่ใน `apps/api/src/services/files-service.ts`) → ต้องแจ้งงานเครือข่ายเพิ่ม path ในข้อยกเว้นด้วย ไม่เช่นนั้นการอัปโหลดประเภทใหม่อาจถูกบล็อก
+- อาการเมื่อถูกบล็อก: หน้าเว็บขึ้น "อัปโหลดไฟล์ไม่สำเร็จ" / DevTools เห็น 403 แบบ `text/html` พร้อม header `cf-ray` และคำขอ**ไม่ปรากฏ**ใน `access.log` ของ nginx → ส่ง Ray ID ให้งานเครือข่าย
+- path `/club-files/*` ต้องไม่ถูก cache ที่ Cloudflare (ไฟล์ส่วนตัว เข้าถึงผ่านลิงก์อายุสั้นหลังตรวจสิทธิ์)
+
+## 11. เรื่องที่ยังเปิดอยู่
 
 1. ปลายทาง backup นอก VM (`BACKUP_REMOTE`)
 2. การแจ้งเตือนเมื่อระบบล่ม (เช่น uptime monitor เรียก `https://club.msu.ac.th/api/health`)
