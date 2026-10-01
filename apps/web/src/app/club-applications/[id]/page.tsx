@@ -80,7 +80,13 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
         eyebrow="Club Application"
         title={application.nameTh}
         description={`${APPLICATION_TYPE_LABELS[application.type]} ปีงบประมาณ ${application.fiscalYear} · ผู้ยื่น ${application.applicant.name ?? application.applicant.email}`}
-        back={isApplicant || isNominee ? { href: '/club-applications', label: 'คำขอจัดตั้งชมรม' } : { href: '/', label: 'หน้าหลัก' }}
+        back={
+          isApplicant || isNominee
+            ? { href: '/club-applications', label: 'คำขอจัดตั้งชมรม' }
+            : has('club:read_all')
+              ? { href: '/club-applications/all', label: 'คำขอทั้งหมด' }
+              : { href: '/', label: 'หน้าหลัก' }
+        }
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={status} />

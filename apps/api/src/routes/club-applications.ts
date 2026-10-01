@@ -19,6 +19,7 @@ import { getApplicationLogoUrl, setApplicationLogo } from '../services/club-logo
 import { redirectToImage } from './responses.js';
 import {
   decideApplication,
+  listAllApplications,
   listMyAdvisorRequests,
   listMyPresidentNominations,
   respondAsPresident,
@@ -141,6 +142,15 @@ const queueQuerySchema = z.object({
     .pipe(z.array(z.enum(statusValues))),
 });
 
+const allQuerySchema = z.object({
+  status: queueQuerySchema.shape.status,
+  type: z.enum(['establish', 'renewal']).optional(),
+  fiscalYear: z.coerce.number().int().min(2500).max(2700).optional(),
+  q: z.string().trim().max(100).optional().transform((value) => value || undefined),
+  page: z.coerce.number().int().min(1).max(10000).default(1),
+  pageSize: z.coerce.number().int().min(1).max(100).default(30),
+});
+
 // ต้องมี club_application:create: สร้างคำขอจัดตั้งชมรม (ฉบับร่าง)
 clubApplicationsRouter.post('/club-applications', requireCreate, async (req, res) => {
   const input = createSchema.parse(req.body);
@@ -161,6 +171,14 @@ clubApplicationsRouter.get('/club-applications/advisor-requests', requireAuth, a
 // ต้อง login เท่านั้น: คำขอที่ฉันถูกเสนอเป็นประธาน (ประกาศก่อน /:id)
 clubApplicationsRouter.get('/club-applications/president-nominations', requireAuth, async (req, res) => {
   res.json({ items: await listMyPresidentNominations(getRequiredAuth(req)) });
+});
+
+// ต้องมี club:read_all (super_admin ผ่าน): คำขอทุกสถานะ เพื่อกำกับติดตาม (ประกาศก่อน /:id)
+clubApplicationsRouter.get('/club-applications/all', requirePermission(PERMISSIONS.CLUB_READ_ALL), async (req, res) => {
+  const { status, type, fiscalYear, q, page, pageSize } = allQuerySchema.parse(req.query);
+  res.json(
+    await listAllApplications({ statuses: status, type: type ?? null, fiscalYear: fiscalYear ?? null, query: q ?? null, page, pageSize }),
+  );
 });
 
 // ต้องมี review / approve / read_all / manage_all อย่างใดอย่างหนึ่ง (ตรวจใน service): กล่องงานเจ้าหน้าที่

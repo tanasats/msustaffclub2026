@@ -52,6 +52,10 @@ export function buildNavigation(current: CurrentUser): NavItem[] {
   if (has('club_application:review') || has('club_application:approve') || has('club:read_all')) {
     items.push({ href: '/club-applications/queue', label: 'ตรวจและอนุมัติคำขอ', shortLabel: 'อนุมัติ', icon: 'inbox', group: 'main' });
   }
+  // กำกับติดตามคำขอทุกสถานะ (super_admin ผ่านทุกสิทธิ์)
+  if (has('club:read_all')) {
+    items.push({ href: '/club-applications/all', label: 'คำขอทั้งหมด', shortLabel: 'คำขอทั้งหมด', icon: 'scroll', group: 'admin' });
+  }
   if (has('club_report:review')) {
     items.push({ href: '/reports/overview', label: 'ภาพรวมการส่งรายงาน', shortLabel: 'รายงาน', icon: 'check', group: 'main' });
   }

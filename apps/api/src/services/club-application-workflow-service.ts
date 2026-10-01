@@ -1,12 +1,14 @@
 import { withTransaction, type DbClient } from '../db/pool.js';
 import { AppError } from '../errors.js';
 import {
+  countApplicationsByStatus,
   countPendingPresidentNominations,
   insertApplicationEvent,
   listAdvisorRows,
   listApplicationsByStatus,
   listApplicationsForAdvisor,
   listPresidentNominations,
+  searchApplications,
   lockApplication,
   markDecided,
   markReviewed,
@@ -19,6 +21,7 @@ import {
   updateApplicationStatus,
   verifyExternalAdvisorConsent,
   type AdvisorRequestItem,
+  type ApplicationType,
   type PresidentNominationItem,
   type ApplicationBase,
   type ApplicationStatus,
@@ -377,6 +380,37 @@ export async function listOfficerQueue(auth: AuthContext, statuses?: Application
     ...(canApprove || canReadAll ? (['reviewed'] as const) : []),
   ];
   return listApplicationsByStatus(statuses && statuses.length > 0 ? statuses : defaults, 100);
+}
+
+export interface AllApplicationsQuery {
+  statuses: ApplicationStatus[];
+  type: ApplicationType | null;
+  fiscalYear: number | null;
+  query: string | null;
+  page: number;
+  pageSize: number;
+}
+
+/**
+ * คำขอทุกสถานะ (รวมฉบับร่างและที่ยกเลิก) เพื่อกำกับติดตาม — ต้องมี club:read_all (ตรวจที่ route; super_admin ผ่าน)
+ * byStatus: จำนวนแต่ละสถานะตามตัวกรองประเภท/ปี (ไม่ขึ้นกับคำค้น) ใช้แสดงบนแท็บ
+ */
+export async function listAllApplications(input: AllApplicationsQuery) {
+  const [result, byStatus] = await Promise.all([
+    searchApplications(
+      {
+        statuses: input.statuses,
+        type: input.type,
+        fiscalYear: input.fiscalYear,
+        query: input.query,
+        limit: input.pageSize,
+        offset: (input.page - 1) * input.pageSize,
+      },
+      PRESIDENT_POSITION_CODE,
+    ),
+    countApplicationsByStatus(input.type, input.fiscalYear),
+  ]);
+  return { ...result, page: input.page, pageSize: input.pageSize, byStatus };
 }
 
 /**
