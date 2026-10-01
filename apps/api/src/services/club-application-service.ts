@@ -4,8 +4,10 @@ import {
   findApplicationBase,
   findApplicationDetail,
   insertApplication,
+  ensureMemberRow,
   insertApplicationEvent,
   isClubNameTaken,
+  isNominatedCommitteeMember,
   isProposedAdvisor,
   listActivityDetails,
   listAdvisorDetails,
@@ -75,7 +77,8 @@ export function notFound(): AppError {
 // ---------- สิทธิ์เข้าถึงคำขอ ----------
 
 /**
- * ผู้ที่ดูคำขอได้: ผู้ยื่น, ที่ปรึกษาที่ถูกเสนอ, ผู้มีสิทธิ์ตรวจ/อนุมัติ/ดูทั้งหมด/จัดการทั้งหมด
+ * ผู้ที่ดูคำขอได้: ผู้ยื่น, ที่ปรึกษาที่ถูกเสนอ, ผู้ถูกเสนอเป็นประธาน (เมื่อถูกขอให้ตอบรับแล้ว),
+ * ผู้มีสิทธิ์ตรวจ/อนุมัติ/ดูทั้งหมด/จัดการทั้งหมด
  * ตอบ 404 แทน 403 เมื่อไม่มีสิทธิ์ เพื่อไม่บอกว่ามีคำขอนี้อยู่
  */
 export async function assertCanView(auth: AuthContext, app: ApplicationBase): Promise<void> {
@@ -88,6 +91,7 @@ export async function assertCanView(auth: AuthContext, app: ApplicationBase): Pr
   ];
   if (staffPermissions.some((permission) => hasPermission(auth, permission))) return;
   if (await isProposedAdvisor(app.id, auth.user.id, auth.user.email)) return;
+  if (await isNominatedCommitteeMember(app.id, auth.user.id)) return;
   throw notFound();
 }
 
@@ -375,10 +379,10 @@ export async function replaceCommittee(auth: AuthContext, applicationId: string,
     const positions = new Map((await listClubPositions(client)).map((p) => [p.code, p]));
     checkPositionLimits(inputs, positions);
 
-    // ผู้ยื่นต้องเป็นประธาน (และประธานมีได้คนเดียว ตาม max_per_club)
+    // ต้องมีประธาน 1 คน (ผู้ยื่นเป็นเองหรือเสนอบุคลากรอื่นก็ได้ ผู้ถูกเสนอต้องตอบรับก่อนยื่น)
     const presidents = inputs.filter((input) => input.positionCode === PRESIDENT_POSITION_CODE);
-    if (presidents.length !== 1 || presidents[0]!.userId !== app.applicantUserId) {
-      throw new AppError(422, 'APPLICANT_MUST_BE_PRESIDENT', 'ผู้ยื่นคำขอต้องเป็นประธานชมรม');
+    if (presidents.length !== 1) {
+      throw new AppError(422, 'PRESIDENT_REQUIRED', 'กรุณาระบุประธานชมรม 1 คน');
     }
 
     await loadEligibleUsers(userIds, client);
@@ -398,15 +402,23 @@ export async function replaceCommittee(auth: AuthContext, applicationId: string,
       }),
       client,
     );
+    // ผู้ยื่นที่ไม่ได้เป็นกรรมการ ต้องเป็นสมาชิกตั้งต้นของชมรม
+    if (!userIds.includes(app.applicantUserId)) {
+      await ensureMemberRow(applicationId, app.applicantUserId, client);
+    }
   });
 }
 
 // ---------- สมาชิก ----------
 
 export async function replaceMembers(auth: AuthContext, applicationId: string, userIds: string[]): Promise<void> {
-  const unique = [...new Set(userIds)];
   await withTransaction(async (client) => {
-    assertEstablish(await lockForEdit(client, auth, applicationId));
+    const app = await lockForEdit(client, auth, applicationId);
+    assertEstablish(app);
+    // ผู้ยื่นที่ไม่ได้เป็นกรรมการ ต้องอยู่ในรายชื่อสมาชิกตั้งต้นเสมอ (เพิ่มให้อัตโนมัติ)
+    const committee = await listCommitteeDetails(applicationId, client);
+    const ids = committee.some((c) => c.userId === app.applicantUserId) ? userIds : [app.applicantUserId, ...userIds];
+    const unique = [...new Set(ids)];
     await loadEligibleUsers(unique, client);
     await replaceMemberRows(applicationId, unique, client);
   });
@@ -523,6 +535,8 @@ export async function getApplicationDetail(auth: AuthContext, applicationId: str
       workLocation: c.workLocation,
       contactPhone: c.contactPhone,
       bio: c.bio,
+      consentStatus: c.consentStatus,
+      respondedAt: c.respondedAt,
     })),
     members: members.map((m) => ({ id: m.userId, name: m.userName, email: m.userEmail, orgUnitName: m.orgUnitName })),
     activities,
@@ -600,8 +614,12 @@ export async function collectSubmissionIssues(applicationId: string, db: Queryab
     add('ADVISOR_IN_COMMITTEE', 'ที่ปรึกษาต้องไม่เป็นกรรมการของชมรม');
   }
   const presidents = committee.filter((c) => c.positionCode === PRESIDENT_POSITION_CODE);
-  if (presidents.length !== 1 || presidents[0]!.userId !== detail.applicantUserId) {
-    add('APPLICANT_MUST_BE_PRESIDENT', 'ผู้ยื่นคำขอต้องเป็นประธานชมรม');
+  if (presidents.length !== 1) {
+    add('PRESIDENT_REQUIRED', 'กรุณาระบุประธานชมรม 1 คน');
+  }
+  // ผู้ยื่นต้องร่วมก่อตั้ง: เป็นกรรมการหรือสมาชิกตั้งต้น
+  if (![...committee, ...members].some((person) => person.userId === detail.applicantUserId)) {
+    add('APPLICANT_MUST_BE_FOUNDER', 'ผู้ยื่นคำขอต้องเป็นกรรมการหรือสมาชิกตั้งต้นของชมรม');
   }
   // สมาชิกตั้งต้น = กรรมการ ∪ สมาชิกที่ระบุ (นับเฉพาะบัญชีที่ยังใช้งานได้)
   const inactive = [...committee, ...members].filter((person) => !person.userIsActive);

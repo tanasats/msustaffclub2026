@@ -285,6 +285,15 @@ export async function replaceMemberRows(applicationId: string, userIds: string[]
   );
 }
 
+// เพิ่มผู้ใช้เป็นสมาชิกตั้งต้น ถ้ามีอยู่แล้วไม่ทำอะไร (PK application_id, user_id)
+export async function ensureMemberRow(applicationId: string, userId: string, db: Queryable): Promise<void> {
+  await db.query(
+    `INSERT INTO club_application_members (application_id, user_id) VALUES ($1, $2)
+     ON CONFLICT (application_id, user_id) DO NOTHING`,
+    [applicationId, userId],
+  );
+}
+
 // ---------- แผนกิจกรรม ----------
 
 export interface ActivityRowInput {
@@ -438,6 +447,8 @@ export interface CommitteeDetailRow {
   workLocation: string | null;
   contactPhone: string | null;
   bio: string | null;
+  consentStatus: 'pending' | 'accepted' | 'declined' | null;
+  respondedAt: Date | null;
 }
 
 export async function listCommitteeDetails(applicationId: string, db: Queryable = pool): Promise<CommitteeDetailRow[]> {
@@ -446,7 +457,8 @@ export async function listCommitteeDetails(applicationId: string, db: Queryable 
             ou.name_th AS "orgUnitName",
             p.id AS "positionId", p.code AS "positionCode", p.name_th AS "positionNameTh",
             m.position_title AS "positionTitle", m.sort_order AS "sortOrder",
-            m.work_location AS "workLocation", m.contact_phone AS "contactPhone", m.bio
+            m.work_location AS "workLocation", m.contact_phone AS "contactPhone", m.bio,
+            m.consent_status AS "consentStatus", m.responded_at AS "respondedAt"
        FROM club_application_committee m
        JOIN users u ON u.id = m.user_id
        JOIN club_positions p ON p.id = m.position_id
@@ -566,6 +578,18 @@ export async function isProposedAdvisor(
   return result.rows[0]?.exists ?? false;
 }
 
+// ผู้ใช้ถูกขอให้ตอบรับเป็นกรรมการ (ประธานที่ผู้ยื่นเสนอชื่อ) ในคำขอนี้หรือไม่ (consent_status ไม่ใช่ NULL = เคยถูกขอแล้ว)
+export async function isNominatedCommitteeMember(applicationId: string, userId: string, db: Queryable = pool): Promise<boolean> {
+  const result = await db.query<{ exists: boolean }>(
+    `SELECT EXISTS (
+       SELECT 1 FROM club_application_committee
+        WHERE application_id = $1 AND user_id = $2 AND consent_status IS NOT NULL
+     ) AS "exists"`,
+    [applicationId, userId],
+  );
+  return result.rows[0]?.exists ?? false;
+}
+
 /**
  * มีชมรมที่ยังดำเนินการอยู่ใช้ชื่อนี้หรือไม่ (normalize แบบเดียวกับ unique index clubs_name_th_active_key)
  * excludeClubId ใช้ตอนต่อทะเบียน (ชื่อของชมรมตัวเองไม่นับว่าซ้ำ)
@@ -616,6 +640,45 @@ export async function recordAdvisorResponse(
         AND external_person_id IS NULL
         AND (user_id = $2 OR (user_id IS NULL AND email = $3))`,
     [applicationId, userId, email, decision],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+/**
+ * ตั้งสถานะการตอบรับของกรรมการรอบใหม่ (ใช้ตอนขอความยินยอม):
+ * ประธานที่ไม่ใช่ผู้ยื่น → pending, แถวอื่น (รวมผู้ยื่นที่เป็นประธานเอง) → NULL = ไม่ต้องตอบรับ
+ */
+export async function resetCommitteeConsents(
+  applicationId: string,
+  applicantUserId: string,
+  presidentPositionCode: string,
+  db: Queryable,
+): Promise<void> {
+  await db.query(
+    `UPDATE club_application_committee m
+        SET consent_status = CASE WHEN p.code = $3 AND m.user_id <> $2 THEN 'pending' END,
+            responded_at = NULL
+       FROM club_positions p
+      WHERE p.id = m.position_id AND m.application_id = $1`,
+    [applicationId, applicantUserId, presidentPositionCode],
+  );
+}
+
+// บันทึกการตอบของผู้ถูกเสนอเป็นประธาน คืน true ถ้าพบแถวที่ยังรอตอบ
+export async function recordPresidentResponse(
+  applicationId: string,
+  userId: string,
+  presidentPositionCode: string,
+  decision: 'accepted' | 'declined',
+  db: Queryable,
+): Promise<boolean> {
+  const result = await db.query(
+    `UPDATE club_application_committee m
+        SET consent_status = $4, responded_at = now()
+       FROM club_positions p
+      WHERE p.id = m.position_id AND p.code = $3
+        AND m.application_id = $1 AND m.user_id = $2 AND m.consent_status = 'pending'`,
+    [applicationId, userId, presidentPositionCode, decision],
   );
   return (result.rowCount ?? 0) > 0;
 }
@@ -676,6 +739,43 @@ export async function listApplicationsForAdvisor(
     [userId, email],
   );
   return result.rows;
+}
+
+export interface PresidentNominationItem extends ApplicationListItem {
+  applicantName: string | null;
+  myConsentStatus: 'pending' | 'accepted' | 'declined';
+}
+
+/**
+ * คำขอที่ฉันถูกเสนอเป็นประธาน (เฉพาะที่ถูกขอให้ตอบรับแล้ว = consent_status ไม่ใช่ NULL)
+ * รอตอบขึ้นก่อน ใช้ index club_application_committee_pending_user_idx / user_id
+ */
+export async function listPresidentNominations(userId: string, db: Queryable = pool): Promise<PresidentNominationItem[]> {
+  const result = await db.query<PresidentNominationItem>(
+    `SELECT a.id, a.type, a.fiscal_year AS "fiscalYear", a.status, a.name_th AS "nameTh", a.updated_at AS "updatedAt",
+            u.name AS "applicantName", m.consent_status AS "myConsentStatus"
+       FROM club_application_committee m
+       JOIN club_applications a ON a.id = m.application_id
+       JOIN users u ON u.id = a.applicant_user_id
+      WHERE m.user_id = $1 AND m.consent_status IS NOT NULL
+        AND a.deleted_at IS NULL AND a.status <> 'cancelled'
+      ORDER BY (m.consent_status = 'pending' AND a.status = 'awaiting_consent') DESC, a.updated_at DESC
+      LIMIT 50`,
+    [userId],
+  );
+  return result.rows;
+}
+
+// จำนวนคำเสนอชื่อเป็นประธานที่รอฉันตอบ (สำหรับแบนเนอร์/เมนู เรียกทุกครั้งที่โหลดหน้า)
+export async function countPendingPresidentNominations(userId: string, db: Queryable = pool): Promise<number> {
+  const result = await db.query<{ count: number }>(
+    `SELECT count(*)::int AS "count"
+       FROM club_application_committee m
+       JOIN club_applications a ON a.id = m.application_id AND a.deleted_at IS NULL
+      WHERE m.user_id = $1 AND m.consent_status = 'pending' AND a.status = 'awaiting_consent'`,
+    [userId],
+  );
+  return result.rows[0]?.count ?? 0;
 }
 
 export interface QueueItem extends ApplicationListItem {

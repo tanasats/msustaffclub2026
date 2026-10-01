@@ -66,6 +66,27 @@ describe('ข้อมูลสำหรับพิมพ์ชุดเอก�
     expect((await get(stranger, `${base}/document`)).status).toBe(404);
   });
 
+  it('ผู้ยื่นเสนอผู้อื่นเป็นประธาน: บอกผู้จัดทำ (isApplicant) และเวลาที่ประธานตอบรับ; ผู้ถูกเสนอดูเอกสารได้หลังถูกขอตอบรับ', async () => {
+    const applicant = await actor(undefined, 'ผู้จัดทำ ทดสอบ');
+    const nominee = await actor(undefined, 'ประธาน ทดสอบ');
+    const { body } = await send('post', applicant, '/club-applications', { nameTh: 'ชมรมหมากรุก' });
+    const base = `/club-applications/${body.id}`;
+    await send('put', applicant, `${base}/committee`, { committee: [{ userId: nominee.id, positionCode: 'president' }] });
+    expect((await get(nominee, `${base}/document`)).status).toBe(404);
+    // ข้ามขั้นตรวจความครบถ้วน: ตั้งสถานะตรง ๆ ว่าถูกขอและตอบรับแล้ว
+    await pool.query(
+      `UPDATE club_application_committee SET consent_status = 'accepted', responded_at = now() WHERE application_id = $1`,
+      [body.id],
+    );
+    const res = await get(nominee, `${base}/document`);
+    expect(res.status).toBe(200);
+    expect(res.body.applicant).toMatchObject({ name: 'ผู้จัดทำ ทดสอบ' });
+    expect(res.body.committee).toMatchObject([{ name: 'ประธาน ทดสอบ', isApplicant: false, consentStatus: 'accepted' }]);
+    expect(res.body.committee[0].respondedAt).toBeTruthy();
+    // ผู้ยื่นถูกใส่เป็นสมาชิกตั้งต้นอัตโนมัติ
+    expect(res.body.members.map((m: { name: string }) => m.name)).toEqual(['ประธาน ทดสอบ', 'ผู้จัดทำ ทดสอบ']);
+  });
+
   it('คำขอต่อทะเบียน: กรรมการและสมาชิกมาจากข้อมูลจริงของชมรม', async () => {
     const clubId = await createTestClub({ name: 'ชมรมวิ่ง' });
     const president = await actor(undefined, 'ประธานวิ่ง');

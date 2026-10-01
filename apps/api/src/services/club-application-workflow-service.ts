@@ -1,19 +1,25 @@
 import { withTransaction, type DbClient } from '../db/pool.js';
 import { AppError } from '../errors.js';
 import {
+  countPendingPresidentNominations,
   insertApplicationEvent,
   listAdvisorRows,
   listApplicationsByStatus,
   listApplicationsForAdvisor,
+  listPresidentNominations,
   lockApplication,
   markDecided,
   markReviewed,
   markSubmitted,
+  listCommitteeDetails,
   recordAdvisorResponse,
+  recordPresidentResponse,
   resetAdvisorConsents,
+  resetCommitteeConsents,
   updateApplicationStatus,
   verifyExternalAdvisorConsent,
   type AdvisorRequestItem,
+  type PresidentNominationItem,
   type ApplicationBase,
   type ApplicationStatus,
   type QueueItem,
@@ -27,7 +33,7 @@ import {
 } from '../repositories/clubs-repository.js';
 import { hasPermission, type AuthContext } from './authorization.js';
 import { collectSubmissionIssues, notFound } from './club-application-service.js';
-import { isEligibleForClub } from './club-rules.js';
+import { isEligibleForClub, PRESIDENT_POSITION_CODE } from './club-rules.js';
 import { bangkokDateString, fiscalYearRange } from './fiscal-year.js';
 import { endCurrentAdvisors, updateClubFromRenewal } from '../repositories/renewals-repository.js';
 import {
@@ -35,6 +41,8 @@ import {
   notifyAdvisorsNominated,
   notifyApplicationQueue,
   notifyApplicationResult,
+  notifyPresidentNominated,
+  notifyPresidentResponded,
 } from './notification-service.js';
 import { PERMISSIONS, type PermissionCode } from './permissions.js';
 
@@ -92,8 +100,8 @@ async function assertReadyToSubmit(client: DbClient, applicationId: string): Pro
 // ---------- ผู้ยื่น ----------
 
 /**
- * ส่งคำขอให้ที่ปรึกษายินยอม (draft/returned → awaiting_consent)
- * คำขอต้องครบถ้วนก่อน และล้างผลการยินยอมเดิมทุกครั้ง เพราะเนื้อหาอาจถูกแก้ไขไปแล้ว
+ * ส่งคำขอให้ที่ปรึกษายินยอม และผู้ถูกเสนอเป็นประธาน (ถ้าไม่ใช่ผู้ยื่น) ตอบรับ (draft/returned → awaiting_consent)
+ * คำขอต้องครบถ้วนก่อน และล้างผลการยินยอม/ตอบรับเดิมทุกครั้ง เพราะเนื้อหาอาจถูกแก้ไขไปแล้ว
  */
 export async function requestAdvisorConsent(auth: AuthContext, applicationId: string): Promise<void> {
   await withTransaction(async (client) => {
@@ -101,9 +109,13 @@ export async function requestAdvisorConsent(auth: AuthContext, applicationId: st
     assertStatus(app, ['draft', 'returned']);
     await assertReadyToSubmit(client, applicationId);
     await resetAdvisorConsents(applicationId, client);
+    if (app.type === 'establish') {
+      await resetCommitteeConsents(applicationId, app.applicantUserId, PRESIDENT_POSITION_CODE, client);
+    }
     await updateApplicationStatus(applicationId, 'awaiting_consent', client);
     const eventId = await transition(client, app, auth.user.id, 'awaiting_consent', null);
     await notifyAdvisorsNominated(client, applicationId, eventId);
+    await notifyPresidentNominated(client, applicationId, eventId);
   });
 }
 
@@ -117,7 +129,7 @@ export async function withdrawToDraft(auth: AuthContext, applicationId: string, 
   });
 }
 
-// ยื่นคำขอต่อสโมสร (awaiting_consent → submitted) ที่ปรึกษาต้องยินยอมครบทุกคน
+// ยื่นคำขอต่อสโมสร (awaiting_consent → submitted) ที่ปรึกษาต้องยินยอมครบทุกคน และประธานที่ถูกเสนอต้องตอบรับแล้ว
 export async function submitApplication(auth: AuthContext, applicationId: string): Promise<void> {
   await withTransaction(async (client) => {
     const app = await lockAsApplicant(client, auth, applicationId);
@@ -125,6 +137,10 @@ export async function submitApplication(auth: AuthContext, applicationId: string
     const advisors = await listAdvisorRows(applicationId, client);
     if (advisors.length === 0 || advisors.some((advisor) => advisor.consentStatus !== 'accepted')) {
       throw new AppError(422, 'ADVISOR_CONSENT_PENDING', 'ที่ปรึกษายังยินยอมไม่ครบทุกคน');
+    }
+    const committee = await listCommitteeDetails(applicationId, client);
+    if (committee.some((member) => member.consentStatus !== null && member.consentStatus !== 'accepted')) {
+      throw new AppError(422, 'PRESIDENT_CONSENT_PENDING', 'ผู้ถูกเสนอเป็นประธานยังไม่ได้ตอบรับ');
     }
     await assertReadyToSubmit(client, applicationId);
     await markSubmitted(applicationId, client);
@@ -171,6 +187,56 @@ export async function respondAsAdvisor(
     }
     await notifyAdvisorResponded(client, applicationId, auth.user.name ?? auth.user.email, decision);
   });
+}
+
+// ---------- ผู้ถูกเสนอเป็นประธาน ----------
+
+/**
+ * ผู้ถูกเสนอเป็นประธานตอบรับ/ปฏิเสธ (ต้อง login เป็นผู้ใช้ที่ถูกเสนอ — จับคู่ด้วย user_id เท่านั้น)
+ * ปฏิเสธ → คำขอกลับเป็นฉบับร่างให้ผู้ยื่นเลือกประธานใหม่ พร้อมเหตุผลใน log
+ */
+export async function respondAsPresident(
+  auth: AuthContext,
+  applicationId: string,
+  decision: 'accept' | 'decline',
+  note: string | null,
+): Promise<void> {
+  await withTransaction(async (client) => {
+    const app = await lockApplication(applicationId, client);
+    if (!app) throw notFound();
+    assertStatus(app, ['awaiting_consent']);
+
+    const recorded = await recordPresidentResponse(
+      applicationId,
+      auth.user.id,
+      PRESIDENT_POSITION_CODE,
+      decision === 'accept' ? 'accepted' : 'declined',
+      client,
+    );
+    if (!recorded) {
+      // ไม่ได้ถูกเสนอเป็นประธานในคำขอนี้ หรือตอบไปแล้ว
+      throw new AppError(409, 'NO_PENDING_NOMINATION', 'ไม่มีคำเสนอชื่อเป็นประธานที่รอคุณตอบในคำขอนี้');
+    }
+
+    let eventId: string;
+    if (decision === 'decline') {
+      await updateApplicationStatus(applicationId, 'draft', client);
+      eventId = await transition(client, app, auth.user.id, 'draft', note ? `ผู้ถูกเสนอเป็นประธานปฏิเสธ: ${note}` : 'ผู้ถูกเสนอเป็นประธานปฏิเสธ');
+    } else {
+      // ตอบรับไม่เปลี่ยนสถานะ บันทึก log ไว้เป็นหลักฐาน (from = to = awaiting_consent)
+      eventId = await transition(client, app, auth.user.id, 'awaiting_consent', 'ผู้ถูกเสนอเป็นประธานตอบรับ');
+    }
+    await notifyPresidentResponded(client, applicationId, auth.user.name ?? auth.user.email, decision, eventId);
+  });
+}
+
+export async function listMyPresidentNominations(auth: AuthContext): Promise<PresidentNominationItem[]> {
+  return listPresidentNominations(auth.user.id);
+}
+
+// ต้อง login เท่านั้น: ตัวเลขของตัวผู้ใช้เอง
+export async function getMyNominationSummary(auth: AuthContext): Promise<{ pendingPresident: number }> {
+  return { pendingPresident: await countPendingPresidentNominations(auth.user.id) };
 }
 
 export async function listMyAdvisorRequests(auth: AuthContext): Promise<AdvisorRequestItem[]> {

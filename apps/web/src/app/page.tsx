@@ -38,13 +38,13 @@ function StatTile({ href, icon, label, value, hint }: { href: string; icon: Icon
   );
 }
 
-const STEPS = ['เตรียมข้อมูลชมรม กรรมการ และสมาชิก ≥ 5 คน', 'ที่ปรึกษา 1–2 คนยินยอมในระบบ', 'ยื่นคำขอต่อสโมสรบุคลากร', 'เจ้าหน้าที่สโมสรตรวจ', 'นายกสโมสรอนุมัติ — ชมรมพร้อมใช้งาน'];
+const STEPS = ['เตรียมข้อมูลชมรม กรรมการ และสมาชิก ≥ 5 คน', 'ที่ปรึกษา 1–2 คนยินยอม และประธาน (ถ้าเสนอผู้อื่น) ตอบรับในระบบ', 'ยื่นคำขอต่อสโมสรบุคลากร', 'เจ้าหน้าที่สโมสรตรวจ', 'นายกสโมสรอนุมัติ — ชมรมพร้อมใช้งาน'];
 
 export default async function HomePage() {
   const current = await getCurrentUser();
   // ยังไม่ได้เข้าสู่ระบบ → หน้าแนะนำระบบ (public) แทนแดชบอร์ด
   if (!current) return <Landing stats={await loadPublicStats()} />;
-  const { user, roles, permissions, profile, advisor } = current;
+  const { user, roles, permissions, profile, advisor, nominations } = current;
   const has = (permission: string) => roles.includes('super_admin') || permissions.includes(permission);
   const canApply = has('club_application:create');
   const isAdvisor = advisor.pendingConsents > 0 || advisor.activeClubs > 0;
@@ -71,6 +71,22 @@ export default async function HomePage() {
           </p>
           <Link href="/advisor" className={buttonClass('primary', 'shrink-0')}>
             ไปตอบคำขอ
+            <Icon name="arrowRight" className="size-[1.125rem]" />
+          </Link>
+        </div>
+      )}
+      {/* แจ้งเตือน: ถูกเสนอชื่อเป็นประธานชมรมและยังไม่ได้ตอบ */}
+      {nominations.pendingPresident > 0 && (
+        <div role="status" className="col-span-2 flex flex-col gap-3 rounded-bento border border-kin/30 bg-kin-50 p-4 sm:flex-row sm:items-center sm:justify-between sm:p-5 lg:col-span-4">
+          <p className="flex items-start gap-3 text-ink">
+            <Icon name="scroll" className="mt-0.5 size-5 shrink-0 text-kin" />
+            <span>
+              <span className="font-medium">คุณถูกเสนอชื่อเป็นประธานชมรม {nominations.pendingPresident} คำขอ</span>
+              <span className="block text-sm text-stone">กรุณาอ่านรายละเอียดแล้วตอบรับหรือปฏิเสธ เพื่อให้ผู้ยื่นยื่นคำขอต่อได้</span>
+            </span>
+          </p>
+          <Link href="/club-applications" className={buttonClass('primary', 'shrink-0')}>
+            ไปตอบรับ
             <Icon name="arrowRight" className="size-[1.125rem]" />
           </Link>
         </div>

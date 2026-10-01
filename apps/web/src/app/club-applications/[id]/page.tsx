@@ -19,6 +19,8 @@ import { apiGetJson } from '@/lib/api-server';
 import { getCurrentUser } from '@/lib/auth';
 import {
   APPLICATION_TYPE_LABELS,
+  CONSENT_LABELS,
+  PRESIDENT_CONSENT_LABELS,
   advisorDisplayName,
   type ApplicationDetail,
   type ClubCategory,
@@ -52,6 +54,9 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
   const myAdvisorRow = application.advisors.find(
     (a) => a.user?.id === current.user.id || a.email === current.user.email,
   );
+  // ประธานที่ผู้ยื่นเสนอชื่อ (consentStatus ไม่ใช่ null = ต้องตอบรับผ่านระบบ)
+  const nominatedPresident = application.committee.find((c) => c.position.code === 'president' && c.consentStatus !== null) ?? null;
+  const isNominee = nominatedPresident?.user.id === current.user.id;
   const canEdit = isApplicant && (status === 'draft' || status === 'returned');
   const canReview = !isApplicant && status === 'submitted' && has('club_application:review');
   const canDecide = !isApplicant && status === 'reviewed' && has('club_application:approve');
@@ -66,6 +71,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
   const externalAdvisors = application.advisors.filter((a) => a.kind === 'external');
   const allAdvisorsAccepted =
     application.advisors.length > 0 && application.advisors.every((a) => a.consentStatus === 'accepted');
+  const presidentAccepted = !nominatedPresident || nominatedPresident.consentStatus === 'accepted';
   const latestNote = [...application.events].reverse().find((e) => e.toStatus === status && e.note)?.note;
 
   return (
@@ -74,7 +80,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
         eyebrow="Club Application"
         title={application.nameTh}
         description={`${APPLICATION_TYPE_LABELS[application.type]} ปีงบประมาณ ${application.fiscalYear} · ผู้ยื่น ${application.applicant.name ?? application.applicant.email}`}
-        back={isApplicant ? { href: '/club-applications', label: 'คำขอของฉัน' } : { href: '/', label: 'หน้าหลัก' }}
+        back={isApplicant || isNominee ? { href: '/club-applications', label: 'คำขอจัดตั้งชมรม' } : { href: '/', label: 'หน้าหลัก' }}
         actions={
           <div className="flex flex-wrap items-center gap-2">
             <StatusBadge status={status} />
@@ -99,9 +105,11 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
       {/* ---------- ส่วนดำเนินการตามบทบาท ---------- */}
       <div className="grid gap-3 sm:gap-4">
         {canEdit && validation && (
-          <Section title="สิ่งที่ต้องทำก่อนส่งให้ที่ปรึกษายินยอม" tone="cream">
+          <Section title="สิ่งที่ต้องทำก่อนส่งขอการตอบรับ" tone="cream">
             {validation.issues.length === 0 ? (
-              <p className="text-sm text-matcha-700">ข้อมูลครบถ้วนแล้ว ส่งให้ที่ปรึกษายินยอมได้</p>
+              <p className="text-sm text-matcha-700">
+                ข้อมูลครบถ้วนแล้ว ส่งขอความยินยอมจากที่ปรึกษา{application.type === 'establish' ? ' และการตอบรับจากประธานที่คุณเสนอชื่อ (ถ้าไม่ใช่ตัวคุณเอง)' : ''}ได้
+              </p>
             ) : (
               <ul className="list-disc pl-5 text-sm text-kin">
                 {validation.issues.map((issue) => (
@@ -110,20 +118,37 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
               </ul>
             )}
             <div className="mt-4 flex flex-wrap gap-2">
-              <ActionButton path={`${base}/request-consent`} label="ส่งให้ที่ปรึกษายินยอม" disabled={validation.issues.length > 0} />
+              <ActionButton path={`${base}/request-consent`} label="ส่งขอการตอบรับ" disabled={validation.issues.length > 0} />
               <ActionButton path={`${base}/cancel`} label="ยกเลิกคำขอ" note="optional" tone="danger" />
             </div>
           </Section>
         )}
 
         {isApplicant && status === 'awaiting_consent' && (
-          <Section title="รอที่ปรึกษายินยอม">
+          <Section title="รอการตอบรับ">
             <p className="text-sm text-stone">
-              แจ้งที่ปรึกษาให้เข้าสู่ระบบด้วยอีเมลที่ระบุไว้ แล้วเปิดเมนู &quot;คำขอที่เสนอชื่อฉันเป็นที่ปรึกษา&quot;
-              เมื่อยินยอมครบทุกคนจึงยื่นต่อสโมสรได้ (ระหว่างนี้แก้ไขคำขอไม่ได้ ต้องดึงกลับเป็นร่างก่อน)
+              แจ้งที่ปรึกษาให้เข้าสู่ระบบด้วยอีเมลที่ระบุไว้ แล้วเปิดเมนู &quot;งานที่ปรึกษาชมรม&quot;
+              {nominatedPresident && ' และแจ้งผู้ที่คุณเสนอเป็นประธานให้ตอบรับในเมนู "คำขอจัดตั้ง/ต่อทะเบียน"'}
+              {' '}เมื่อตอบรับครบทุกคนจึงยื่นต่อสโมสรได้ (ระหว่างนี้แก้ไขคำขอไม่ได้ ต้องดึงกลับเป็นร่างก่อน)
             </p>
+            <ul className="mt-3 grid gap-1 text-sm">
+              {nominatedPresident && (
+                <li>
+                  ประธาน: {nominatedPresident.user.name ?? nominatedPresident.user.email} —{' '}
+                  <span className={nominatedPresident.consentStatus === 'accepted' ? 'text-matcha-700' : 'text-kin'}>
+                    {PRESIDENT_CONSENT_LABELS[nominatedPresident.consentStatus!]}
+                  </span>
+                </li>
+              )}
+              {application.advisors.map((a) => (
+                <li key={a.sortOrder}>
+                  ที่ปรึกษา: {advisorDisplayName(a)} —{' '}
+                  <span className={a.consentStatus === 'accepted' ? 'text-matcha-700' : 'text-kin'}>{CONSENT_LABELS[a.consentStatus]}</span>
+                </li>
+              ))}
+            </ul>
             <div className="mt-4 flex flex-wrap gap-2">
-              <ActionButton path={`${base}/submit`} label="ยื่นคำขอต่อสโมสร" disabled={!allAdvisorsAccepted} />
+              <ActionButton path={`${base}/submit`} label="ยื่นคำขอต่อสโมสร" disabled={!allAdvisorsAccepted || !presidentAccepted} />
               <ActionButton path={`${base}/withdraw`} label="ดึงกลับไปแก้ไข" tone="neutral" note="optional" />
               <ActionButton path={`${base}/cancel`} label="ยกเลิกคำขอ" note="optional" tone="danger" />
             </div>
@@ -138,6 +163,20 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
             <div className="mt-4 flex flex-wrap gap-2">
               <ActionButton path={`${base}/advisor-response`} body={{ decision: 'accept' }} label="ยินยอมเป็นที่ปรึกษา" />
               <ActionButton path={`${base}/advisor-response`} body={{ decision: 'decline' }} label="ปฏิเสธ" note="optional" tone="danger" />
+            </div>
+          </Section>
+        )}
+
+        {isNominee && status === 'awaiting_consent' && nominatedPresident?.consentStatus === 'pending' && (
+          <Section title="คุณได้รับการเสนอชื่อเป็นประธานชมรม">
+            <p className="text-sm text-stone">
+              {application.applicant.name ?? application.applicant.email} เสนอชื่อคุณเป็นประธาน{application.nameTh.startsWith('ชมรม') ? '' : 'ชมรม'}
+              {application.nameTh} โปรดอ่านรายละเอียดคำขอด้านล่าง เมื่อตอบรับแล้ว แบบขอจัดตั้งชมรมจะระบุคุณเป็นผู้ขอจัดตั้งในฐานะประธานชมรม
+              (ผู้ยื่นเป็นผู้แก้ไขและยื่นคำขอ)
+            </p>
+            <div className="mt-4 flex flex-wrap gap-2">
+              <ActionButton path={`${base}/president-response`} body={{ decision: 'accept' }} label="ตอบรับเป็นประธาน" />
+              <ActionButton path={`${base}/president-response`} body={{ decision: 'decline' }} label="ปฏิเสธ" note="optional" tone="danger" />
             </div>
           </Section>
         )}

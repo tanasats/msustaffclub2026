@@ -7,6 +7,7 @@ import {
   getApplicationNotice,
   getMonthlyReportNotice,
   listCurrentAdvisorUsers,
+  listPendingCommitteeNominees,
   listPendingInternalAdvisors,
   listUsersWithPermission,
   type ApplicationNotice,
@@ -93,6 +94,49 @@ export async function notifyAdvisorResponded(
       paragraphs: accepted
         ? [`${advisorName} ยินยอมเป็นที่ปรึกษาใน${clubLabel(notice)}แล้ว`, 'เมื่อที่ปรึกษายินยอมครบทุกคน คุณยื่นคำขอต่อสโมสรบุคลากรได้ทันที']
         : [`${advisorName} ปฏิเสธการเป็นที่ปรึกษาใน${clubLabel(notice)}`, 'คำขอกลับเป็นฉบับร่าง กรุณาดูเหตุผล แก้ไขรายชื่อที่ปรึกษา แล้วขอความยินยอมใหม่'],
+      actionLabel: 'เปิดคำขอ',
+      actionUrl: link(`/club-applications/${notice.id}`),
+    }),
+  );
+}
+
+// ผู้ยื่นขอความยินยอม → ผู้ถูกเสนอเป็นประธานที่ยังไม่ตอบ
+export async function notifyPresidentNominated(db: Queryable, applicationId: string, eventKey: string): Promise<void> {
+  const notice = await getApplicationNotice(applicationId, db);
+  if (!notice) return;
+  const nominees = await listPendingCommitteeNominees(applicationId, db);
+  await enqueue(db, NOTIFICATION_EVENTS.PRESIDENT_NOMINATED, eventKey, nominees, (nominee) =>
+    composeEmail({
+      subject: `ขอการตอบรับเป็นประธานชมรม — ${clubLabel(notice)}`,
+      recipientName: nominee.name,
+      paragraphs: [
+        `${notice.applicant.name ?? 'ผู้ยื่นคำขอ'} เสนอชื่อคุณเป็นประธานใน${clubLabel(notice)}`,
+        'กรุณาเข้าสู่ระบบเพื่ออ่านรายละเอียดของชมรม แล้วตอบรับหรือปฏิเสธ ในแบบคำขอจะระบุคุณเป็นผู้ขอจัดตั้งในฐานะประธานชมรม และชมรมจะยื่นคำขอต่อสโมสรได้เมื่อคุณตอบรับแล้ว',
+      ],
+      actionLabel: 'อ่านรายละเอียดและตอบรับ',
+      actionUrl: link(`/club-applications/${notice.id}`),
+    }),
+  );
+}
+
+// ผู้ถูกเสนอเป็นประธานตอบ → ผู้ยื่น
+export async function notifyPresidentResponded(
+  db: Queryable,
+  applicationId: string,
+  presidentName: string,
+  decision: 'accept' | 'decline',
+  eventKey: string,
+): Promise<void> {
+  const notice = await getApplicationNotice(applicationId, db);
+  if (!notice || !notice.applicantActive) return;
+  const accepted = decision === 'accept';
+  await enqueue(db, NOTIFICATION_EVENTS.PRESIDENT_RESPONDED, eventKey, [notice.applicant], (applicant) =>
+    composeEmail({
+      subject: `ผู้ถูกเสนอเป็นประธาน${accepted ? 'ตอบรับ' : 'ปฏิเสธ'} — ${clubLabel(notice)}`,
+      recipientName: applicant.name,
+      paragraphs: accepted
+        ? [`${presidentName} ตอบรับเป็นประธานใน${clubLabel(notice)}แล้ว`, 'เมื่อที่ปรึกษายินยอมครบทุกคน คุณยื่นคำขอต่อสโมสรบุคลากรได้ทันที']
+        : [`${presidentName} ปฏิเสธการเป็นประธานใน${clubLabel(notice)}`, 'คำขอกลับเป็นฉบับร่าง กรุณาดูเหตุผล เลือกประธานใหม่ แล้วส่งขอการตอบรับอีกครั้ง'],
       actionLabel: 'เปิดคำขอ',
       actionUrl: link(`/club-applications/${notice.id}`),
     }),

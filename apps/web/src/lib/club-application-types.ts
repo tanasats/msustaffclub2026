@@ -12,7 +12,7 @@ export type ApplicationStatus =
 
 export const STATUS_LABELS: Record<ApplicationStatus, string> = {
   draft: 'ฉบับร่าง',
-  awaiting_consent: 'รอที่ปรึกษายินยอม',
+  awaiting_consent: 'รอการตอบรับ',
   submitted: 'ยื่นแล้ว รอเจ้าหน้าที่ตรวจ',
   returned: 'ส่งกลับให้แก้ไข',
   reviewed: 'ตรวจผ่านแล้ว รอนายกสโมสรอนุมัติ',
@@ -22,6 +22,9 @@ export const STATUS_LABELS: Record<ApplicationStatus, string> = {
 };
 
 export const CONSENT_LABELS = { pending: 'รอตอบ', accepted: 'ยินยอมแล้ว', declined: 'ปฏิเสธ' } as const;
+// การตอบรับเป็นประธานของผู้ที่ผู้ยื่นเสนอชื่อ
+export const PRESIDENT_CONSENT_LABELS = { pending: 'รอการตอบรับเป็นประธาน', accepted: 'ตอบรับเป็นประธานแล้ว', declined: 'ปฏิเสธการเป็นประธาน' } as const;
+export type ConsentStatus = keyof typeof CONSENT_LABELS;
 
 export interface PersonRef {
   id: string;
@@ -99,6 +102,9 @@ export interface ApplicationDetail {
     workLocation: string | null;
     contactPhone: string | null;
     bio: string | null;
+    // การตอบรับผ่านระบบ (ประธานที่ผู้ยื่นเสนอชื่อ) null = ไม่ต้องตอบรับ
+    consentStatus: ConsentStatus | null;
+    respondedAt: string | null;
   }[];
   members: PersonRef[];
   activities: { activityDate: string | null; activityTime: string | null; title: string; note: string | null }[];
@@ -168,7 +174,18 @@ export interface ApplicationDocument {
   contactEmail: string | null;
   regulationText: string | null;
   advisors: { name: string; orgUnitName: string | null; kind: 'internal' | 'external'; consentStatus: 'pending' | 'accepted' | 'declined'; respondedAt: string | null }[];
-  committee: { name: string; positionCode: string; positionTitle: string; orgUnitName: string | null; workLocation: string | null; contactPhone: string | null; bio: string | null }[];
+  committee: {
+    name: string;
+    positionCode: string;
+    positionTitle: string;
+    orgUnitName: string | null;
+    workLocation: string | null;
+    contactPhone: string | null;
+    bio: string | null;
+    isApplicant: boolean;
+    consentStatus: ConsentStatus | null;
+    respondedAt: string | null;
+  }[];
   members: { name: string; orgUnitName: string | null }[];
   activities: { activityDate: string | null; activityTime: string | null; title: string; note: string | null }[];
 }

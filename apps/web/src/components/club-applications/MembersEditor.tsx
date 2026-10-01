@@ -12,6 +12,8 @@ export function MembersEditor({ application }: { application: ApplicationDetail 
   const [members, setMembers] = useState<PersonRef[]>(application.members);
   const committeeIds = application.committee.map((c) => c.user.id);
   const total = new Set([...committeeIds, ...members.map((m) => m.id)]).size;
+  // ผู้ยื่นที่ไม่ได้เป็นกรรมการต้องเป็นสมาชิกตั้งต้นเสมอ (API ใส่ให้อัตโนมัติ จึงไม่ให้ลบ)
+  const lockedId = committeeIds.includes(application.applicant.id) ? null : application.applicant.id;
 
   async function handleSubmit(event: React.FormEvent) {
     event.preventDefault();
@@ -30,9 +32,13 @@ export function MembersEditor({ application }: { application: ApplicationDetail 
               {member.name ?? member.email}
               <span className="ml-2 text-xs text-mist">{member.orgUnitName ?? member.email}</span>
             </span>
-            <button type="button" onClick={() => setMembers((prev) => prev.filter((m) => m.id !== member.id))} className="text-beni underline">
-              ลบ
-            </button>
+            {member.id === lockedId ? (
+              <span className="text-xs text-stone">ผู้ยื่นคำขอ</span>
+            ) : (
+              <button type="button" onClick={() => setMembers((prev) => prev.filter((m) => m.id !== member.id))} className="text-beni underline">
+                ลบ
+              </button>
+            )}
           </li>
         ))}
       </ul>

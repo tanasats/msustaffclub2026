@@ -4,16 +4,18 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { Icon } from '@/components/ui/icons';
 import { formatDateTime } from '@/lib/format';
 import type { ApplicationListItem } from '@/lib/club-application-types';
-import { CONSENT_LABELS } from '@/lib/club-application-types';
+import { CONSENT_LABELS, PRESIDENT_CONSENT_LABELS } from '@/lib/club-application-types';
 import { StatusBadge } from './StatusBadge';
 
 interface ApplicationListProps {
   items: ApplicationListItem[];
   emptyMessage: string;
+  // myConsentStatus เป็นการตอบรับเป็นประธาน (ไม่ใช่การยินยอมเป็นที่ปรึกษา)
+  consentKind?: 'advisor' | 'president';
 }
 
 // รายการคำขอแบบการ์ด (ใช้ร่วมกันในคำขอของฉัน / งานที่ปรึกษา / กล่องงาน)
-export function ApplicationList({ items, emptyMessage }: ApplicationListProps) {
+export function ApplicationList({ items, emptyMessage, consentKind = 'advisor' }: ApplicationListProps) {
   if (items.length === 0) {
     return <EmptyState icon="scroll" title={emptyMessage} />;
   }
@@ -38,7 +40,11 @@ export function ApplicationList({ items, emptyMessage }: ApplicationListProps) {
                 <StatusBadge status={item.status} />
                 {item.type === 'renewal' && <Badge tone="kin">ต่อทะเบียน</Badge>}
                 {item.myConsentStatus && (
-                  <span className="text-xs text-stone">การยินยอมของคุณ: {CONSENT_LABELS[item.myConsentStatus]}</span>
+                  <span className="text-xs text-stone">
+                    {consentKind === 'president'
+                      ? PRESIDENT_CONSENT_LABELS[item.myConsentStatus]
+                      : `การยินยอมของคุณ: ${CONSENT_LABELS[item.myConsentStatus]}`}
+                  </span>
                 )}
               </span>
             </span>
