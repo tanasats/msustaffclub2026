@@ -31,7 +31,16 @@ export interface MyData {
   memberships: { clubName: string; status: string; appliedAt: string; decidedAt: string | null; endedOn: string | null; endReason: string | null }[];
   committeePositions: { clubName: string; positionTitle: string; workLocation: string | null; contactPhone: string | null; bio: string | null; startedOn: string; endedOn: string | null }[];
   advisorships: { clubName: string; fiscalYear: number; startedOn: string; endedOn: string | null }[];
-  applications: { nameTh: string; type: 'establish' | 'renewal'; fiscalYear: number; status: string; createdAt: string; submittedAt: string | null }[];
+  applications: {
+    nameTh: string;
+    type: 'establish' | 'renewal';
+    fiscalYear: number;
+    status: string;
+    createdAt: string;
+    submittedAt: string | null;
+    // ลบออกจากรายการแล้ว (ระบบยังเก็บไว้)
+    deletedAt: string | null;
+  }[];
   applicationRoles: { applicationName: string; role: 'advisor' | 'committee'; detail: string | null; contactPhone: string | null; workLocation: string | null; bio: string | null }[];
   achievements: { clubName: string; title: string; achievedOn: string; level: string; category: string; award: string | null; organizer: string | null; status: string }[];
   activityParticipation: { clubName: string; title: string; heldOn: string }[];

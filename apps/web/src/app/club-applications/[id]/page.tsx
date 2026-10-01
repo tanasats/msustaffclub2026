@@ -6,6 +6,7 @@ import { ActivitiesEditor } from '@/components/club-applications/ActivitiesEdito
 import { AdvisorsEditor } from '@/components/club-applications/AdvisorsEditor';
 import { ApplicationSummary } from '@/components/club-applications/ApplicationSummary';
 import { CommitteeEditor } from '@/components/club-applications/CommitteeEditor';
+import { DeleteApplicationButton } from '@/components/club-applications/DeleteApplicationButton';
 import { EventTimeline } from '@/components/club-applications/EventTimeline';
 import { GeneralInfoForm } from '@/components/club-applications/GeneralInfoForm';
 import { ClubLogo } from '@/components/clubs/ClubLogo';
@@ -16,6 +17,7 @@ import { RenewalContextPanel } from '@/components/renewals/RenewalContextPanel';
 import { Bento, BentoTitle } from '@/components/ui/Bento';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { apiGetJson } from '@/lib/api-server';
+import { formatDateTime } from '@/lib/format';
 import { getCurrentUser } from '@/lib/auth';
 import {
   APPLICATION_TYPE_LABELS,
@@ -60,6 +62,9 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
   const canEdit = isApplicant && (status === 'draft' || status === 'returned');
   const canReview = !isApplicant && status === 'submitted' && has('club_application:review');
   const canDecide = !isApplicant && status === 'reviewed' && has('club_application:approve');
+  // ผู้ยื่นลบคำขอที่ยกเลิกแล้วออกจากรายการ / ผู้ดูแลระบบกู้คืนคำขอที่ยกเลิก (ลบแล้วหรือไม่ก็ได้) เป็นร่าง
+  const canDelete = isApplicant && status === 'cancelled' && !application.deleted;
+  const canRestore = status === 'cancelled' && has('club_application:manage_deleted');
 
   const [categories, positions, validation] = canEdit
     ? await Promise.all([
@@ -100,6 +105,12 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
       {latestNote && (status === 'returned' || status === 'rejected' || status === 'draft') && (
         <p className="mb-4 rounded-bento border border-kin/20 bg-kin-50 px-5 py-4 text-[0.9375rem] text-kin">
           <span className="font-medium">หมายเหตุ:</span> {latestNote}
+        </p>
+      )}
+      {application.deleted && (
+        <p role="status" className="mb-4 rounded-bento border border-beni/30 bg-white px-5 py-4 text-[0.9375rem] text-beni">
+          <span className="font-medium">ลบแล้ว:</span> ผู้ยื่นลบคำขอนี้ออกจากรายการเมื่อ {formatDateTime(application.deleted.at)}
+          {application.deleted.byName ? ` (${application.deleted.byName})` : ''} — เห็นเฉพาะผู้ดูแลระบบ
         </p>
       )}
       {status === 'approved' && (
@@ -183,6 +194,24 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
             <div className="mt-4 flex flex-wrap gap-2">
               <ActionButton path={`${base}/president-response`} body={{ decision: 'accept' }} label="ตอบรับเป็นประธาน" />
               <ActionButton path={`${base}/president-response`} body={{ decision: 'decline' }} label="ปฏิเสธ" note="optional" tone="danger" />
+            </div>
+          </Section>
+        )}
+
+        {canDelete && (
+          <Section title="คำขอนี้ถูกยกเลิกแล้ว">
+            <p className="mb-4 text-sm text-stone">ลบคำขอออกจากรายการของคุณได้ หากไม่ต้องการเก็บไว้ดูอีก</p>
+            <DeleteApplicationButton applicationId={application.id} />
+          </Section>
+        )}
+
+        {canRestore && (
+          <Section title="กู้คืนคำขอ (ผู้ดูแลระบบ)">
+            <p className="mb-4 text-sm text-stone">
+              คำขอจะกลับเป็นฉบับร่างของผู้ยื่นเดิม และแสดงในรายการคำขอของผู้ยื่นอีกครั้ง ผู้ยื่นต้องส่งขอการตอบรับและยื่นใหม่ตามขั้นตอน
+            </p>
+            <div className="flex flex-wrap gap-2">
+              <ActionButton path={`${base}/restore`} label="กู้คืนเป็นฉบับร่าง" note="required" />
             </div>
           </Section>
         )}

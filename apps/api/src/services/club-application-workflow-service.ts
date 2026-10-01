@@ -2,6 +2,7 @@ import { withTransaction, type DbClient } from '../db/pool.js';
 import { AppError } from '../errors.js';
 import {
   countApplicationsByStatus,
+  countDeletedApplications,
   countPendingPresidentNominations,
   insertApplicationEvent,
   listAdvisorRows,
@@ -35,7 +36,7 @@ import {
   insertPlannedActivitiesFromApplication,
 } from '../repositories/clubs-repository.js';
 import { hasPermission, type AuthContext } from './authorization.js';
-import { collectSubmissionIssues, notFound } from './club-application-service.js';
+import { canManageDeleted, collectSubmissionIssues, notFound } from './club-application-service.js';
 import { isEligibleForClub, PRESIDENT_POSITION_CODE } from './club-rules.js';
 import { bangkokDateString, fiscalYearRange } from './fiscal-year.js';
 import { endCurrentAdvisors, updateClubFromRenewal } from '../repositories/renewals-repository.js';
@@ -387,6 +388,8 @@ export interface AllApplicationsQuery {
   type: ApplicationType | null;
   fiscalYear: number | null;
   query: string | null;
+  // true = แท็บ "ลบแล้ว" (ต้องมี club_application:manage_deleted)
+  deleted: boolean;
   page: number;
   pageSize: number;
 }
@@ -395,22 +398,27 @@ export interface AllApplicationsQuery {
  * คำขอทุกสถานะ (รวมฉบับร่างและที่ยกเลิก) เพื่อกำกับติดตาม — ต้องมี club:read_all (ตรวจที่ route; super_admin ผ่าน)
  * byStatus: จำนวนแต่ละสถานะตามตัวกรองประเภท/ปี (ไม่ขึ้นกับคำค้น) ใช้แสดงบนแท็บ
  */
-export async function listAllApplications(input: AllApplicationsQuery) {
-  const [result, byStatus] = await Promise.all([
+export async function listAllApplications(auth: AuthContext, input: AllApplicationsQuery) {
+  const seeDeleted = canManageDeleted(auth);
+  if (input.deleted && !seeDeleted) throw new AppError(403, 'FORBIDDEN', 'ไม่มีสิทธิ์ดูคำขอที่ลบแล้ว');
+  const [result, byStatus, deletedCount] = await Promise.all([
     searchApplications(
       {
         statuses: input.statuses,
         type: input.type,
         fiscalYear: input.fiscalYear,
         query: input.query,
+        deleted: input.deleted,
         limit: input.pageSize,
         offset: (input.page - 1) * input.pageSize,
       },
       PRESIDENT_POSITION_CODE,
     ),
     countApplicationsByStatus(input.type, input.fiscalYear),
+    seeDeleted ? countDeletedApplications(input.type, input.fiscalYear) : null,
   ]);
-  return { ...result, page: input.page, pageSize: input.pageSize, byStatus };
+  // deletedCount: null = ผู้ใช้ไม่มีสิทธิ์เห็นคำขอที่ลบ (หน้าเว็บไม่แสดงแท็บ)
+  return { ...result, page: input.page, pageSize: input.pageSize, byStatus, deletedCount };
 }
 
 /**

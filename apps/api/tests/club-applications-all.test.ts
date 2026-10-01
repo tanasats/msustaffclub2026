@@ -52,7 +52,7 @@ describe('GET /club-applications/all — คำขอทุกสถานะ (c
     const draft = await application(applicant.id, 'ชมรมหมากรุก', 'draft');
     await application(applicant.id, 'ชมรมดนตรี', 'submitted');
     await application(applicant.id, 'ชมรมวิ่ง', 'cancelled');
-    await pool.query('UPDATE club_applications SET deleted_at = now() WHERE name_th = $1', ['ชมรมวิ่ง']);
+    await pool.query('UPDATE club_applications SET deleted_at = now(), deleted_by = applicant_user_id WHERE name_th = $1', ['ชมรมวิ่ง']);
     await application(applicant.id, 'ชมรมถ่ายภาพ', 'returned', 'renewal', 2569);
 
     const res = await get(admin, '/club-applications/all');

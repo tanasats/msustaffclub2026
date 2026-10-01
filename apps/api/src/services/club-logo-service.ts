@@ -1,13 +1,12 @@
-import { withTransaction } from '../db/pool.js';
+import { pool, withTransaction } from '../db/pool.js';
 import { AppError } from '../errors.js';
 import {
-  findApplicationBase,
   findApplicationLogoFileId,
   replaceApplicationLogo,
 } from '../repositories/club-applications-repository.js';
 import { findClubLogoFileId, replaceClubLogo } from '../repositories/clubs-repository.js';
 import type { AuthContext } from './authorization.js';
-import { assertCanView, lockForEdit, notFound as applicationNotFound } from './club-application-service.js';
+import { findViewableApplication, lockForEdit } from './club-application-service.js';
 import { hasClubPermission } from './club-authorization.js';
 import { CLUB_PERMISSIONS } from './club-permissions.js';
 import { assertAttachableFile, createFileViewUrl, discardFileIfUnused } from './files-service.js';
@@ -37,10 +36,8 @@ export async function setApplicationLogo(auth: AuthContext, applicationId: strin
 
 // URL รูปตราในคำขอ: ผู้ที่ดูคำขอนี้ได้เท่านั้น
 export async function getApplicationLogoUrl(auth: AuthContext, applicationId: string): Promise<string> {
-  const base = await findApplicationBase(applicationId);
-  if (!base) throw applicationNotFound();
-  await assertCanView(auth, base);
-  const logo = await findApplicationLogoFileId(applicationId);
+  const base = await findViewableApplication(auth, applicationId);
+  const logo = await findApplicationLogoFileId(applicationId, pool, base.deletedAt !== null);
   const url = logo?.logoFileId ? await createFileViewUrl(logo.logoFileId) : null;
   if (!url) throw logoNotFound();
   return url;

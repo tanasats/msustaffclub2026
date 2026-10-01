@@ -41,6 +41,7 @@ export function ApplicationList({ items, emptyMessage, consentKind = 'advisor' }
               <span className="mt-2 flex flex-wrap items-center gap-2">
                 <StatusBadge status={item.status} />
                 {item.type === 'renewal' && <Badge tone="kin">ต่อทะเบียน</Badge>}
+                {item.deletedAt && <Badge tone="beni">ลบแล้ว</Badge>}
                 {item.myConsentStatus && (
                   <span className="text-xs text-stone">
                     {consentKind === 'president'

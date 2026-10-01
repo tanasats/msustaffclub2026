@@ -1,6 +1,5 @@
 import { listActiveClubCategories } from '../repositories/club-master-repository.js';
 import {
-  findApplicationBase,
   findApplicationDetail,
   findOrgUnitNames,
   listActivityDetails,
@@ -10,7 +9,8 @@ import {
 } from '../repositories/club-applications-repository.js';
 import { listActiveMembers, listCurrentCommittee } from '../repositories/clubs-repository.js';
 import type { AuthContext } from './authorization.js';
-import { assertCanView, notFound } from './club-application-service.js';
+import { pool } from '../db/pool.js';
+import { findViewableApplication, notFound } from './club-application-service.js';
 
 /**
  * ข้อมูลสำหรับพิมพ์ชุดเอกสารคำขอ (แบบฟอร์มสโมสร 11 รายการ) — ผู้ที่ดูคำขอนี้ได้เท่านั้น
@@ -19,12 +19,10 @@ import { assertCanView, notFound } from './club-application-service.js';
  * เบอร์โทรเฉพาะกรรมการ (ระบบไม่เก็บเบอร์ของสมาชิก — ในแบบฟอร์มเว้นช่องไว้เขียนเอง)
  */
 export async function getApplicationDocument(auth: AuthContext, applicationId: string) {
-  const base = await findApplicationBase(applicationId);
-  if (!base) throw notFound();
-  await assertCanView(auth, base);
+  const base = await findViewableApplication(auth, applicationId);
 
   const [detail, advisors, activities, categories] = await Promise.all([
-    findApplicationDetail(applicationId),
+    findApplicationDetail(applicationId, pool, base.deletedAt !== null),
     listAdvisorDetails(applicationId),
     listActivityDetails(applicationId),
     listActiveClubCategories(),
