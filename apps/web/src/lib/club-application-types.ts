@@ -118,6 +118,8 @@ export interface ApplicationDetail {
   }[];
   submittedAt: string | null;
   decisionNote: string | null;
+  // ผู้ยื่นลบออกจากรายการแล้ว (เห็นเฉพาะผู้มีสิทธิ์ดูคำขอที่ลบ)
+  deleted: { at: string; byName: string | null } | null;
 }
 
 export interface ApplicationListItem {
@@ -130,6 +132,7 @@ export interface ApplicationListItem {
   applicantName?: string | null;
   // เฉพาะรายการคำขอทั้งหมด (/club-applications/all)
   presidentName?: string | null;
+  deletedAt?: string | null;
   myConsentStatus?: 'pending' | 'accepted' | 'declined';
   submittedAt?: string | null;
 }

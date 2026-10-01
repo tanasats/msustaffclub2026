@@ -23,6 +23,8 @@ import {
   findApplicationIdByConsentFile,
   replaceCommitteeRows,
   replaceMemberRows,
+  restoreApplicationToDraft,
+  softDeleteApplication,
   updateApplicationGeneral,
   updateApplicationStatus,
   type AdvisorRow,
@@ -44,7 +46,7 @@ import {
 } from '../repositories/external-persons-repository.js';
 import { listCurrentCommittee } from '../repositories/clubs-repository.js';
 import { findFile } from '../repositories/files-repository.js';
-import { countActiveMembers, findAnnualReportStatus } from '../repositories/renewals-repository.js';
+import { countActiveMembers, findAnnualReportStatus, findRenewalApplication } from '../repositories/renewals-repository.js';
 import { findActiveUserIdsByEmail, findUserSummariesByIds, type UserSummary } from '../repositories/users-repository.js';
 import { hasPermission, type AuthContext } from './authorization.js';
 import {
@@ -93,6 +95,22 @@ export async function assertCanView(auth: AuthContext, app: ApplicationBase): Pr
   if (await isProposedAdvisor(app.id, auth.user.id, auth.user.email)) return;
   if (await isNominatedCommitteeMember(app.id, auth.user.id)) return;
   throw notFound();
+}
+
+// ผู้มีสิทธิ์ดูคำขอที่ผู้ยื่นลบแล้ว และกู้คืน (permission ไม่ผูก role → super_admin)
+export function canManageDeleted(auth: AuthContext): boolean {
+  return hasPermission(auth, PERMISSIONS.CLUB_APPLICATION_MANAGE_DELETED);
+}
+
+/**
+ * อ่านคำขอสำหรับดู: คำขอที่ลบแล้วเห็นเฉพาะผู้มี club_application:manage_deleted (คนอื่นรวมผู้ยื่น → 404)
+ * คำขอปกติตรวจด้วย assertCanView
+ */
+export async function findViewableApplication(auth: AuthContext, applicationId: string): Promise<ApplicationBase> {
+  const base = await findApplicationBase(applicationId, pool, canManageDeleted(auth));
+  if (!base) throw notFound();
+  if (base.deletedAt === null) await assertCanView(auth, base);
+  return base;
 }
 
 /**
@@ -329,13 +347,14 @@ export async function attachExternalAdvisorConsent(
 // สิทธิ์ดาวน์โหลดใบคำยินยอม = สิทธิ์ดูคำขอที่ไฟล์นั้นแนบอยู่
 registerFileReadAccess('advisor_consent', async (auth, file) => {
   const applicationId = await findApplicationIdByConsentFile(file.id);
-  const app = applicationId ? await findApplicationBase(applicationId) : null;
-  if (!app) return false;
+  if (!applicationId) return false;
   try {
-    await assertCanView(auth, app);
+    await findViewableApplication(auth, applicationId);
     return true;
-  } catch {
-    return false;
+  } catch (err) {
+    // ไม่มีสิทธิ์ดูคำขอ (404) = ไม่มีสิทธิ์ดาวน์โหลด, error อื่นโยนต่อ
+    if (err instanceof AppError && err.status === 404) return false;
+    throw err;
   }
 });
 
@@ -467,6 +486,61 @@ export async function cancelApplication(auth: AuthContext, applicationId: string
   });
 }
 
+// ---------- ลบ / กู้คืน ----------
+
+/**
+ * ผู้ยื่นลบคำขอที่ยกเลิกแล้วออกจากรายการ (ทั้งจัดตั้งและต่อทะเบียน)
+ * ไม่ลบข้อมูลจริง: ตั้ง deleted_at/deleted_by (ไฟล์แนบเก็บไว้เพราะกู้คืนได้) และบันทึก log ใน transaction เดียวกัน
+ */
+export async function deleteApplication(auth: AuthContext, applicationId: string): Promise<void> {
+  await withTransaction(async (client) => {
+    const app = await lockApplication(applicationId, client);
+    if (!app || app.applicantUserId !== auth.user.id) throw notFound();
+    if (app.status !== 'cancelled' || !(await softDeleteApplication(applicationId, auth.user.id, client))) {
+      throw new AppError(409, 'APPLICATION_NOT_DELETABLE', 'ลบได้เฉพาะคำขอที่ยกเลิกแล้ว');
+    }
+    await insertApplicationEvent(
+      { applicationId, actorUserId: auth.user.id, fromStatus: 'cancelled', toStatus: 'cancelled', note: 'ผู้ยื่นลบคำขอออกจากรายการ' },
+      client,
+    );
+  });
+}
+
+/**
+ * ผู้ดูแลระบบกู้คืนคำขอที่ยกเลิกแล้ว (ลบแล้วหรือยังไม่ลบ) เป็นฉบับร่าง ต้องระบุเหตุผล
+ * - ผู้ยื่นต้องยังใช้งานได้และเป็นบุคลากร (ไม่เช่นนั้นไม่มีใครแก้ไขต่อได้)
+ * - คำขอต่อทะเบียน: ชมรมต้องยังไม่มีคำขอต่อทะเบียนปีเดียวกันที่ดำเนินการอยู่/อนุมัติแล้ว (ปีละ 1 คำขอ)
+ * การยินยอม/ตอบรับเดิมไม่ต้องล้างที่นี่ เพราะถูกล้างทุกครั้งที่ผู้ยื่นกดส่งขอการตอบรับ
+ */
+export async function restoreApplication(auth: AuthContext, applicationId: string, note: string): Promise<void> {
+  if (!canManageDeleted(auth)) throw new AppError(403, 'FORBIDDEN', 'ไม่มีสิทธิ์ดำเนินการนี้');
+  await withTransaction(async (client) => {
+    const app = await lockApplication(applicationId, client, true);
+    if (!app) throw notFound();
+    if (app.status !== 'cancelled') {
+      throw new AppError(409, 'APPLICATION_NOT_RESTORABLE', 'กู้คืนได้เฉพาะคำขอที่ยกเลิกหรือลบแล้ว');
+    }
+    const [applicant] = await findUserSummariesByIds([app.applicantUserId], client);
+    if (!applicant || !applicant.isActive || !isEligibleForClub(applicant.email)) {
+      throw new AppError(422, 'APPLICANT_UNAVAILABLE', 'ผู้ยื่นคำขอไม่ได้เป็นบุคลากรที่ใช้งานระบบได้แล้ว จึงกู้คืนไม่ได้');
+    }
+    if (app.type === 'renewal' && app.clubId && (await findRenewalApplication(app.clubId, app.fiscalYear, client))) {
+      throw new AppError(409, 'RENEWAL_EXISTS', 'ชมรมนี้มีคำขอต่อทะเบียนปีงบประมาณเดียวกันอยู่แล้ว');
+    }
+    await restoreApplicationToDraft(applicationId, client);
+    await insertApplicationEvent(
+      {
+        applicationId,
+        actorUserId: auth.user.id,
+        fromStatus: 'cancelled',
+        toStatus: 'draft',
+        note: `กู้คืนเป็นฉบับร่างโดยผู้ดูแลระบบ: ${note}`,
+      },
+      client,
+    );
+  });
+}
+
 // ---------- อ่าน ----------
 
 export async function listMyApplications(auth: AuthContext): Promise<ApplicationListItem[]> {
@@ -474,12 +548,11 @@ export async function listMyApplications(auth: AuthContext): Promise<Application
 }
 
 export async function getApplicationDetail(auth: AuthContext, applicationId: string) {
-  const base = await findApplicationBase(applicationId);
-  if (!base) throw notFound();
-  await assertCanView(auth, base);
+  const base = await findViewableApplication(auth, applicationId);
+  const includeDeleted = base.deletedAt !== null;
 
   const [detail, advisors, committee, members, activities, events] = await Promise.all([
-    findApplicationDetail(applicationId),
+    findApplicationDetail(applicationId, pool, includeDeleted),
     listAdvisorDetails(applicationId),
     listCommitteeDetails(applicationId),
     listMemberDetails(applicationId),
@@ -547,6 +620,8 @@ export async function getApplicationDetail(auth: AuthContext, applicationId: str
     decisionNote: detail.decisionNote,
     createdAt: detail.createdAt,
     updatedAt: detail.updatedAt,
+    // ลบออกจากรายการแล้ว (เห็นเฉพาะผู้มีสิทธิ์ดูคำขอที่ลบ)
+    deleted: detail.deletedAt ? { at: detail.deletedAt, byName: detail.deletedByName } : null,
   };
 }
 

@@ -12,6 +12,7 @@ interface SearchParams {
   status?: string;
   type?: string;
   q?: string;
+  deleted?: string;
   page?: string;
 }
 
@@ -19,17 +20,22 @@ interface AllApplications {
   items: ApplicationListItem[];
   total: number;
   byStatus: Partial<Record<ApplicationStatus, number>>;
+  // null = ไม่มีสิทธิ์เห็นคำขอที่ลบแล้ว (ไม่แสดงแท็บ)
+  deletedCount: number | null;
 }
 
 // คำขอทุกสถานะเพื่อกำกับติดตาม (API ต้องมี club:read_all — super_admin ผ่าน, ไม่มีสิทธิ์ → หน้าไม่มีสิทธิ์)
 export default async function AllApplicationsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
-  const status = STATUSES.includes(params.status as ApplicationStatus) ? (params.status as ApplicationStatus) : undefined;
+  // แท็บ "ลบแล้ว" แยกจากแท็บสถานะ (API ตอบ 403 ถ้าไม่มีสิทธิ์)
+  const deleted = params.deleted === '1' ? '1' : undefined;
+  const status = !deleted && STATUSES.includes(params.status as ApplicationStatus) ? (params.status as ApplicationStatus) : undefined;
   const type = params.type === 'establish' || params.type === 'renewal' ? params.type : undefined;
   const page = Math.max(1, Number(params.page) || 1);
   const query = new URLSearchParams({ page: String(page), pageSize: String(PAGE_SIZE) });
   if (status) query.set('status', status);
   if (type) query.set('type', type);
+  if (deleted) query.set('deleted', '1');
   if (params.q?.trim()) query.set('q', params.q.trim());
 
   const data = await apiGetJson<AllApplications>(`/club-applications/all?${query}`);
@@ -37,7 +43,7 @@ export default async function AllApplicationsPage({ searchParams }: { searchPara
   const allCount = Object.values(data.byStatus).reduce((sum, n) => sum + (n ?? 0), 0);
   // สร้างลิงก์โดยคงตัวกรองเดิม แล้วเปลี่ยนเฉพาะค่าที่ระบุ
   const link = (changes: Partial<SearchParams>) => {
-    const next = { status, type, q: params.q, ...changes };
+    const next = { status, type, q: params.q, deleted, ...changes };
     const qs = new URLSearchParams(Object.entries(next).filter(([, v]) => v) as [string, string][]);
     return `/club-applications/all${qs.size ? `?${qs}` : ''}`;
   };
@@ -56,17 +62,23 @@ export default async function AllApplicationsPage({ searchParams }: { searchPara
 
       <div className="mb-4 flex flex-col gap-3">
         <div className="-mx-4 flex gap-2 overflow-x-auto px-4 pb-1 sm:mx-0 sm:flex-wrap sm:px-0" role="tablist" aria-label="สถานะคำขอ">
-          <Link href={link({ status: undefined, page: undefined })} role="tab" aria-selected={!status} className={chip(!status)}>
+          <Link href={link({ status: undefined, deleted: undefined, page: undefined })} role="tab" aria-selected={!status && !deleted} className={chip(!status && !deleted)}>
             ทุกสถานะ <span>{allCount}</span>
           </Link>
           {STATUSES.map((s) => (
-            <Link key={s} href={link({ status: s, page: undefined })} role="tab" aria-selected={status === s} className={chip(status === s)}>
+            <Link key={s} href={link({ status: s, deleted: undefined, page: undefined })} role="tab" aria-selected={status === s} className={chip(status === s)}>
               {STATUS_LABELS[s]} <span>{data.byStatus[s] ?? 0}</span>
             </Link>
           ))}
+          {data.deletedCount !== null && (
+            <Link href={link({ status: undefined, deleted: '1', page: undefined })} role="tab" aria-selected={Boolean(deleted)} className={chip(Boolean(deleted))}>
+              ลบแล้ว <span>{data.deletedCount}</span>
+            </Link>
+          )}
         </div>
         <form action="/club-applications/all" className="flex flex-col gap-2 sm:flex-row">
           {status && <input type="hidden" name="status" value={status} />}
+          {deleted && <input type="hidden" name="deleted" value="1" />}
           <select name="type" defaultValue={type ?? ''} aria-label="ประเภทคำขอ" className="field sm:max-w-48">
             <option value="">ทุกประเภท</option>
             <option value="establish">จัดตั้งชมรม</option>

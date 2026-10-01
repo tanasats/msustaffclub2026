@@ -169,7 +169,12 @@ export default async function MyDataPage() {
               items={d.applications.map((a, i) => ({
                 key: `${i}`,
                 primary: `${a.nameTh} — ${APPLICATION_TYPE_LABELS[a.type]}`,
-                secondary: join(label(APPLICATION_STATUS, a.status), `ปีงบประมาณ ${a.fiscalYear}`, `สร้าง ${formatTimestampDate(a.createdAt)}`),
+                secondary: join(
+                  label(APPLICATION_STATUS, a.status),
+                  a.deletedAt && `ลบออกจากรายการเมื่อ ${formatTimestampDate(a.deletedAt)} (ระบบยังเก็บไว้)`,
+                  `ปีงบประมาณ ${a.fiscalYear}`,
+                  `สร้าง ${formatTimestampDate(a.createdAt)}`,
+                ),
               }))}
             />
           </Group>

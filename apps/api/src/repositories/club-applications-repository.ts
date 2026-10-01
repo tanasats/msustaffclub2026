@@ -20,11 +20,14 @@ export interface ApplicationBase {
   applicantUserId: string;
   nameTh: string;
   regulationText: string | null;
+  // ผู้ยื่นลบออกจากรายการแล้ว (อ่านได้เฉพาะเมื่อขอ includeDeleted)
+  deletedAt: Date | null;
 }
 
 const BASE_COLUMNS = `
   id, type, club_id AS "clubId", fiscal_year AS "fiscalYear", status,
-  applicant_user_id AS "applicantUserId", name_th AS "nameTh", regulation_text AS "regulationText"`;
+  applicant_user_id AS "applicantUserId", name_th AS "nameTh", regulation_text AS "regulationText",
+  deleted_at AS "deletedAt"`;
 
 export interface NewApplication {
   type: ApplicationType;
@@ -45,10 +48,11 @@ export async function insertApplication(input: NewApplication, db: Queryable = p
   return result.rows[0]!.id;
 }
 
-export async function findApplicationBase(id: string, db: Queryable = pool): Promise<ApplicationBase | null> {
+// includeDeleted: รวมคำขอที่ผู้ยื่นลบแล้ว (เฉพาะผู้มีสิทธิ์ดูคำขอที่ลบ — ตรวจที่ service)
+export async function findApplicationBase(id: string, db: Queryable = pool, includeDeleted = false): Promise<ApplicationBase | null> {
   const result = await db.query<ApplicationBase>(
-    `SELECT ${BASE_COLUMNS} FROM club_applications WHERE id = $1 AND deleted_at IS NULL`,
-    [id],
+    `SELECT ${BASE_COLUMNS} FROM club_applications WHERE id = $1 AND ($2 OR deleted_at IS NULL)`,
+    [id, includeDeleted],
   );
   return result.rows[0] ?? null;
 }
@@ -57,10 +61,10 @@ export async function findApplicationBase(id: string, db: Queryable = pool): Pro
  * อ่านคำขอพร้อมล็อกแถว (FOR UPDATE) จนจบ transaction
  * ใช้ก่อนแก้ไขทุกครั้ง เพื่อไม่ให้การแก้ไข 2 คำสั่งพร้อมกัน หรือการแก้ไขระหว่างเปลี่ยนสถานะ ทับกัน
  */
-export async function lockApplication(id: string, db: Queryable): Promise<ApplicationBase | null> {
+export async function lockApplication(id: string, db: Queryable, includeDeleted = false): Promise<ApplicationBase | null> {
   const result = await db.query<ApplicationBase>(
-    `SELECT ${BASE_COLUMNS} FROM club_applications WHERE id = $1 AND deleted_at IS NULL FOR UPDATE`,
-    [id],
+    `SELECT ${BASE_COLUMNS} FROM club_applications WHERE id = $1 AND ($2 OR deleted_at IS NULL) FOR UPDATE`,
+    [id, includeDeleted],
   );
   return result.rows[0] ?? null;
 }
@@ -227,11 +231,11 @@ export async function verifyExternalAdvisorConsent(
 }
 
 // คำขอที่ใช้ไฟล์นี้เป็นใบคำยินยอม (ใช้ตรวจสิทธิ์ดาวน์โหลดไฟล์) ใช้ index club_application_advisors_consent_file_id_idx
+// ไม่กรองคำขอที่ลบแล้ว — ผู้เรียกตรวจสิทธิ์ดูคำขอเอง (คำขอที่ลบเห็นเฉพาะผู้มีสิทธิ์ดูคำขอที่ลบ)
 export async function findApplicationIdByConsentFile(fileId: string, db: Queryable = pool): Promise<string | null> {
   const result = await db.query<{ applicationId: string }>(
     `SELECT a.application_id AS "applicationId"
        FROM club_application_advisors a
-       JOIN club_applications app ON app.id = a.application_id AND app.deleted_at IS NULL
       WHERE a.consent_file_id = $1
       LIMIT 1`,
     [fileId],
@@ -368,9 +372,10 @@ export interface ApplicationDetailRow extends ApplicationBase {
   decisionNote: string | null;
   createdAt: Date;
   updatedAt: Date;
+  deletedByName: string | null;
 }
 
-export async function findApplicationDetail(id: string, db: Queryable = pool): Promise<ApplicationDetailRow | null> {
+export async function findApplicationDetail(id: string, db: Queryable = pool, includeDeleted = false): Promise<ApplicationDetailRow | null> {
   // LEFT JOIN ประเภท เพราะฉบับร่างอาจยังไม่เลือกประเภท
   const result = await db.query<ApplicationDetailRow>(
     `SELECT a.id, a.type, a.club_id AS "clubId", a.fiscal_year AS "fiscalYear", a.status,
@@ -382,12 +387,14 @@ export async function findApplicationDetail(id: string, db: Queryable = pool): P
             a.office_location AS "officeLocation", a.contact_phone AS "contactPhone", a.contact_email AS "contactEmail",
             a.regulation_text AS "regulationText",
             a.submitted_at AS "submittedAt", a.reviewed_at AS "reviewedAt", a.decided_at AS "decidedAt",
-            a.decision_note AS "decisionNote", a.created_at AS "createdAt", a.updated_at AS "updatedAt"
+            a.decision_note AS "decisionNote", a.created_at AS "createdAt", a.updated_at AS "updatedAt",
+            a.deleted_at AS "deletedAt", du.name AS "deletedByName"
        FROM club_applications a
        JOIN users u ON u.id = a.applicant_user_id
        LEFT JOIN club_categories c ON c.id = a.category_id
-      WHERE a.id = $1 AND a.deleted_at IS NULL`,
-    [id],
+       LEFT JOIN users du ON du.id = a.deleted_by
+      WHERE a.id = $1 AND ($2 OR a.deleted_at IS NULL)`,
+    [id, includeDeleted],
   );
   return result.rows[0] ?? null;
 }
@@ -683,6 +690,29 @@ export async function recordPresidentResponse(
   return (result.rowCount ?? 0) > 0;
 }
 
+/**
+ * ผู้ยื่นลบคำขอออกจากรายการ (soft delete) — เฉพาะคำขอที่ยกเลิกแล้วและยังไม่ถูกลบ
+ * คืน false ถ้าไม่เข้าเงื่อนไข (เงื่อนไขอยู่ใน WHERE จึงปลอดภัยแม้ถูกเรียกพร้อมกัน)
+ */
+export async function softDeleteApplication(id: string, deletedBy: string, db: Queryable): Promise<boolean> {
+  const result = await db.query(
+    `UPDATE club_applications SET deleted_at = now(), deleted_by = $2
+      WHERE id = $1 AND status = 'cancelled' AND deleted_at IS NULL`,
+    [id, deletedBy],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+// กู้คืนคำขอที่ยกเลิก (ลบแล้วหรือไม่ก็ได้) เป็นฉบับร่าง — เปลี่ยนสถานะและล้างการลบในคำสั่งเดียว (ผ่าน CHECK deleted_only_cancelled)
+export async function restoreApplicationToDraft(id: string, db: Queryable): Promise<boolean> {
+  const result = await db.query(
+    `UPDATE club_applications SET status = 'draft', deleted_at = NULL, deleted_by = NULL
+      WHERE id = $1 AND status = 'cancelled'`,
+    [id],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
 export async function markSubmitted(id: string, db: Queryable): Promise<void> {
   await db.query(`UPDATE club_applications SET status = 'submitted', submitted_at = now() WHERE id = $1`, [id]);
 }
@@ -784,6 +814,8 @@ export interface ApplicationSearchFilter {
   fiscalYear: number | null;
   // ค้นจากชื่อชมรม หรือชื่อ/อีเมลผู้ยื่น
   query: string | null;
+  // true = เฉพาะคำขอที่ผู้ยื่นลบแล้ว, false = เฉพาะที่ยังไม่ลบ
+  deleted: boolean;
   limit: number;
   offset: number;
 }
@@ -794,6 +826,7 @@ export interface ApplicationSearchItem extends ApplicationListItem {
   presidentName: string | null;
   submittedAt: Date | null;
   createdAt: Date;
+  deletedAt: Date | null;
 }
 
 /**
@@ -815,23 +848,35 @@ export async function searchApplications(
                JOIN club_positions p ON p.id = m.position_id AND p.code = $7
                JOIN users pu ON pu.id = m.user_id
               WHERE m.application_id = a.id LIMIT 1) AS "presidentName",
-            a.submitted_at AS "submittedAt", a.created_at AS "createdAt",
+            a.submitted_at AS "submittedAt", a.created_at AS "createdAt", a.deleted_at AS "deletedAt",
             count(*) OVER ()::int AS total
        FROM club_applications a
        JOIN users u ON u.id = a.applicant_user_id
-      WHERE a.deleted_at IS NULL
+      WHERE (a.deleted_at IS NOT NULL) = $8
         AND (cardinality($1::text[]) = 0 OR a.status = ANY($1::text[]))
         AND ($2::text IS NULL OR a.type = $2)
         AND ($3::int IS NULL OR a.fiscal_year = $3)
         AND ($4::text IS NULL OR a.name_th ILIKE $4 OR u.name ILIKE $4 OR u.email ILIKE $4)
       ORDER BY a.updated_at DESC, a.id
       LIMIT $5 OFFSET $6`,
-    [filter.statuses, filter.type, filter.fiscalYear, pattern, filter.limit, filter.offset, presidentPositionCode],
+    [filter.statuses, filter.type, filter.fiscalYear, pattern, filter.limit, filter.offset, presidentPositionCode, filter.deleted],
   );
   return {
     items: result.rows.map(({ total: _total, ...item }) => item),
     total: result.rows[0]?.total ?? 0,
   };
+}
+
+// จำนวนคำขอที่ผู้ยื่นลบแล้ว (แท็บ "ลบแล้ว") ตามตัวกรองประเภท/ปีงบประมาณ
+export async function countDeletedApplications(type: ApplicationType | null, fiscalYear: number | null, db: Queryable = pool): Promise<number> {
+  const result = await db.query<{ count: number }>(
+    `SELECT count(*)::int AS count FROM club_applications
+      WHERE deleted_at IS NOT NULL
+        AND ($1::text IS NULL OR type = $1)
+        AND ($2::int IS NULL OR fiscal_year = $2)`,
+    [type, fiscalYear],
+  );
+  return result.rows[0]?.count ?? 0;
 }
 
 // จำนวนคำขอแยกตามสถานะ (สำหรับแท็บ) ตามตัวกรองประเภท/ปีงบประมาณ
@@ -877,10 +922,14 @@ export async function listApplicationsByStatus(
 }
 
 // ตราที่แนบกับคำขอ (null ตัวนอก = ไม่พบคำขอ)
-export async function findApplicationLogoFileId(id: string, db: Queryable = pool): Promise<{ logoFileId: string | null } | null> {
+export async function findApplicationLogoFileId(
+  id: string,
+  db: Queryable = pool,
+  includeDeleted = false,
+): Promise<{ logoFileId: string | null } | null> {
   const result = await db.query<{ logoFileId: string | null }>(
-    'SELECT logo_file_id AS "logoFileId" FROM club_applications WHERE id = $1 AND deleted_at IS NULL',
-    [id],
+    'SELECT logo_file_id AS "logoFileId" FROM club_applications WHERE id = $1 AND ($2 OR deleted_at IS NULL)',
+    [id, includeDeleted],
   );
   return result.rows[0] ?? null;
 }

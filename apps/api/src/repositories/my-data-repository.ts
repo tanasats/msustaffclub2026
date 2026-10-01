@@ -120,17 +120,27 @@ export async function listMyAdvisorships(userId: string, db: Queryable = pool) {
   return result.rows;
 }
 
-// คำขอจัดตั้ง/ต่อทะเบียนที่ฉันยื่น
+// คำขอจัดตั้ง/ต่อทะเบียนที่ฉันยื่น — รวมที่ลบออกจากรายการแล้ว เพราะระบบยังเก็บไว้ (สิทธิขอเข้าถึงครอบคลุมข้อมูลที่ยังเก็บ)
 export async function listMyApplications(userId: string, db: Queryable = pool) {
-  const result = await db.query<{ nameTh: string; type: string; fiscalYear: number; status: string; createdAt: Date; submittedAt: Date | null }>(
-    `SELECT name_th AS "nameTh", type, fiscal_year AS "fiscalYear", status, created_at AS "createdAt", submitted_at AS "submittedAt"
-       FROM club_applications WHERE applicant_user_id = $1 AND deleted_at IS NULL ORDER BY created_at DESC LIMIT ${LIMIT}`,
+  const result = await db.query<{
+    nameTh: string;
+    type: string;
+    fiscalYear: number;
+    status: string;
+    createdAt: Date;
+    submittedAt: Date | null;
+    deletedAt: Date | null;
+  }>(
+    `SELECT name_th AS "nameTh", type, fiscal_year AS "fiscalYear", status, created_at AS "createdAt", submitted_at AS "submittedAt",
+            deleted_at AS "deletedAt"
+       FROM club_applications WHERE applicant_user_id = $1 ORDER BY created_at DESC LIMIT ${LIMIT}`,
     [userId],
   );
   return result.rows;
 }
 
 // ข้อมูลของฉันในคำขอของผู้อื่น: ถูกเสนอเป็นที่ปรึกษา และถูกระบุเป็นกรรมการ (พร้อมข้อมูลติดต่อที่ผู้ยื่นกรอก)
+// รวมคำขอที่ผู้ยื่นลบออกจากรายการแล้ว เพราะระบบยังเก็บข้อมูลไว้
 export async function listMyApplicationRoles(userId: string, email: string, db: Queryable = pool) {
   const result = await db.query<{
     applicationName: string;
@@ -142,11 +152,11 @@ export async function listMyApplicationRoles(userId: string, email: string, db: 
   }>(
     `SELECT a.name_th AS "applicationName", 'advisor' AS role, adv.consent_status AS detail,
             NULL AS "contactPhone", NULL AS "workLocation", NULL AS bio
-       FROM club_application_advisors adv JOIN club_applications a ON a.id = adv.application_id AND a.deleted_at IS NULL
+       FROM club_application_advisors adv JOIN club_applications a ON a.id = adv.application_id
       WHERE adv.user_id = $1 OR (adv.user_id IS NULL AND adv.email = $2)
      UNION ALL
      SELECT a.name_th, 'committee', ac.position_title, ac.contact_phone, ac.work_location, ac.bio
-       FROM club_application_committee ac JOIN club_applications a ON a.id = ac.application_id AND a.deleted_at IS NULL
+       FROM club_application_committee ac JOIN club_applications a ON a.id = ac.application_id
       WHERE ac.user_id = $1
      LIMIT ${LIMIT}`,
     [userId, email],

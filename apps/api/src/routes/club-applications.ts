@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { getRequiredAuth, requireAuth, requirePermission } from '../middlewares/auth.js';
 import {
   cancelApplication,
+  deleteApplication,
+  restoreApplication,
   createEstablishDraft,
   getApplicationDetail,
   listMyApplications,
@@ -129,6 +131,7 @@ const activitiesSchema = z.object({
 
 const cancelSchema = z.object({ note: optionalText(1000).optional() });
 const noteSchema = z.object({ note: optionalText(2000).optional() }).strict();
+const restoreSchema = z.object({ note: z.string().trim().min(1, 'กรุณาระบุเหตุผล').max(2000) }).strict();
 const consentResponseSchema = z.object({ decision: z.enum(['accept', 'decline']), note: optionalText(2000).optional() });
 const reviewSchema = z.object({ decision: z.enum(['pass', 'return']), note: optionalText(2000).optional() });
 const decisionSchema = z.object({ decision: z.enum(['approve', 'reject', 'return']), note: optionalText(2000).optional() });
@@ -147,6 +150,7 @@ const allQuerySchema = z.object({
   type: z.enum(['establish', 'renewal']).optional(),
   fiscalYear: z.coerce.number().int().min(2500).max(2700).optional(),
   q: z.string().trim().max(100).optional().transform((value) => value || undefined),
+  deleted: z.enum(['1']).optional(),
   page: z.coerce.number().int().min(1).max(10000).default(1),
   pageSize: z.coerce.number().int().min(1).max(100).default(30),
 });
@@ -175,9 +179,18 @@ clubApplicationsRouter.get('/club-applications/president-nominations', requireAu
 
 // ต้องมี club:read_all (super_admin ผ่าน): คำขอทุกสถานะ เพื่อกำกับติดตาม (ประกาศก่อน /:id)
 clubApplicationsRouter.get('/club-applications/all', requirePermission(PERMISSIONS.CLUB_READ_ALL), async (req, res) => {
-  const { status, type, fiscalYear, q, page, pageSize } = allQuerySchema.parse(req.query);
+  const { status, type, fiscalYear, q, deleted, page, pageSize } = allQuerySchema.parse(req.query);
   res.json(
-    await listAllApplications({ statuses: status, type: type ?? null, fiscalYear: fiscalYear ?? null, query: q ?? null, page, pageSize }),
+    await listAllApplications(getRequiredAuth(req), {
+      statuses: status,
+      type: type ?? null,
+      fiscalYear: fiscalYear ?? null,
+      query: q ?? null,
+      // ?deleted=1 ต้องมี club_application:manage_deleted เพิ่ม (ตรวจใน service)
+      deleted: deleted === '1',
+      page,
+      pageSize,
+    }),
   );
 });
 
@@ -233,6 +246,23 @@ clubApplicationsRouter.put('/club-applications/:id/activities', requireCreate, a
   await replaceActivities(getRequiredAuth(req), idOf(req.params.id), activities);
   res.status(204).end();
 });
+
+// ต้องมี club_application:create + เป็นผู้ยื่น + คำขอยกเลิกแล้ว (ตรวจใน service): ลบออกจากรายการ (soft delete)
+clubApplicationsRouter.post('/club-applications/:id/delete', requireCreate, async (req, res) => {
+  await deleteApplication(getRequiredAuth(req), idOf(req.params.id));
+  res.status(204).end();
+});
+
+// ต้องมี club_application:manage_deleted (super_admin): กู้คืนคำขอที่ยกเลิก/ลบแล้วเป็นฉบับร่าง ต้องมีเหตุผล
+clubApplicationsRouter.post(
+  '/club-applications/:id/restore',
+  requirePermission(PERMISSIONS.CLUB_APPLICATION_MANAGE_DELETED),
+  async (req, res) => {
+    const { note } = restoreSchema.parse(req.body);
+    await restoreApplication(getRequiredAuth(req), idOf(req.params.id), note);
+    res.status(204).end();
+  },
+);
 
 clubApplicationsRouter.post('/club-applications/:id/cancel', requireCreate, async (req, res) => {
   const { note } = cancelSchema.parse(req.body ?? {});
