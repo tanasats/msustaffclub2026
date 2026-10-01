@@ -34,7 +34,9 @@ export function ApplicationList({ items, emptyMessage, consentKind = 'advisor' }
               <span className="block truncate font-serif text-[1.0625rem] font-medium text-ink">{item.nameTh}</span>
               <span className="mt-0.5 block text-xs text-mist">
                 ปีงบประมาณ {item.fiscalYear}
-                {item.applicantName ? ` · ${item.applicantName}` : ''} · {formatDateTime(item.updatedAt)}
+                {item.applicantName ? ` · ผู้ยื่น ${item.applicantName}` : ''}
+                {item.presidentName && item.presidentName !== item.applicantName ? ` · ประธาน ${item.presidentName}` : ''} ·{' '}
+                {formatDateTime(item.updatedAt)}
               </span>
               <span className="mt-2 flex flex-wrap items-center gap-2">
                 <StatusBadge status={item.status} />

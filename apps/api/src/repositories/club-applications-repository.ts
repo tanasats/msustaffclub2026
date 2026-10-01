@@ -778,6 +778,80 @@ export async function countPendingPresidentNominations(userId: string, db: Query
   return result.rows[0]?.count ?? 0;
 }
 
+export interface ApplicationSearchFilter {
+  statuses: ApplicationStatus[];
+  type: ApplicationType | null;
+  fiscalYear: number | null;
+  // ค้นจากชื่อชมรม หรือชื่อ/อีเมลผู้ยื่น
+  query: string | null;
+  limit: number;
+  offset: number;
+}
+
+export interface ApplicationSearchItem extends ApplicationListItem {
+  applicantName: string | null;
+  applicantEmail: string;
+  presidentName: string | null;
+  submittedAt: Date | null;
+  createdAt: Date;
+}
+
+/**
+ * คำขอทุกสถานะ (สำหรับผู้ดูทั้งหมด) กรอง/ค้นหา/แบ่งหน้า เรียงจากที่มีความเคลื่อนไหวล่าสุด
+ * - statuses ว่าง = ทุกสถานะ
+ * - presidentName: scalar subquery หาประธานในคำขอ (คำขอต่อทะเบียนไม่มีแถวกรรมการ → NULL)
+ * - count(*) OVER () ได้จำนวนทั้งหมดก่อน LIMIT ในคำสั่งเดียว
+ */
+export async function searchApplications(
+  filter: ApplicationSearchFilter,
+  presidentPositionCode: string,
+  db: Queryable = pool,
+): Promise<{ items: ApplicationSearchItem[]; total: number }> {
+  const pattern = filter.query ? `%${filter.query.replace(/[\\%_]/g, (char) => `\\${char}`)}%` : null;
+  const result = await db.query<ApplicationSearchItem & { total: number }>(
+    `SELECT a.id, a.type, a.fiscal_year AS "fiscalYear", a.status, a.name_th AS "nameTh", a.updated_at AS "updatedAt",
+            u.name AS "applicantName", u.email AS "applicantEmail",
+            (SELECT pu.name FROM club_application_committee m
+               JOIN club_positions p ON p.id = m.position_id AND p.code = $7
+               JOIN users pu ON pu.id = m.user_id
+              WHERE m.application_id = a.id LIMIT 1) AS "presidentName",
+            a.submitted_at AS "submittedAt", a.created_at AS "createdAt",
+            count(*) OVER ()::int AS total
+       FROM club_applications a
+       JOIN users u ON u.id = a.applicant_user_id
+      WHERE a.deleted_at IS NULL
+        AND (cardinality($1::text[]) = 0 OR a.status = ANY($1::text[]))
+        AND ($2::text IS NULL OR a.type = $2)
+        AND ($3::int IS NULL OR a.fiscal_year = $3)
+        AND ($4::text IS NULL OR a.name_th ILIKE $4 OR u.name ILIKE $4 OR u.email ILIKE $4)
+      ORDER BY a.updated_at DESC, a.id
+      LIMIT $5 OFFSET $6`,
+    [filter.statuses, filter.type, filter.fiscalYear, pattern, filter.limit, filter.offset, presidentPositionCode],
+  );
+  return {
+    items: result.rows.map(({ total: _total, ...item }) => item),
+    total: result.rows[0]?.total ?? 0,
+  };
+}
+
+// จำนวนคำขอแยกตามสถานะ (สำหรับแท็บ) ตามตัวกรองประเภท/ปีงบประมาณ
+export async function countApplicationsByStatus(
+  type: ApplicationType | null,
+  fiscalYear: number | null,
+  db: Queryable = pool,
+): Promise<Record<string, number>> {
+  const result = await db.query<{ status: ApplicationStatus; count: number }>(
+    `SELECT status, count(*)::int AS count
+       FROM club_applications
+      WHERE deleted_at IS NULL
+        AND ($1::text IS NULL OR type = $1)
+        AND ($2::int IS NULL OR fiscal_year = $2)
+      GROUP BY status`,
+    [type, fiscalYear],
+  );
+  return Object.fromEntries(result.rows.map((row) => [row.status, row.count]));
+}
+
 export interface QueueItem extends ApplicationListItem {
   applicantName: string | null;
   submittedAt: Date | null;

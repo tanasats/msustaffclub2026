@@ -128,6 +128,8 @@ export interface ApplicationListItem {
   nameTh: string;
   updatedAt: string;
   applicantName?: string | null;
+  // เฉพาะรายการคำขอทั้งหมด (/club-applications/all)
+  presidentName?: string | null;
   myConsentStatus?: 'pending' | 'accepted' | 'declined';
   submittedAt?: string | null;
 }
