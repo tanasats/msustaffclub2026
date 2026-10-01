@@ -121,23 +121,27 @@ describe('รายงานประจำปี', () => {
 
 describe('ภาพรวมการส่งรายงาน', () => {
   it('เฉพาะผู้มี club_report:review; แสดงเดือนที่ครบกำหนดแต่ยังไม่ส่ง และสถานะรายงานประจำปี', async () => {
+    // ใช้ปีงบประมาณที่แล้ว (ทุกเดือนครบกำหนดแล้ว) เพื่อไม่ให้ผลขึ้นกับวันที่รัน test
+    // ชมรมก่อตั้ง 1 ม.ค. ของปีงบนั้น; ส่งรายงานเดือน ก.พ. แล้ว, ร่างเดือน มี.ค. (ร่างยังถือว่าไม่ส่ง)
+    const PREV = FY - 1;
+    const ce = PREV - 543;
     const { clubId, secretary, officer } = await setup();
-    // ส่งรายงานเดือน ก.พ. 2569 แล้ว, ร่างเดือน มี.ค. (ร่างยังถือว่าไม่ส่ง)
-    const feb = await send('post', secretary, `/clubs/${clubId}/monthly-reports`, { month: '2026-02' });
+    await pool.query('UPDATE clubs SET established_on = $2 WHERE id = $1', [clubId, `${ce}-01-01`]);
+    const feb = await send('post', secretary, `/clubs/${clubId}/monthly-reports`, { month: `${ce}-02` });
     await send('post', secretary, `/monthly-reports/${feb.body.id}/submit`);
-    await send('post', secretary, `/clubs/${clubId}/monthly-reports`, { month: '2026-03' });
-    await createAnnual(secretary, clubId);
+    await send('post', secretary, `/clubs/${clubId}/monthly-reports`, { month: `${ce}-03` });
+    const annual = await send('post', secretary, `/clubs/${clubId}/annual-reports`, { fiscalYear: PREV });
+    expect(annual.status).toBe(201);
 
     expect((await get(secretary, '/reports/overview')).status).toBe(403);
-    const res = await get(officer, `/reports/overview?fiscalYear=${FY}`);
+    const res = await get(officer, `/reports/overview?fiscalYear=${PREV}`);
     expect(res.status).toBe(200);
     const row = res.body.items.find((r: { clubId: string }) => r.clubId === clubId);
     expect(row).toMatchObject({ awaitingAdvisor: 1, annualStatus: 'draft' });
-    expect(row.missingMonths).toContain('2026-01');
-    expect(row.missingMonths).toContain('2026-03');
-    expect(row.missingMonths).not.toContain('2026-02');
-    // เดือนปัจจุบันยังไม่ครบกำหนด และไม่นับเดือนก่อนก่อตั้ง
-    expect(row.missingMonths).not.toContain(TODAY.slice(0, 7));
-    expect(row.missingMonths).not.toContain('2025-12');
+    expect(row.missingMonths).toContain(`${ce}-01`);
+    expect(row.missingMonths).toContain(`${ce}-03`);
+    expect(row.missingMonths).not.toContain(`${ce}-02`);
+    // ไม่นับเดือนก่อนก่อตั้ง
+    expect(row.missingMonths).not.toContain(`${ce - 1}-12`);
   });
 });
