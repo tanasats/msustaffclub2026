@@ -1,10 +1,10 @@
-import { formatDate } from '@/lib/format';
+import { formatDate, formatTimestampDate } from '@/lib/format';
 import { ClubLogo } from '@/components/clubs/ClubLogo';
 import { RenewalContextPanel } from '@/components/renewals/RenewalContextPanel';
 import { FileLink } from '@/components/files/FileLink';
 import { Badge } from '@/components/ui/Badge';
 import { advisorDisplayName, type ApplicationDetail } from '@/lib/club-application-types';
-import { CONSENT_LABELS } from '@/lib/club-application-types';
+import { CONSENT_LABELS, PRESIDENT_CONSENT_LABELS } from '@/lib/club-application-types';
 
 function Row({ label, children }: { label: string; children: React.ReactNode }) {
   return (
@@ -94,6 +94,14 @@ export function ApplicationSummary({ application: a }: { application: Applicatio
               {a.committee.map((c) => (
                 <li key={c.user.id} className="py-2">
                   <span className="font-medium">{c.positionTitle}</span>: {c.user.name ?? c.user.email}
+                  {c.consentStatus && (
+                    <span className="ml-2">
+                      <Badge tone={c.consentStatus === 'accepted' ? 'matcha' : c.consentStatus === 'declined' ? 'beni' : 'kin'}>
+                        {PRESIDENT_CONSENT_LABELS[c.consentStatus]}
+                        {c.consentStatus !== 'pending' && c.respondedAt ? ` ${formatTimestampDate(c.respondedAt)}` : ''}
+                      </Badge>
+                    </span>
+                  )}
                   <span className="block text-xs text-mist">
                     {[c.user.orgUnitName, c.workLocation, c.contactPhone].filter(Boolean).join(' · ')}
                   </span>

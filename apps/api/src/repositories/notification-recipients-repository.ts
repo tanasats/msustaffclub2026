@@ -58,6 +58,20 @@ export async function listPendingInternalAdvisors(applicationId: string, db: Que
   return result.rows;
 }
 
+// กรรมการที่ถูกขอให้ตอบรับและยังไม่ตอบ (ประธานที่ผู้ยื่นเสนอชื่อ) — มีบัญชีในระบบเสมอ
+export async function listPendingCommitteeNominees(applicationId: string, db: Queryable): Promise<Recipient[]> {
+  const result = await db.query<Recipient>(
+    `SELECT u.id AS "userId", u.email, u.name
+       FROM club_application_committee m
+       JOIN users u ON u.id = m.user_id AND u.is_active
+      WHERE m.application_id = $1 AND m.consent_status = 'pending'
+      ORDER BY m.sort_order
+      LIMIT 20`,
+    [applicationId],
+  );
+  return result.rows;
+}
+
 /**
  * ผู้ใช้ที่ถือ role ซึ่งผูก permission นี้ (ไม่รวม super_admin ที่ผ่านทุกสิทธิ์โดยไม่ได้ถือ role นั้น เพื่อไม่ให้อีเมลท่วม)
  * ตัดผู้กระทำออก (ไม่แจ้งตัวเอง)

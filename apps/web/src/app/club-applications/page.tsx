@@ -12,15 +12,24 @@ export default async function MyApplicationsPage() {
   if (!current) redirect('/login');
   // แสดงฟอร์มตามสิทธิ์เพื่อ UX เท่านั้น (API ตรวจสิทธิ์จริง)
   const canCreate = current.roles.includes('super_admin') || current.permissions.includes('club_application:create');
-  const { items } = await apiGetJson<{ items: ApplicationListItem[] }>('/club-applications/mine');
+  const [{ items }, nominations] = await Promise.all([
+    apiGetJson<{ items: ApplicationListItem[] }>('/club-applications/mine'),
+    apiGetJson<{ items: ApplicationListItem[] }>('/club-applications/president-nominations'),
+  ]);
 
   return (
     <>
       <PageHeader
         eyebrow="Club Establishment"
         title="คำขอจัดตั้งชมรม"
-        description="ผู้ยื่นคำขอจะเป็นประธานชมรม ต้องมีที่ปรึกษา 1–2 คน และสมาชิกตั้งต้นอย่างน้อย 5 คน (นับรวมกรรมการ)"
+        description="บุคลากรทุกคนจัดทำคำขอได้ โดยเป็นประธานเองหรือเสนอบุคลากรอื่นเป็นประธาน (ผู้ถูกเสนอต้องตอบรับในระบบ) ต้องมีที่ปรึกษา 1–2 คน และสมาชิกตั้งต้นอย่างน้อย 5 คน (นับรวมกรรมการ)"
       />
+      {nominations.items.length > 0 && (
+        <section className="mb-6">
+          <h2 className="mb-3 font-serif text-lg font-medium text-ink">คำขอที่เสนอชื่อคุณเป็นประธานชมรม</h2>
+          <ApplicationList items={nominations.items} emptyMessage="" consentKind="president" />
+        </section>
+      )}
       <div className="grid gap-3 sm:gap-4 lg:grid-cols-3">
         <Bento tone="cream" className="lg:col-span-1">
           <BentoTitle className="mb-4">เริ่มคำขอใหม่</BentoTitle>

@@ -31,7 +31,19 @@ export async function getApplicationDocument(auth: AuthContext, applicationId: s
   ]);
   if (!detail) throw notFound();
 
-  let committee: { name: string; positionCode: string; positionTitle: string; orgUnitName: string | null; workLocation: string | null; contactPhone: string | null; bio: string | null }[];
+  // consentStatus/respondedAt: การตอบรับผ่านระบบของประธานที่ผู้ยื่นเสนอชื่อ (NULL = ไม่ต้องตอบรับ / คำขอต่อทะเบียน)
+  let committee: {
+    name: string;
+    positionCode: string;
+    positionTitle: string;
+    orgUnitName: string | null;
+    workLocation: string | null;
+    contactPhone: string | null;
+    bio: string | null;
+    isApplicant: boolean;
+    consentStatus: 'pending' | 'accepted' | 'declined' | null;
+    respondedAt: Date | null;
+  }[];
   let members: { name: string; orgUnitName: string | null }[];
   if (detail.type === 'renewal' && detail.clubId) {
     const [clubCommittee, clubMembers] = await Promise.all([listCurrentCommittee(detail.clubId), listActiveMembers(detail.clubId, 1000, 0)]);
@@ -43,6 +55,9 @@ export async function getApplicationDocument(auth: AuthContext, applicationId: s
       workLocation: c.workLocation,
       contactPhone: c.contactPhone,
       bio: null,
+      isApplicant: c.userId === detail.applicantUserId,
+      consentStatus: null,
+      respondedAt: null,
     }));
     members = clubMembers.items.map((m) => ({ name: m.name ?? m.email, orgUnitName: m.orgUnitName }));
   } else {
@@ -55,6 +70,9 @@ export async function getApplicationDocument(auth: AuthContext, applicationId: s
       workLocation: c.workLocation,
       contactPhone: c.contactPhone,
       bio: c.bio,
+      isApplicant: c.userId === detail.applicantUserId,
+      consentStatus: c.consentStatus,
+      respondedAt: c.respondedAt,
     }));
     const committeeIds = new Set(appCommittee.map((c) => c.userId));
     members = [

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import type { ApplicationDetail, ClubPosition } from '@/lib/club-application-types';
+import { PRESIDENT_CONSENT_LABELS, type ApplicationDetail, type ClubPosition, type ConsentStatus } from '@/lib/club-application-types';
 import { SaveBar } from './SaveBar';
 import { UserPicker } from './UserPicker';
 import { useSave } from './useSave';
@@ -14,16 +14,17 @@ interface Row {
   workLocation: string;
   contactPhone: string;
   bio: string;
+  // สถานะการตอบรับล่าสุดจากฐานข้อมูล (แสดงเท่านั้น)
+  consentStatus: ConsentStatus | null;
 }
 
 const inputClass = 'field !min-h-10 !px-3 text-sm';
 const PRESIDENT = 'president';
 
-// คณะกรรมการบริหาร: ผู้ยื่นเป็นประธานเสมอ ตำแหน่งอื่นยืดหยุ่น (ตั้งชื่อตำแหน่งเองได้)
+// คณะกรรมการบริหาร: ประธาน 1 คน (ผู้ยื่นเองหรือบุคลากรอื่นที่ต้องตอบรับในระบบ) ตำแหน่งอื่นยืดหยุ่น (ตั้งชื่อตำแหน่งเองได้)
 export function CommitteeEditor({ application, positions }: { application: ApplicationDetail; positions: ClubPosition[] }) {
   const { save, pending, error, saved } = useSave();
   const committeePositions = positions.filter((p) => p.kind === 'committee');
-  const selectable = committeePositions.filter((p) => p.code !== PRESIDENT);
   const [rows, setRows] = useState<Row[]>(
     application.committee.map((c) => ({
       userId: c.user.id,
@@ -33,8 +34,12 @@ export function CommitteeEditor({ application, positions }: { application: Appli
       workLocation: c.workLocation ?? '',
       contactPhone: c.contactPhone ?? '',
       bio: c.bio ?? '',
+      consentStatus: c.consentStatus,
     })),
   );
+  const applicantId = application.applicant.id;
+  const presidentCount = rows.filter((row) => row.positionCode === PRESIDENT).length;
+  const applicantInCommittee = rows.some((row) => row.userId === applicantId);
   const update = (index: number, patch: Partial<Row>) =>
     setRows((prev) => prev.map((row, i) => (i === index ? { ...row, ...patch } : row)));
 
@@ -57,36 +62,42 @@ export function CommitteeEditor({ application, positions }: { application: Appli
       <ul className="grid gap-3">
         {rows.map((row, index) => {
           const isPresident = row.positionCode === PRESIDENT;
+          const isNominee = isPresident && row.userId !== applicantId;
           return (
             <li key={row.userId} className="rounded-xl border border-ink/[0.08] bg-white p-3">
               <div className="flex items-start justify-between gap-2">
-                <p className="text-sm font-medium">{row.label}</p>
-                {!isPresident && (
-                  <button type="button" onClick={() => setRows((prev) => prev.filter((_, i) => i !== index))} className="text-sm text-beni underline">
-                    ลบ
-                  </button>
-                )}
+                <div>
+                  <p className="text-sm font-medium">
+                    {row.label}
+                    {row.userId === applicantId && <span className="ml-1 font-normal text-stone">(คุณ)</span>}
+                  </p>
+                  {isNominee && (
+                    <p className="mt-0.5 text-xs text-kin">
+                      {row.consentStatus ? `${PRESIDENT_CONSENT_LABELS[row.consentStatus]} · ` : ''}
+                      ต้องตอบรับในระบบก่อนยื่นคำขอ (ระบบแจ้งเมื่อกด &quot;ส่งขอการตอบรับ&quot;)
+                    </p>
+                  )}
+                </div>
+                <button type="button" onClick={() => setRows((prev) => prev.filter((_, i) => i !== index))} className="text-sm text-beni underline">
+                  ลบ
+                </button>
               </div>
               <div className="mt-2 grid gap-2 sm:grid-cols-2">
-                {isPresident ? (
-                  <p className="text-sm text-stone">ตำแหน่ง: ประธานชมรม (ผู้ยื่นคำขอ)</p>
-                ) : (
-                  <select
-                    value={row.positionCode}
-                    onChange={(e) => {
-                      const position = selectable.find((p) => p.code === e.target.value);
-                      update(index, { positionCode: e.target.value, positionTitle: position?.nameTh ?? row.positionTitle });
-                    }}
-                    aria-label="ตำแหน่ง"
-                    className={inputClass}
-                  >
-                    {selectable.map((p) => (
-                      <option key={p.code} value={p.code}>
-                        {p.nameTh}
-                      </option>
-                    ))}
-                  </select>
-                )}
+                <select
+                  value={row.positionCode}
+                  onChange={(e) => {
+                    const position = committeePositions.find((p) => p.code === e.target.value);
+                    update(index, { positionCode: e.target.value, positionTitle: position?.nameTh ?? row.positionTitle });
+                  }}
+                  aria-label="ตำแหน่ง"
+                  className={inputClass}
+                >
+                  {committeePositions.map((p) => (
+                    <option key={p.code} value={p.code}>
+                      {p.nameTh}
+                    </option>
+                  ))}
+                </select>
                 <input
                   value={row.positionTitle}
                   onChange={(e) => update(index, { positionTitle: e.target.value })}
@@ -125,6 +136,14 @@ export function CommitteeEditor({ application, positions }: { application: Appli
           );
         })}
       </ul>
+      {presidentCount !== 1 && (
+        <p role="alert" className="mt-2 text-sm text-beni">
+          {presidentCount === 0 ? 'กรุณาเลือกประธานชมรม 1 คน' : 'ประธานชมรมมีได้ 1 คน'}
+        </p>
+      )}
+      {!applicantInCommittee && (
+        <p className="mt-2 text-sm text-stone">คุณไม่ได้อยู่ในคณะกรรมการ ระบบจะใส่ชื่อคุณเป็นสมาชิกตั้งต้นของชมรมให้อัตโนมัติ</p>
+      )}
       <p className="mt-2 text-xs text-stone">
         เบอร์โทร สถานที่ทำงาน และประวัติย่อ ใช้ในเอกสารจัดตั้งชมรม และเห็นเฉพาะกรรมการ ที่ปรึกษา และสโมสรบุคลากร — กรอกเฉพาะข้อมูลที่เจ้าตัวยินดีให้ใช้ติดต่อ
       </p>
@@ -142,6 +161,7 @@ export function CommitteeEditor({ application, positions }: { application: Appli
                 workLocation: user.orgUnitName ?? '',
                 contactPhone: '',
                 bio: '',
+                consentStatus: null,
               },
             ])
           }

@@ -20,6 +20,8 @@ import { redirectToImage } from './responses.js';
 import {
   decideApplication,
   listMyAdvisorRequests,
+  listMyPresidentNominations,
+  respondAsPresident,
   listOfficerQueue,
   requestAdvisorConsent,
   respondAsAdvisor,
@@ -126,7 +128,7 @@ const activitiesSchema = z.object({
 
 const cancelSchema = z.object({ note: optionalText(1000).optional() });
 const noteSchema = z.object({ note: optionalText(2000).optional() }).strict();
-const advisorResponseSchema = z.object({ decision: z.enum(['accept', 'decline']), note: optionalText(2000).optional() });
+const consentResponseSchema = z.object({ decision: z.enum(['accept', 'decline']), note: optionalText(2000).optional() });
 const reviewSchema = z.object({ decision: z.enum(['pass', 'return']), note: optionalText(2000).optional() });
 const decisionSchema = z.object({ decision: z.enum(['approve', 'reject', 'return']), note: optionalText(2000).optional() });
 const statusValues = ['draft', 'awaiting_consent', 'submitted', 'returned', 'reviewed', 'approved', 'rejected', 'cancelled'] as const;
@@ -154,6 +156,11 @@ clubApplicationsRouter.get('/club-applications/mine', requireAuth, async (req, r
 // ต้อง login เท่านั้น: คำขอที่ฉันถูกเสนอเป็นที่ปรึกษา (ประกาศก่อน /:id)
 clubApplicationsRouter.get('/club-applications/advisor-requests', requireAuth, async (req, res) => {
   res.json({ items: await listMyAdvisorRequests(getRequiredAuth(req)) });
+});
+
+// ต้อง login เท่านั้น: คำขอที่ฉันถูกเสนอเป็นประธาน (ประกาศก่อน /:id)
+clubApplicationsRouter.get('/club-applications/president-nominations', requireAuth, async (req, res) => {
+  res.json({ items: await listMyPresidentNominations(getRequiredAuth(req)) });
 });
 
 // ต้องมี review / approve / read_all / manage_all อย่างใดอย่างหนึ่ง (ตรวจใน service): กล่องงานเจ้าหน้าที่
@@ -236,8 +243,15 @@ clubApplicationsRouter.post('/club-applications/:id/submit', requireCreate, asyn
 
 // ต้อง login + เป็นที่ปรึกษาที่ถูกเสนอ (ตรวจใน service)
 clubApplicationsRouter.post('/club-applications/:id/advisor-response', requireAuth, async (req, res) => {
-  const { decision, note } = advisorResponseSchema.parse(req.body);
+  const { decision, note } = consentResponseSchema.parse(req.body);
   await respondAsAdvisor(getRequiredAuth(req), idOf(req.params.id), decision, note ?? null);
+  res.status(204).end();
+});
+
+// ต้อง login + เป็นผู้ถูกเสนอเป็นประธานที่ยังไม่ตอบ (ตรวจใน service)
+clubApplicationsRouter.post('/club-applications/:id/president-response', requireAuth, async (req, res) => {
+  const { decision, note } = consentResponseSchema.parse(req.body);
+  await respondAsPresident(getRequiredAuth(req), idOf(req.params.id), decision, note ?? null);
   res.status(204).end();
 });
 

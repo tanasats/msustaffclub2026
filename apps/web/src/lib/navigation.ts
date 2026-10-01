@@ -25,7 +25,15 @@ export function buildNavigation(current: CurrentUser): NavItem[] {
   ];
 
   if (has('club_application:create')) {
-    items.push({ href: '/club-applications', label: 'คำขอจัดตั้ง/ต่อทะเบียน', shortLabel: 'คำขอ', icon: 'scroll', group: 'main' });
+    items.push({
+      href: '/club-applications',
+      label: 'คำขอจัดตั้ง/ต่อทะเบียน',
+      shortLabel: 'คำขอ',
+      icon: 'scroll',
+      group: 'main',
+      // คำขอที่เสนอชื่อฉันเป็นประธานและรอฉันตอบ
+      badge: current.nominations.pendingPresident,
+    });
   }
   // ต้อง login เท่านั้น: ติดตามสถานะผลงานของตัวเอง
   items.push({ href: '/achievements', label: 'ผลงานของฉัน', shortLabel: 'ผลงาน', icon: 'award', group: 'main' });

@@ -420,3 +420,140 @@ describe('อีเมลแจ้งเตือนตลอด flow (ใส่
     expect((await pool.query('SELECT 1 FROM email_outbox')).rowCount).toBe(0);
   });
 });
+
+describe('ผู้ยื่นเสนอบุคลากรอื่นเป็นประธาน (ผู้ยื่นไม่ต้องเป็นประธาน)', () => {
+  // ปรับ scenario: ผู้ยื่นเสนอ nominee เป็นประธาน ส่วนตัวเองไม่อยู่ในกรรมการ
+  async function nominated() {
+    const s = await scenario();
+    const nominee = await actor({ email: 'nominee@msu.ac.th' });
+    const res = await put(s.applicant, `/club-applications/${s.id}/committee`, {
+      committee: [
+        { userId: nominee.id, positionCode: 'president' },
+        { userId: s.secretaryId, positionCode: 'secretary' },
+      ],
+    });
+    expect(res.status).toBe(204);
+    return { ...s, nominee };
+  }
+  const respond = (who: Actor, id: string, decision: 'accept' | 'decline', note?: string) =>
+    post(who, `/club-applications/${id}/president-response`, { decision, note });
+  const consentOf = async (id: string) =>
+    (await pool.query('SELECT user_id, consent_status FROM club_application_committee WHERE application_id = $1 ORDER BY sort_order', [id])).rows;
+
+  it('ผู้ยื่นที่ไม่ได้เป็นกรรมการ ถูกเพิ่มเป็นสมาชิกตั้งต้นอัตโนมัติ (แม้แก้รายชื่อสมาชิกทีหลัง)', async () => {
+    const s = await nominated();
+    const members = async () =>
+      (await pool.query('SELECT user_id FROM club_application_members WHERE application_id = $1', [s.id])).rows.map((r) => r.user_id);
+    expect(await members()).toContain(s.applicant.id);
+    await put(s.applicant, `/club-applications/${s.id}/members`, { memberUserIds: s.memberIds });
+    expect(await members()).toContain(s.applicant.id);
+    expect((await get(s.applicant, `/club-applications/${s.id}/validation`)).body.issues).toEqual([]);
+  });
+
+  it('ผู้ยื่นที่ไม่ได้ร่วมก่อตั้ง (ไม่อยู่ในกรรมการ/สมาชิก) → ยังไม่ครบ', async () => {
+    const s = await nominated();
+    await pool.query('DELETE FROM club_application_members WHERE application_id = $1 AND user_id = $2', [s.id, s.applicant.id]);
+    const { issues } = (await get(s.applicant, `/club-applications/${s.id}/validation`)).body;
+    expect(issues.map((i: { code: string }) => i.code)).toContain('APPLICANT_MUST_BE_FOUNDER');
+  });
+
+  it('ร่าง: ผู้ถูกเสนอยังไม่ได้รับคำขอ (ดูคำขอไม่ได้ ไม่มีในรายการ) → ขอการตอบรับแล้วเห็น', async () => {
+    const s = await nominated();
+    expect(await consentOf(s.id)).toEqual([
+      { user_id: s.nominee.id, consent_status: null },
+      { user_id: s.secretaryId, consent_status: null },
+    ]);
+    expect((await get(s.nominee, `/club-applications/${s.id}`)).status).toBe(404);
+    expect((await get(s.nominee, '/club-applications/president-nominations')).body.items).toEqual([]);
+
+    expect((await post(s.applicant, `/club-applications/${s.id}/request-consent`)).status).toBe(204);
+    expect(await consentOf(s.id)).toEqual([
+      { user_id: s.nominee.id, consent_status: 'pending' },
+      { user_id: s.secretaryId, consent_status: null },
+    ]);
+    const detail = await get(s.nominee, `/club-applications/${s.id}`);
+    expect(detail.status).toBe(200);
+    expect(detail.body.committee[0]).toMatchObject({ user: { id: s.nominee.id }, consentStatus: 'pending' });
+    expect((await get(s.nominee, '/club-applications/president-nominations')).body.items).toMatchObject([
+      { id: s.id, status: 'awaiting_consent', myConsentStatus: 'pending' },
+    ]);
+    expect((await get(s.nominee, '/auth/me')).body.nominations).toEqual({ pendingPresident: 1 });
+  });
+
+  it('ยื่นไม่ได้จนกว่าประธานจะตอบรับ; ตอบรับแล้วยื่น ตรวจ อนุมัติ → ผู้ถูกเสนอเป็นประธานชมรม ผู้ยื่นเป็นสมาชิก', async () => {
+    const s = await nominated();
+    await post(s.applicant, `/club-applications/${s.id}/request-consent`);
+    await post(s.advisor1, `/club-applications/${s.id}/advisor-response`, { decision: 'accept' });
+    await post(s.advisor2, `/club-applications/${s.id}/advisor-response`, { decision: 'accept' });
+    const early = await post(s.applicant, `/club-applications/${s.id}/submit`);
+    expect(early.status).toBe(422);
+    expect(early.body.error.code).toBe('PRESIDENT_CONSENT_PENDING');
+
+    expect((await respond(s.nominee, s.id, 'accept')).status).toBe(204);
+    expect((await get(s.nominee, '/auth/me')).body.nominations).toEqual({ pendingPresident: 0 });
+    // ผู้ถูกเสนอยื่นแทนผู้ยื่นไม่ได้
+    expect((await post(s.nominee, `/club-applications/${s.id}/submit`)).status).toBe(404);
+    expect((await post(s.applicant, `/club-applications/${s.id}/submit`)).status).toBe(204);
+    expect((await post(s.reviewer, `/club-applications/${s.id}/review`, { decision: 'pass' })).status).toBe(204);
+    const res = await post(s.approver, `/club-applications/${s.id}/decision`, { decision: 'approve' });
+    expect(res.status).toBe(200);
+
+    const { rows: committee } = await pool.query(
+      `SELECT m.user_id, p.code FROM club_committee_members m JOIN club_positions p ON p.id = m.position_id
+        WHERE m.club_id = $1 ORDER BY m.sort_order`,
+      [res.body.clubId],
+    );
+    expect(committee).toEqual([
+      { user_id: s.nominee.id, code: 'president' },
+      { user_id: s.secretaryId, code: 'secretary' },
+    ]);
+    const { rows: memberships } = await pool.query("SELECT user_id FROM club_memberships WHERE club_id = $1 AND status = 'active'", [res.body.clubId]);
+    expect(memberships.map((m) => m.user_id)).toContain(s.applicant.id);
+  });
+
+  it('ประธานปฏิเสธ → คำขอกลับเป็นร่าง พร้อมเหตุผลใน log; ขอรอบใหม่สถานะกลับเป็นรอตอบ', async () => {
+    const s = await nominated();
+    await post(s.applicant, `/club-applications/${s.id}/request-consent`);
+    expect((await respond(s.nominee, s.id, 'decline', 'ภาระงานมาก')).status).toBe(204);
+    expect(await status(s.id)).toBe('draft');
+    const detail = (await get(s.applicant, `/club-applications/${s.id}`)).body;
+    expect(detail.events.at(-1)).toMatchObject({ toStatus: 'draft', note: 'ผู้ถูกเสนอเป็นประธานปฏิเสธ: ภาระงานมาก', actorUserId: s.nominee.id });
+    expect(detail.committee[0]).toMatchObject({ consentStatus: 'declined' });
+
+    await post(s.applicant, `/club-applications/${s.id}/request-consent`);
+    expect((await consentOf(s.id))[0]).toEqual({ user_id: s.nominee.id, consent_status: 'pending' });
+  });
+
+  it('ผู้ที่ไม่ได้ถูกเสนอ / ตอบซ้ำ / คำขอยังเป็นร่าง → ตอบไม่ได้', async () => {
+    const s = await nominated();
+    expect((await respond(s.nominee, s.id, 'accept')).status).toBe(409); // ยังเป็นร่าง
+    await post(s.applicant, `/club-applications/${s.id}/request-consent`);
+    const stranger = await actor();
+    expect((await respond(stranger, s.id, 'accept')).body.error.code).toBe('NO_PENDING_NOMINATION');
+    // ผู้ยื่นที่เป็นประธานเอง (consent NULL) ก็ตอบแทนไม่ได้
+    expect((await respond(s.applicant, s.id, 'accept')).body.error.code).toBe('NO_PENDING_NOMINATION');
+    expect((await respond(s.nominee, s.id, 'accept')).status).toBe(204);
+    expect((await respond(s.nominee, s.id, 'decline')).body.error.code).toBe('NO_PENDING_NOMINATION');
+  });
+
+  it('ผู้ยื่นเป็นประธานเอง → ไม่ต้องตอบรับ (consent NULL) ยื่นได้ตามปกติ', async () => {
+    const s = await scenario();
+    await post(s.applicant, `/club-applications/${s.id}/request-consent`);
+    const rows = await consentOf(s.id);
+    expect(rows.every((r) => r.consent_status === null)).toBe(true);
+  });
+
+  it('อีเมล: ขอการตอบรับ → ผู้ถูกเสนอ, ตอบ → ผู้ยื่น', async () => {
+    await pool.query(`INSERT INTO system_settings (key, value) VALUES ('email.enabled', 'true')`);
+    const s = await nominated();
+    await post(s.applicant, `/club-applications/${s.id}/request-consent`);
+    await respond(s.nominee, s.id, 'accept');
+    const { rows } = await pool.query<{ kind: string; recipient_email: string }>(
+      "SELECT kind, recipient_email FROM email_outbox WHERE kind LIKE 'president_%' ORDER BY created_at",
+    );
+    expect(rows).toEqual([
+      { kind: 'president_nominated', recipient_email: 'nominee@msu.ac.th' },
+      { kind: 'president_responded', recipient_email: s.applicant.email },
+    ]);
+  });
+});

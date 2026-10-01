@@ -82,6 +82,11 @@ export default async function ApplicationDocumentPage({ params }: { params: Prom
         : '(แนบใบคำยินยอมที่ลงนามแล้ว)'
       : null;
   const action = renewal ? 'ต่อทะเบียน' : 'จัดตั้ง';
+  // คำขอจัดตั้ง: ผู้ขอในแบบฟอร์ม ("ข้าพเจ้า") คือประธานชมรม ซึ่งอาจไม่ใช่ผู้จัดทำคำขอในระบบ
+  const requester = !renewal && president ? { name: president.name, orgUnitName: president.orgUnitName } : d.applicant;
+  const presidentNote =
+    president?.consentStatus === 'accepted' && president.respondedAt ? `(ตอบรับผ่านระบบเมื่อ ${thaiLongDate(president.respondedAt)})` : null;
+  const preparedBy = !renewal && president && !president.isApplicant ? d.applicant : null;
 
   return (
     <div className={`${sarabun.variable} bg-neutral-200 py-6 print:bg-white print:py-0`}>
@@ -173,19 +178,25 @@ export default async function ApplicationDocumentPage({ params }: { params: Prom
           <span>จำนวน ๑ ชุด</span>
         </div>
         <p className="mt-6 indent-16">
-          ข้าพเจ้า <Fill value={d.applicant.name} /> สังกัด <Fill value={d.applicant.orgUnitName} /> มหาวิทยาลัยมหาสารคาม มีความประสงค์ขอ{action}ชมรม
+          ข้าพเจ้า <Fill value={requester.name} /> สังกัด <Fill value={requester.orgUnitName} /> มหาวิทยาลัยมหาสารคาม มีความประสงค์ขอ{action}ชมรม
           ตามประกาศมหาวิทยาลัยมหาสารคาม เรื่อง แนวปฏิบัติด้านกิจกรรมบุคลากร มหาวิทยาลัยมหาสารคาม พุทธศักราช ๒๕๔๙ หมวดที่ ๑๓ ว่าด้วยชมรมและกลุ่ม
           โดยใช้ชื่อว่า <span className="font-bold">{club}</span> ซึ่งมีรายละเอียดดังเอกสารที่แนบมานี้
         </p>
         <p className="mt-4 indent-16">จึงเรียนมาเพื่อโปรดพิจารณาอนุมัติ</p>
         <div className="mt-6 ml-auto w-1/2">
-          <Signature name={president?.name ?? null} role={`ประธาน${club}`} />
+          <Signature name={president?.name ?? null} role={`ประธาน${club}`} note={presidentNote} />
         </div>
         <div className="mt-8 grid grid-cols-2 gap-6">
           {advisors.map((a, i) => (
             <Signature key={i} name={a?.name ?? null} role={`ที่ปรึกษา ${club}`} note={consentNote(a)} />
           ))}
         </div>
+        {preparedBy && (
+          <p className="mt-8 text-[11pt] text-neutral-600">
+            หมายเหตุ: จัดทำคำขอผ่านระบบโดย {preparedBy.name}
+            {preparedBy.orgUnitName ? ` สังกัด ${preparedBy.orgUnitName}` : ''}
+          </p>
+        )}
       </Page>
 
       {/* 2. บันทึกขอเสนอชื่อแต่งตั้งที่ปรึกษา */}

@@ -13,6 +13,7 @@ import {
 } from '../services/auth-service.js';
 import { getPreferences } from '../services/preferences-service.js';
 import { getMyAdvisorSummary } from '../services/advisor-work-service.js';
+import { getMyNominationSummary } from '../services/club-application-workflow-service.js';
 import { getMyPrivacyStatus } from '../services/privacy-service.js';
 import { getUserProfile } from '../services/profile-service.js';
 
@@ -110,14 +111,16 @@ export function createAuthRouter(): Router {
   authRouter.get('/auth/me', requireAuth, async (req, res) => {
     const auth = getRequiredAuth(req);
     // advisor: ตัวเลขงานที่ปรึกษา ใช้ตัดสินว่าจะแสดงเมนู "งานที่ปรึกษาชมรม" หรือไม่ (UX เท่านั้น)
+    // nominations: จำนวนคำเสนอชื่อเป็นประธานที่รอตอบ (แบนเนอร์หน้าแรก/ป้ายเมนู)
     // privacy: ต้องรับทราบประกาศความเป็นส่วนตัวเวอร์ชันปัจจุบันก่อนใช้ระบบ (หน้าเว็บแสดงประกาศถ้ายังไม่รับทราบ)
-    const [profile, preferences, advisor, privacy] = await Promise.all([
+    const [profile, preferences, advisor, nominations, privacy] = await Promise.all([
       getUserProfile(auth.user.id, auth.user.email),
       getPreferences(auth.user.id),
       getMyAdvisorSummary(auth),
+      getMyNominationSummary(auth),
       getMyPrivacyStatus(auth),
     ]);
-    res.json({ user: auth.user, roles: auth.roles, permissions: auth.permissions, profile, preferences, advisor, privacy });
+    res.json({ user: auth.user, roles: auth.roles, permissions: auth.permissions, profile, preferences, advisor, nominations, privacy });
   });
 
   // public (ไม่บังคับ login): ลบ session ถ้ามี แล้วลบ cookie

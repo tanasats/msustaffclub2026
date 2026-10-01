@@ -309,14 +309,14 @@ describe('PUT /club-applications/:id/committee', () => {
     expect(committee[0]).toMatchObject({ workLocation: 'อาคาร A', contactPhone: '0800000000' });
   });
 
-  it('ปฏิเสธ: ประธาน 2 คน / ประธานไม่ใช่ผู้ยื่น / คนเดียวหลายตำแหน่ง / ตำแหน่งไม่มีอยู่ / ตำแหน่งที่ปรึกษา', async () => {
+  it('ปฏิเสธ: ประธาน 2 คน / ไม่มีประธาน / คนเดียวหลายตำแหน่ง / ตำแหน่งไม่มีอยู่ / ตำแหน่งที่ปรึกษา', async () => {
     const applicant = await actor();
     const id = await createDraft(applicant);
     const other = await staffUser();
     const put = (committee: object[]) => send('put', applicant, `/club-applications/${id}/committee`, { committee });
 
     expect((await put([{ userId: applicant.id, positionCode: 'president' }, { userId: other.id, positionCode: 'president' }])).body.error.code).toBe('POSITION_LIMIT_EXCEEDED');
-    expect((await put([{ userId: other.id, positionCode: 'president' }])).body.error.code).toBe('APPLICANT_MUST_BE_PRESIDENT');
+    expect((await put([{ userId: other.id, positionCode: 'secretary' }])).body.error.code).toBe('PRESIDENT_REQUIRED');
     expect((await put([{ userId: applicant.id, positionCode: 'president' }, { userId: applicant.id, positionCode: 'secretary' }])).body.error.code).toBe('DUPLICATE_COMMITTEE_MEMBER');
     expect((await put([{ userId: applicant.id, positionCode: 'president' }, { userId: other.id, positionCode: 'king' }])).body.error.code).toBe('POSITION_NOT_FOUND');
     expect((await put([{ userId: applicant.id, positionCode: 'president' }, { userId: other.id, positionCode: 'advisor' }])).body.error.code).toBe('POSITION_NOT_FOUND');
