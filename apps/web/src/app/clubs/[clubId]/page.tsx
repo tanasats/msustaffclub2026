@@ -12,7 +12,6 @@ import { AthleteRegister } from '@/components/sports/AthleteRegister';
 import { ClubSportsEditor } from '@/components/sports/ClubSportsEditor';
 import { EndAthleteButton } from '@/components/sports/EndAthleteButton';
 import { MembershipPanel } from '@/components/clubs/MembershipPanel';
-import { RemoveMemberButton } from '@/components/clubs/RemoveMemberButton';
 import { Badge } from '@/components/ui/Badge';
 import { Bento, BentoLabel, BentoTitle } from '@/components/ui/Bento';
 import { PageHeader } from '@/components/ui/PageHeader';
@@ -40,6 +39,9 @@ function InfoRow({ label, value }: { label: string; value: string | null | undef
     </div>
   );
 }
+
+// จำนวนรายชื่อสมาชิกที่แสดงในหน้าชมรม (ที่เหลือดูในหน้ารายชื่อสมาชิก)
+const MEMBER_PREVIEW = 12;
 
 export default async function ClubDetailPage({ params }: { params: Promise<{ clubId: string }> }) {
   const { clubId } = await params;
@@ -167,14 +169,16 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
                 {requests.items.map((request) => (
                   <li key={request.membershipId} className="flex flex-col gap-3 rounded-xl border border-ink/[0.08] p-3 sm:flex-row sm:items-center sm:justify-between">
                     <div>
-                      <p className="font-medium">{request.name ?? request.email}</p>
+                      <Link href={`/clubs/${club.id}/members/${request.userId}`} className="font-medium underline-offset-2 hover:underline">
+                        {request.name ?? request.email}
+                      </Link>
                       <p className="text-xs text-stone">
                         {request.orgUnitName ?? request.email} · สมัครเมื่อ {formatDateTime(request.appliedAt)}
                       </p>
                     </div>
                     <div className="flex flex-wrap gap-2">
                       <ActionButton path={`/clubs/${club.id}/memberships/${request.membershipId}/approve`} label="อนุมัติ" />
-                      <ActionButton path={`/clubs/${club.id}/memberships/${request.membershipId}/reject`} label="ไม่อนุมัติ" note="optional" tone="neutral" />
+                      <ActionButton path={`/clubs/${club.id}/memberships/${request.membershipId}/reject`} label="ไม่อนุมัติ" note="required" tone="neutral" />
                     </div>
                   </li>
                 ))}
@@ -367,24 +371,34 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
 
         {members && (
           <Bento className="lg:col-span-3">
-            <div className="mb-3 flex items-center justify-between gap-2">
+            <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
               <BentoTitle>รายชื่อสมาชิก ({members.total.toLocaleString('th-TH')} คน)</BentoTitle>
-              <Badge tone="neutral">ข้อมูลภายในชมรม</Badge>
+              <div className="flex flex-wrap items-center gap-2">
+                <Badge tone="neutral">ข้อมูลภายในชมรม</Badge>
+                <Link href={`/clubs/${club.id}/members`} className="btn btn-secondary !min-h-10 text-sm">
+                  {canApproveMembers ? 'จัดการสมาชิก' : 'รายชื่อทั้งหมด'}
+                </Link>
+              </div>
             </div>
             <ul className="grid gap-x-6 sm:grid-cols-2 lg:grid-cols-3">
-              {members.items.map((member) => (
+              {members.items.slice(0, MEMBER_PREVIEW).map((member) => (
                 <li key={member.userId} className="border-b border-ink/[0.06] py-2">
-                  <p className="flex flex-wrap items-center gap-2 text-[0.9375rem]">
+                  <Link href={`/clubs/${club.id}/members/${member.userId}`} className="flex flex-wrap items-center gap-2 text-[0.9375rem] underline-offset-2 hover:underline">
                     {member.name ?? member.email}
                     {member.isCommittee && <Badge tone="kin">กรรมการ</Badge>}
-                  </p>
+                  </Link>
                   <p className="text-xs text-stone">{member.orgUnitName ?? member.email}</p>
-                  {canApproveMembers && !member.isCommittee && member.userId !== current.user.id && (
-                    <RemoveMemberButton clubId={club.id} membershipId={member.membershipId} memberName={member.name ?? member.email} />
-                  )}
                 </li>
               ))}
             </ul>
+            {members.total > MEMBER_PREVIEW && (
+              <p className="mt-3 text-sm text-stone">
+                แสดง {MEMBER_PREVIEW} คนแรก —{' '}
+                <Link href={`/clubs/${club.id}/members`} className="text-matcha-700 underline">
+                  ดูทั้งหมด {members.total.toLocaleString('th-TH')} คน
+                </Link>
+              </p>
+            )}
           </Bento>
         )}
 

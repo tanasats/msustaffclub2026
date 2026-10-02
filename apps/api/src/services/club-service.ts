@@ -2,11 +2,11 @@ import { AppError } from '../errors.js';
 import {
   findClubDetail,
   findCurrentMembershipStatus,
-  listActiveMembers,
   listClubs,
   listCurrentAdvisors,
   listCurrentCommittee,
 } from '../repositories/clubs-repository.js';
+import { findLatestRejection } from '../repositories/memberships-repository.js';
 import type { AuthContext } from './authorization.js';
 import { getClubPermissions } from './club-authorization.js';
 import { CLUB_PERMISSIONS } from './club-permissions.js';
@@ -49,6 +49,8 @@ export async function getClubPage(auth: AuthContext, clubId: string) {
     findCurrentMembershipStatus(clubId, auth.user.id),
   ]);
   const internal = (permissions ?? []).includes(CLUB_PERMISSIONS.VIEW_INTERNAL);
+  // ใบสมัครล่าสุดถูกปฏิเสธ → แสดงเหตุผลให้ผู้สมัครเห็น (ข้อมูลของตัวเอง)
+  const rejection = membershipStatus === null ? await findLatestRejection(clubId, auth.user.id) : null;
 
   return {
     ...club,
@@ -71,6 +73,7 @@ export async function getClubPage(auth: AuthContext, clubId: string) {
     })),
     me: {
       membershipStatus,
+      rejection,
       positions: committee.filter((c) => c.userId === auth.user.id).map((c) => c.positionTitle),
       isAdvisor: advisors.some((a) => a.userId === auth.user.id),
       permissions: permissions ?? [],
@@ -78,8 +81,4 @@ export async function getClubPage(auth: AuthContext, clubId: string) {
   };
 }
 
-// รายชื่อสมาชิก (ข้อมูลภายใน) — route ตรวจ club:view_internal ด้วย requireClubPermission แล้ว
-export async function listClubMembers(clubId: string, page: number, pageSize: number) {
-  const { items, total } = await listActiveMembers(clubId, pageSize, (page - 1) * pageSize);
-  return { items, total, page, pageSize };
-}
+

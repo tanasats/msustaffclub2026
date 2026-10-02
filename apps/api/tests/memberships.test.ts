@@ -122,6 +122,21 @@ describe('กรรมการอนุมัติ/ปฏิเสธ', () => 
     expect((await post(president, `/clubs/${clubId}/memberships/${id}/reject`, { note: 'ข้อมูลไม่ครบ' })).status).toBe(204);
     expect((await membershipOf(clubId, applicant.id))?.status).toBe('rejected');
     expect((await eventsOf(id)).at(-1)).toMatchObject({ action: 'rejected', note: 'ข้อมูลไม่ครบ' });
+    // ผู้สมัครเห็นเหตุผลที่หน้าชมรม
+    expect((await get(applicant, `/clubs/${clubId}`)).body.me.rejection).toMatchObject({ note: 'ข้อมูลไม่ครบ' });
+    // สมัครใหม่แล้ว ไม่แสดงผลปฏิเสธเดิม
+    await post(applicant, `/clubs/${clubId}/membership`);
+    expect((await get(applicant, `/clubs/${clubId}`)).body.me.rejection).toBeNull();
+  });
+
+  it('ปฏิเสธต้องมีเหตุผล', async () => {
+    const { clubId, president } = await clubWithCommittee();
+    const applicant = await actor();
+    await post(applicant, `/clubs/${clubId}/membership`);
+    const { id } = (await membershipOf(clubId, applicant.id))!;
+    expect((await post(president, `/clubs/${clubId}/memberships/${id}/reject`, {})).status).toBe(400);
+    expect((await post(president, `/clubs/${clubId}/memberships/${id}/reject`, { note: '  ' })).status).toBe(400);
+    expect((await membershipOf(clubId, applicant.id))?.status).toBe('pending');
   });
 
   it('ตำแหน่งที่ไม่มีสิทธิ์อนุมัติ (เหรัญญิก) → 403 ทั้งดูรายการและอนุมัติ', async () => {

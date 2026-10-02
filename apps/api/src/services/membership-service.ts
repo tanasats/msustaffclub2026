@@ -133,7 +133,7 @@ export async function approveMembership(auth: AuthContext, clubId: string, membe
   });
 }
 
-export async function rejectMembership(auth: AuthContext, clubId: string, membershipId: string, note: string | null): Promise<void> {
+export async function rejectMembership(auth: AuthContext, clubId: string, membershipId: string, note: string): Promise<void> {
   await withTransaction(async (client) => {
     const membership = await lockForDecision(auth, clubId, membershipId, client);
     if (membership.status !== 'pending') {

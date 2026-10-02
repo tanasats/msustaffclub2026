@@ -54,6 +54,12 @@ export function MembershipPanel({ club, eligible, isPresident }: MembershipPanel
   } else {
     content = (
       <>
+        {club.me.rejection && (
+          <p className="mb-3 rounded-xl border border-kin/20 bg-kin-50 px-3 py-2 text-sm text-kin">
+            ใบสมัครครั้งล่าสุดไม่ได้รับอนุมัติ
+            {club.me.rejection.note && <span className="block">เหตุผล: {club.me.rejection.note}</span>}
+          </p>
+        )}
         <p className="text-sm text-stone">สมัครแล้วรอคณะกรรมการชมรมอนุมัติ ไม่ต้องแนบเอกสาร (ระบบยืนยันตัวตนจากบัญชีมหาวิทยาลัย)</p>
         <div className="mt-3">
           <ActionButton path={base} label="สมัครเป็นสมาชิก" />

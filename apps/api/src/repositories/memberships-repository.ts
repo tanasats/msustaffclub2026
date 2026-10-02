@@ -132,3 +132,26 @@ export async function lockClubStatus(clubId: string, db: Queryable): Promise<'ac
   );
   return result.rows[0]?.status ?? null;
 }
+
+/**
+ * ผลปฏิเสธใบสมัครล่าสุดของผู้ใช้ในชมรม (แสดงเหตุผลให้ผู้สมัครเห็น)
+ * เฉพาะเมื่อแถวล่าสุดของผู้ใช้ในชมรมเป็น rejected (สมัครใหม่แล้ว = ไม่แสดง)
+ */
+export async function findLatestRejection(
+  clubId: string,
+  userId: string,
+  db: Queryable = pool,
+): Promise<{ note: string | null; decidedAt: Date } | null> {
+  const result = await db.query<{ note: string | null; decidedAt: Date }>(
+    `SELECT (SELECT e.note FROM club_membership_events e
+              WHERE e.membership_id = m.id AND e.action = 'rejected'
+              ORDER BY e.created_at DESC LIMIT 1) AS note,
+            m.decided_at AS "decidedAt"
+       FROM (SELECT id, status, decided_at FROM club_memberships
+              WHERE club_id = $1 AND user_id = $2
+              ORDER BY applied_at DESC LIMIT 1) m
+      WHERE m.status = 'rejected'`,
+    [clubId, userId],
+  );
+  return result.rows[0] ?? null;
+}
