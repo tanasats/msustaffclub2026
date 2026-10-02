@@ -6,7 +6,7 @@ import {
   listCurrentAdvisors,
   listCurrentCommittee,
 } from '../repositories/clubs-repository.js';
-import { findLatestRejection } from '../repositories/memberships-repository.js';
+import { findLatestRejection, findMyInvitation } from '../repositories/memberships-repository.js';
 import { getMyResignation } from './membership-service.js';
 import type { AuthContext } from './authorization.js';
 import { getClubPermissions } from './club-authorization.js';
@@ -54,6 +54,8 @@ export async function getClubPage(auth: AuthContext, clubId: string) {
   const rejection = membershipStatus === null ? await findLatestRejection(clubId, auth.user.id) : null;
   // คำขอลาออกของฉันที่ยังไม่มีผล
   const resignation = membershipStatus === 'active' ? await getMyResignation(clubId, auth.user.id) : null;
+  // คำเชิญเข้าชมรมที่รอฉันตอบ
+  const invitation = membershipStatus === null ? await findMyInvitation(clubId, auth.user.id) : null;
 
   return {
     ...club,
@@ -78,6 +80,7 @@ export async function getClubPage(auth: AuthContext, clubId: string) {
       membershipStatus,
       rejection,
       resignation,
+      invitation,
       positions: committee.filter((c) => c.userId === auth.user.id).map((c) => c.positionTitle),
       isAdvisor: advisors.some((a) => a.userId === auth.user.id),
       permissions: permissions ?? [],

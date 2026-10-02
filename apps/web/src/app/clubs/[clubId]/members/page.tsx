@@ -1,6 +1,9 @@
 import Link from 'next/link';
 import { ActionButton } from '@/components/club-applications/ActionButton';
+import { InviteMemberForm } from '@/components/clubs/InviteMemberForm';
+import { MemberSummaryPanel } from '@/components/clubs/MemberSummaryPanel';
 import { RemoveMemberButton } from '@/components/clubs/RemoveMemberButton';
+import { Bento, BentoTitle } from '@/components/ui/Bento';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
 import { Icon } from '@/components/ui/icons';
@@ -9,7 +12,13 @@ import { apiGetJson } from '@/lib/api-server';
 import { getCurrentUser } from '@/lib/auth';
 import type { ClubPage } from '@/lib/club-types';
 import { formatDate, formatTimestampDate } from '@/lib/format';
-import { MEMBERSHIP_END_REASON_LABELS, MEMBERSHIP_STATUS_LABELS, type MemberListItem } from '@/lib/member-types';
+import {
+  MEMBERSHIP_END_REASON_LABELS,
+  MEMBERSHIP_STATUS_LABELS,
+  type Invitation,
+  type MemberListItem,
+  type MemberSummary,
+} from '@/lib/member-types';
 import { publicEnv } from '@/lib/public-env';
 
 const PAGE_SIZE = 30;
@@ -48,11 +57,13 @@ export default async function ClubMembersPage({ params, searchParams }: { params
   if (sp.q?.trim()) query.set('q', sp.q.trim());
 
   const id = encodeURIComponent(clubId);
-  const [club, data] = await Promise.all([
+  const [club, data, summary] = await Promise.all([
     apiGetJson<ClubPage>(`/clubs/${id}`),
     apiGetJson<{ items: MemberListItem[]; total: number }>(`/clubs/${id}/members?${query}`),
+    apiGetJson<MemberSummary>(`/clubs/${id}/members/summary`),
   ]);
   const canManage = club.me.permissions.includes('club_member:approve') && club.status === 'active';
+  const invitations = canManage ? await apiGetJson<{ items: Invitation[] }>(`/clubs/${id}/invitations`) : null;
   // ส่งออกใช้ตัวกรองเดียวกับที่แสดง (ไม่รวมหน้า) — ดาวน์โหลดตรงจาก API พร้อม cookie ของผู้ใช้
   const exportQuery = new URLSearchParams(query);
   exportQuery.delete('page');
@@ -73,6 +84,38 @@ export default async function ClubMembersPage({ params, searchParams }: { params
   return (
     <>
       <PageHeader eyebrow="Members" title="รายชื่อสมาชิก" description={club.nameTh} back={{ href: `/clubs/${club.id}`, label: club.nameTh }} />
+
+      <MemberSummaryPanel summary={summary} />
+
+      {invitations && (
+        <Bento className="mb-4">
+          <BentoTitle className="mb-3">เชิญบุคลากรเข้าชมรม</BentoTitle>
+          <div className="grid gap-4 lg:grid-cols-2">
+            <InviteMemberForm clubId={club.id} excludeIds={invitations.items.map((i) => i.userId)} />
+            <div>
+              <p className="mb-2 text-sm font-medium">คำเชิญที่รอตอบ ({invitations.items.length})</p>
+              {invitations.items.length === 0 ? (
+                <p className="text-sm text-stone">ไม่มีคำเชิญที่รอตอบ</p>
+              ) : (
+                <ul className="grid gap-2">
+                  {invitations.items.map((i) => (
+                    <li key={i.membershipId} className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-ink/[0.08] px-3 py-2 text-sm">
+                      <span>
+                        {i.name ?? i.email}
+                        <span className="block text-xs text-stone">
+                          เชิญเมื่อ {formatTimestampDate(i.invitedAt)}
+                          {i.invitedByName && ` โดย ${i.invitedByName}`}
+                        </span>
+                      </span>
+                      <ActionButton path={`/clubs/${club.id}/memberships/${i.membershipId}/cancel-invitation`} label="ยกเลิกคำเชิญ" tone="neutral" />
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        </Bento>
+      )}
 
       <div className="mb-4 flex flex-col gap-3">
         <div className="flex flex-wrap gap-2" role="tablist" aria-label="สถานะสมาชิก">

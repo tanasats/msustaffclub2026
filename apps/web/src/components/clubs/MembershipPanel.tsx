@@ -64,6 +64,20 @@ export function MembershipPanel({ club, eligible, isPresident }: MembershipPanel
         </div>
       </>
     );
+  } else if (club.me.invitation) {
+    content = (
+      <>
+        <p className="font-serif text-lg font-medium">คุณได้รับคำเชิญเข้าชมรม</p>
+        <p className="mt-1 text-sm text-stone">
+          {club.me.invitation.invitedByName ?? 'กรรมการชมรม'} เชิญเมื่อ {formatTimestampDate(club.me.invitation.invitedAt)} — ตอบรับแล้วเป็นสมาชิกทันที
+        </p>
+        {club.me.invitation.note && <p className="mt-2 rounded-xl bg-white px-3 py-2 text-sm">“{club.me.invitation.note}”</p>}
+        <div className="mt-3 flex flex-wrap gap-2">
+          <ActionButton path={`${base}/invitation`} body={{ decision: 'accept' }} label="ตอบรับคำเชิญ" />
+          <ActionButton path={`${base}/invitation`} body={{ decision: 'decline' }} label="ปฏิเสธ" tone="neutral" />
+        </div>
+      </>
+    );
   } else if (!eligible) {
     content = <p className="text-sm text-stone">ขณะนี้ชมรมเปิดรับสมัครเฉพาะบุคลากรของมหาวิทยาลัย</p>;
   } else {

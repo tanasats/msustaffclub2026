@@ -119,3 +119,54 @@ export async function listCurrentAdvisorUsers(clubId: string, db: Queryable): Pr
   );
   return result.rows;
 }
+
+/**
+ * กรรมการชุดปัจจุบันของชมรมที่ตำแหน่งมีสิทธิ์ชมรมนี้ (เช่น club_member:approve) — ไม่รวมผู้กระทำ
+ * ไม่รวมผู้ที่ได้สิทธิ์จาก club:manage_all/super_admin เพื่อไม่ให้อีเมลท่วม (ตามแนวทางเดียวกับ listUsersWithPermission)
+ */
+export async function listClubPermissionHolders(
+  clubId: string,
+  clubPermission: string,
+  excludeUserId: string | null,
+  db: Queryable,
+): Promise<Recipient[]> {
+  const result = await db.query<Recipient>(
+    `SELECT DISTINCT u.id AS "userId", u.email, u.name
+       FROM club_committee_members cm
+       JOIN club_position_permissions pp ON pp.position_id = cm.position_id
+       JOIN club_permissions p ON p.id = pp.club_permission_id AND p.code = $2
+       JOIN users u ON u.id = cm.user_id AND u.is_active
+      WHERE cm.club_id = $1 AND cm.ended_on IS NULL
+        AND ($3::uuid IS NULL OR u.id <> $3)
+      LIMIT 50`,
+    [clubId, clubPermission, excludeUserId],
+  );
+  return result.rows;
+}
+
+export interface MembershipNotice {
+  clubId: string;
+  clubName: string;
+  member: Recipient;
+  memberActive: boolean;
+}
+
+// ข้อมูลประกอบอีเมลเรื่องสมาชิกภาพ (ชื่อชมรม + เจ้าของสมาชิกภาพ)
+export async function getMembershipNotice(membershipId: string, db: Queryable): Promise<MembershipNotice | null> {
+  const result = await db.query<{ clubId: string; clubName: string; userId: string; email: string; name: string | null; isActive: boolean }>(
+    `SELECT c.id AS "clubId", c.name_th AS "clubName", u.id AS "userId", u.email, u.name, u.is_active AS "isActive"
+       FROM club_memberships m
+       JOIN clubs c ON c.id = m.club_id
+       JOIN users u ON u.id = m.user_id
+      WHERE m.id = $1`,
+    [membershipId],
+  );
+  const row = result.rows[0];
+  if (!row) return null;
+  return {
+    clubId: row.clubId,
+    clubName: row.clubName,
+    member: { userId: row.userId, email: row.email, name: row.name },
+    memberActive: row.isActive,
+  };
+}

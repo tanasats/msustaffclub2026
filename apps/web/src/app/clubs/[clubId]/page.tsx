@@ -189,6 +189,10 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
           </Bento>
         )}
 
+        <div className={requests ? '' : 'lg:col-start-3 lg:row-start-2'}>
+          <MembershipPanel club={club} eligible={current.profile.type === 'staff'} isPresident={presidentId === myId} />
+        </div>
+
         {resignations && resignations.items.length > 0 && (
           <Bento className="lg:col-span-2">
             <BentoTitle className="mb-1">คำขอลาออกที่รอรับทราบ ({resignations.items.length})</BentoTitle>
@@ -214,9 +218,6 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
           </Bento>
         )}
 
-        <div className={requests ? '' : 'lg:col-start-3 lg:row-start-2'}>
-          <MembershipPanel club={club} eligible={current.profile.type === 'staff'} isPresident={presidentId === myId} />
-        </div>
 
         {/* กรรมการสูง 2 แถว ให้กล่องที่ปรึกษาอยู่คอลัมน์ขวาใต้กล่องสมาชิกภาพ ไม่ตกไปขึ้นแถวใหม่ */}
         <Bento className="lg:col-span-2 lg:row-span-2">

@@ -7,6 +7,10 @@ export const NOTIFICATION_EVENTS = {
   APPLICATION_RESULT: 'application_result',
   APPLICATION_QUEUE: 'application_queue',
   MONTHLY_REPORT_SUBMITTED: 'monthly_report_submitted',
+  MEMBERSHIP_APPLIED: 'membership_applied',
+  MEMBERSHIP_DECIDED: 'membership_decided',
+  MEMBERSHIP_INVITED: 'membership_invited',
+  RESIGNATION_REQUESTED: 'resignation_requested',
 } as const;
 
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[keyof typeof NOTIFICATION_EVENTS];
@@ -19,6 +23,10 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, { label: string;
   application_result: { label: 'คำขอถูกส่งกลับแก้ไข / อนุมัติ / ไม่อนุมัติ', recipients: 'ผู้ยื่นคำขอ' },
   application_queue: { label: 'มีคำขอรอตรวจ / รออนุมัติ', recipients: 'ผู้มีสิทธิ์ตรวจ หรืออนุมัติคำขอ' },
   monthly_report_submitted: { label: 'ชมรมส่งรายงานประจำเดือน', recipients: 'ที่ปรึกษาชมรม' },
+  membership_applied: { label: 'มีผู้สมัครเป็นสมาชิกชมรม', recipients: 'กรรมการที่อนุมัติสมาชิกได้' },
+  membership_decided: { label: 'ผลการพิจารณาใบสมัครสมาชิก', recipients: 'ผู้สมัคร' },
+  membership_invited: { label: 'ได้รับคำเชิญเข้าชมรม', recipients: 'ผู้ถูกเชิญ' },
+  resignation_requested: { label: 'สมาชิกยื่นลาออกจากชมรม', recipients: 'กรรมการที่อนุมัติสมาชิกได้' },
 };
 
 export const ALL_NOTIFICATION_EVENTS = Object.values(NOTIFICATION_EVENTS);

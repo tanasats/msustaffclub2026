@@ -40,6 +40,7 @@ import { canManageDeleted, collectSubmissionIssues, notFound } from './club-appl
 import { isEligibleForClub, PRESIDENT_POSITION_CODE } from './club-rules.js';
 import { bangkokDateString, fiscalYearRange } from './fiscal-year.js';
 import { endCurrentAdvisors, updateClubFromRenewal } from '../repositories/renewals-repository.js';
+import { countMyInvitations } from '../repositories/memberships-repository.js';
 import {
   notifyAdvisorResponded,
   notifyAdvisorsNominated,
@@ -239,8 +240,13 @@ export async function listMyPresidentNominations(auth: AuthContext): Promise<Pre
 }
 
 // ต้อง login เท่านั้น: ตัวเลขของตัวผู้ใช้เอง
-export async function getMyNominationSummary(auth: AuthContext): Promise<{ pendingPresident: number }> {
-  return { pendingPresident: await countPendingPresidentNominations(auth.user.id) };
+// pendingPresident: ถูกเสนอเป็นประธานและรอตอบ, clubInvitations: คำเชิญเข้าชมรมที่รอตอบ
+export async function getMyNominationSummary(auth: AuthContext): Promise<{ pendingPresident: number; clubInvitations: number }> {
+  const [pendingPresident, clubInvitations] = await Promise.all([
+    countPendingPresidentNominations(auth.user.id),
+    countMyInvitations(auth.user.id),
+  ]);
+  return { pendingPresident, clubInvitations };
 }
 
 export async function listMyAdvisorRequests(auth: AuthContext): Promise<AdvisorRequestItem[]> {

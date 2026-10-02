@@ -1,6 +1,6 @@
 // รูปแบบข้อมูลจาก API รายชื่อ/ข้อมูลรายบุคคลของสมาชิก (ต้องตรงกับ apps/api/src/repositories/club-members-repository.ts)
 
-export type MembershipStatus = 'pending' | 'active' | 'rejected' | 'ended' | 'withdrawn' | 'deleted';
+export type MembershipStatus = 'pending' | 'active' | 'rejected' | 'ended' | 'withdrawn' | 'deleted' | 'invited' | 'declined';
 
 export const MEMBERSHIP_STATUS_LABELS: Record<MembershipStatus, string> = {
   pending: 'รออนุมัติ',
@@ -9,6 +9,8 @@ export const MEMBERSHIP_STATUS_LABELS: Record<MembershipStatus, string> = {
   ended: 'พ้นสภาพ',
   withdrawn: 'ยกเลิกใบสมัคร',
   deleted: 'ลบแล้ว',
+  invited: 'รอตอบคำเชิญ',
+  declined: 'ปฏิเสธคำเชิญ',
 };
 
 // เหตุพ้นสภาพ (ระเบียบข้อ 20) ต้องตรงกับ end_reason ใน club_memberships
@@ -32,7 +34,39 @@ export const MEMBERSHIP_ACTION_LABELS: Record<string, string> = {
   resign_cancelled: 'ยกเลิกคำขอลาออก',
   deleted: 'ลบรายชื่อ (บันทึกผิด)',
   restored: 'กู้คืนรายชื่อ',
+  invited: 'ได้รับคำเชิญ',
+  invite_accepted: 'ตอบรับคำเชิญ',
+  invite_declined: 'ปฏิเสธคำเชิญ',
+  invite_cancelled: 'กรรมการยกเลิกคำเชิญ',
 };
+
+export interface Invitation {
+  membershipId: string;
+  clubId: string;
+  clubName: string;
+  userId: string;
+  name: string | null;
+  email: string;
+  orgUnitName: string | null;
+  invitedByName: string | null;
+  invitedAt: string;
+}
+
+export interface MemberSummary {
+  fiscalYear: number;
+  counts: {
+    active: number;
+    committee: number;
+    pendingApplications: number;
+    pendingInvitations: number;
+    pendingResignations: number;
+    joinedLast30Days: number;
+    joinedThisFiscalYear: number;
+    endedThisFiscalYear: number;
+  };
+  byOrgUnit: { orgUnitName: string | null; count: number }[];
+  monthly: { month: string; joined: number; left: number }[];
+}
 
 export interface ResignationRequest {
   membershipId: string;

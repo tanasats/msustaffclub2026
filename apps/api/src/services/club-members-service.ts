@@ -1,6 +1,9 @@
 import { AppError } from '../errors.js';
 import {
+  countActiveMembersByOrgUnit,
+  countMonthlyMemberFlow,
   findMemberPerson,
+  getMemberSummaryCounts,
   insertMemberExportLog,
   MEMBER_EXPORT_LIMIT,
   listMemberAchievements,
@@ -14,6 +17,7 @@ import {
 import type { AuthContext } from './authorization.js';
 import { canManageDeletedMemberships } from './membership-service.js';
 import { toCsv } from './csv.js';
+import { fiscalYearOf, fiscalYearRange } from './fiscal-year.js';
 
 // รายชื่อสมาชิกและข้อมูลรายบุคคล — route ตรวจสิทธิ์ชมรม club:view_internal ด้วย requireClubPermission แล้ว
 
@@ -98,4 +102,16 @@ export async function exportMembers(auth: AuthContext, clubId: string, filter: M
     rowCount: items.length,
   });
   return csv;
+}
+
+// สรุปสมาชิกของชมรม (ปีงบประมาณปัจจุบัน) — route ตรวจสิทธิ์ชมรม club:view_internal แล้ว
+export async function getMemberSummary(clubId: string) {
+  const fiscalYear = fiscalYearOf();
+  const { start, end } = fiscalYearRange(fiscalYear);
+  const [counts, byOrgUnit, monthly] = await Promise.all([
+    getMemberSummaryCounts(clubId, start, end),
+    countActiveMembersByOrgUnit(clubId),
+    countMonthlyMemberFlow(clubId),
+  ]);
+  return { fiscalYear, counts, byOrgUnit, monthly };
 }

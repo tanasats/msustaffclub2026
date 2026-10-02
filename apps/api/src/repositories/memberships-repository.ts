@@ -1,6 +1,6 @@
 import { pool, type Queryable } from '../db/pool.js';
 
-export type MembershipStatus = 'pending' | 'active' | 'rejected' | 'ended' | 'withdrawn' | 'deleted';
+export type MembershipStatus = 'pending' | 'active' | 'rejected' | 'ended' | 'withdrawn' | 'deleted' | 'invited' | 'declined';
 export type MembershipAction =
   | 'applied'
   | 'withdrawn'
@@ -11,7 +11,11 @@ export type MembershipAction =
   | 'resign_requested'
   | 'resign_cancelled'
   | 'deleted'
-  | 'restored';
+  | 'restored'
+  | 'invited'
+  | 'invite_accepted'
+  | 'invite_declined'
+  | 'invite_cancelled';
 export type MembershipEndReason =
   | 'resigned'
   | 'left_university'
@@ -38,11 +42,11 @@ export async function insertPendingMembership(clubId: string, userId: string, db
   return result.rows[0]!.id;
 }
 
-// ใบสมัคร/สมาชิกภาพที่ยังมีผลของผู้ใช้ในชมรม พร้อมล็อกแถว (มีได้ไม่เกิน 1 แถวตาม partial unique index)
+// ใบสมัคร/คำเชิญ/สมาชิกภาพที่ยังมีผลของผู้ใช้ในชมรม พร้อมล็อกแถว (มีได้ไม่เกิน 1 แถวตาม partial unique index)
 export async function lockCurrentMembership(clubId: string, userId: string, db: Queryable): Promise<MembershipRecord | null> {
   const result = await db.query<MembershipRecord>(
     `SELECT ${COLUMNS} FROM club_memberships
-      WHERE club_id = $1 AND user_id = $2 AND status IN ('pending', 'active')
+      WHERE club_id = $1 AND user_id = $2 AND status IN ('pending', 'active', 'invited')
       FOR UPDATE`,
     [clubId, userId],
   );
@@ -90,14 +94,16 @@ export async function endMembership(
   );
 }
 
+// คืน id ของ event (ใช้เป็นตัวระบุเหตุการณ์ของอีเมลแจ้งเตือน)
 export async function insertMembershipEvent(
   input: { membershipId: string; actorUserId: string | null; action: MembershipAction; note: string | null },
   db: Queryable,
-): Promise<void> {
-  await db.query(
-    `INSERT INTO club_membership_events (membership_id, actor_user_id, action, note) VALUES ($1, $2, $3, $4)`,
+): Promise<string> {
+  const result = await db.query<{ id: string }>(
+    `INSERT INTO club_membership_events (membership_id, actor_user_id, action, note) VALUES ($1, $2, $3, $4) RETURNING id`,
     [input.membershipId, input.actorUserId, input.action, input.note],
   );
+  return result.rows[0]!.id;
 }
 
 // เป็นกรรมการชุดปัจจุบันของชมรมหรือไม่ (ใช้ partial index club_committee_members_current_idx)
@@ -285,4 +291,102 @@ export async function restoreMembership(membershipId: string, db: Queryable): Pr
     [membershipId],
   );
   return result.rows[0]?.status ?? null;
+}
+
+// ---------- คำเชิญเข้าชมรม ----------
+
+// เชิญ (ถ้ามีใบสมัคร/คำเชิญ/สมาชิกภาพที่ยังมีผลอยู่แล้ว จะชน partial unique index → 23505)
+export async function insertInvitation(clubId: string, userId: string, invitedBy: string, db: Queryable): Promise<string> {
+  const result = await db.query<{ id: string }>(
+    `INSERT INTO club_memberships (club_id, user_id, status, invited_by) VALUES ($1, $2, 'invited', $3) RETURNING id`,
+    [clubId, userId, invitedBy],
+  );
+  return result.rows[0]!.id;
+}
+
+/**
+ * ตอบคำเชิญ: ตอบรับ → active (ผู้อนุมัติ = ผู้เชิญ เพราะกรรมการเป็นผู้เชิญเอง) / ปฏิเสธ → declined
+ * กรรมการยกเลิกคำเชิญ → withdrawn — ทุกกรณีต้องยังเป็น invited อยู่ (เงื่อนไขใน WHERE กันทำซ้ำ)
+ */
+export async function resolveInvitation(
+  membershipId: string,
+  outcome: 'accepted' | 'declined' | 'cancelled',
+  db: Queryable,
+): Promise<boolean> {
+  const sql = {
+    accepted: `UPDATE club_memberships SET status = 'active', decided_by = invited_by, decided_at = now() WHERE id = $1 AND status = 'invited'`,
+    declined: `UPDATE club_memberships SET status = 'declined' WHERE id = $1 AND status = 'invited'`,
+    cancelled: `UPDATE club_memberships SET status = 'withdrawn' WHERE id = $1 AND status = 'invited'`,
+  }[outcome];
+  const result = await db.query(sql, [membershipId]);
+  return (result.rowCount ?? 0) > 0;
+}
+
+export interface InvitationRow {
+  membershipId: string;
+  clubId: string;
+  clubName: string;
+  userId: string;
+  name: string | null;
+  email: string;
+  orgUnitName: string | null;
+  invitedByName: string | null;
+  invitedAt: Date;
+}
+
+const INVITATION_SELECT = `
+  SELECT m.id AS "membershipId", m.club_id AS "clubId", c.name_th AS "clubName",
+         m.user_id AS "userId", u.name, u.email, ou.name_th AS "orgUnitName",
+         iv.name AS "invitedByName", m.applied_at AS "invitedAt"
+    FROM club_memberships m
+    JOIN clubs c ON c.id = m.club_id AND c.deleted_at IS NULL
+    JOIN users u ON u.id = m.user_id
+    LEFT JOIN users iv ON iv.id = m.invited_by
+    LEFT JOIN staff_profiles sp ON sp.user_id = u.id
+    LEFT JOIN org_units ou ON ou.id = sp.org_unit_id`;
+
+// คำเชิญที่รอตอบของชมรม (สำหรับกรรมการ)
+export async function listClubInvitations(clubId: string, db: Queryable = pool): Promise<InvitationRow[]> {
+  const result = await db.query<InvitationRow>(
+    `${INVITATION_SELECT} WHERE m.club_id = $1 AND m.status = 'invited' ORDER BY m.applied_at LIMIT 200`,
+    [clubId],
+  );
+  return result.rows;
+}
+
+// คำเชิญที่รอฉันตอบ (ทุกชมรมที่ยังดำเนินการอยู่) ใช้ index club_memberships_invited_user_idx
+export async function listMyInvitations(userId: string, db: Queryable = pool): Promise<InvitationRow[]> {
+  const result = await db.query<InvitationRow>(
+    `${INVITATION_SELECT} WHERE m.user_id = $1 AND m.status = 'invited' AND c.status = 'active' ORDER BY m.applied_at DESC LIMIT 50`,
+    [userId],
+  );
+  return result.rows;
+}
+
+export async function countMyInvitations(userId: string, db: Queryable = pool): Promise<number> {
+  const result = await db.query<{ count: number }>(
+    `SELECT count(*)::int AS count FROM club_memberships m
+       JOIN clubs c ON c.id = m.club_id AND c.deleted_at IS NULL AND c.status = 'active'
+      WHERE m.user_id = $1 AND m.status = 'invited'`,
+    [userId],
+  );
+  return result.rows[0]?.count ?? 0;
+}
+
+// คำเชิญที่รอฉันตอบในชมรมนี้ (แสดงที่หน้าชมรม)
+export async function findMyInvitation(
+  clubId: string,
+  userId: string,
+  db: Queryable = pool,
+): Promise<{ invitedAt: Date; invitedByName: string | null; note: string | null } | null> {
+  const result = await db.query<{ invitedAt: Date; invitedByName: string | null; note: string | null }>(
+    `SELECT m.applied_at AS "invitedAt", iv.name AS "invitedByName",
+            (SELECT e.note FROM club_membership_events e
+              WHERE e.membership_id = m.id AND e.action = 'invited' ORDER BY e.created_at DESC LIMIT 1) AS note
+       FROM club_memberships m
+       LEFT JOIN users iv ON iv.id = m.invited_by
+      WHERE m.club_id = $1 AND m.user_id = $2 AND m.status = 'invited'`,
+    [clubId, userId],
+  );
+  return result.rows[0] ?? null;
 }

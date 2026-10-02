@@ -15,6 +15,10 @@ import {
   lockCurrentMembership,
   lockMembership,
   requestResignation,
+  resolveInvitation,
+  insertInvitation,
+  listClubInvitations,
+  listMyInvitations,
   restoreMembership,
   softDeleteMembership,
   withdrawMembership,
@@ -27,6 +31,12 @@ import { hasMemberRecords } from '../repositories/club-members-repository.js';
 import { findUserSummariesByIds } from '../repositories/users-repository.js';
 import { hasPermission, type AuthContext } from './authorization.js';
 import { PERMISSIONS } from './permissions.js';
+import {
+  notifyMembershipApplied,
+  notifyMembershipDecided,
+  notifyMembershipInvited,
+  notifyResignationRequested,
+} from './notification-service.js';
 import { hasClubPermission } from './club-authorization.js';
 import { CLUB_PERMISSIONS } from './club-permissions.js';
 import { isEligibleForClub } from './club-rules.js';
@@ -70,7 +80,11 @@ export async function applyForMembership(auth: AuthContext, clubId: string): Pro
     await assertClubActive(clubId, client);
     const current = await lockCurrentMembership(clubId, auth.user.id, client);
     if (current) {
-      throw new AppError(409, 'ALREADY_APPLIED', current.status === 'active' ? 'คุณเป็นสมาชิกชมรมนี้อยู่แล้ว' : 'คุณสมัครชมรมนี้ไว้แล้ว รอกรรมการอนุมัติ');
+      const messages = {
+        active: 'คุณเป็นสมาชิกชมรมนี้อยู่แล้ว',
+        invited: 'คุณได้รับคำเชิญจากชมรมนี้แล้ว กรุณาตอบรับคำเชิญแทนการสมัคร',
+      } as Record<string, string>;
+      throw new AppError(409, current.status === 'invited' ? 'ALREADY_INVITED' : 'ALREADY_APPLIED', messages[current.status] ?? 'คุณสมัครชมรมนี้ไว้แล้ว รอกรรมการอนุมัติ');
     }
     let membershipId: string;
     try {
@@ -82,7 +96,8 @@ export async function applyForMembership(auth: AuthContext, clubId: string): Pro
       }
       throw err;
     }
-    await insertMembershipEvent({ membershipId, actorUserId: auth.user.id, action: 'applied', note: null }, client);
+    const eventId = await insertMembershipEvent({ membershipId, actorUserId: auth.user.id, action: 'applied', note: null }, client);
+    await notifyMembershipApplied(client, membershipId, eventId);
   });
 }
 
@@ -111,7 +126,8 @@ export async function leaveClub(auth: AuthContext, clubId: string, note: string)
     if (!(await requestResignation(current.id, note, client))) {
       throw new AppError(409, 'RESIGNATION_ALREADY_REQUESTED', 'คุณยื่นลาออกไว้แล้ว รอกรรมการรับทราบ');
     }
-    await insertMembershipEvent({ membershipId: current.id, actorUserId: auth.user.id, action: 'resign_requested', note }, client);
+    const eventId = await insertMembershipEvent({ membershipId: current.id, actorUserId: auth.user.id, action: 'resign_requested', note }, client);
+    await notifyResignationRequested(client, current.id, note, eventId);
   });
 }
 
@@ -223,7 +239,8 @@ export async function approveMembership(auth: AuthContext, clubId: string, membe
       throw new AppError(409, 'INVALID_STATUS', 'ใบสมัครนี้ไม่ได้อยู่ในสถานะรออนุมัติ');
     }
     await decideMembership(membershipId, 'active', auth.user.id, client);
-    await insertMembershipEvent({ membershipId, actorUserId: auth.user.id, action: 'approved', note: null }, client);
+    const eventId = await insertMembershipEvent({ membershipId, actorUserId: auth.user.id, action: 'approved', note: null }, client);
+    await notifyMembershipDecided(client, membershipId, 'approved', null, eventId);
   });
 }
 
@@ -234,7 +251,8 @@ export async function rejectMembership(auth: AuthContext, clubId: string, member
       throw new AppError(409, 'INVALID_STATUS', 'ใบสมัครนี้ไม่ได้อยู่ในสถานะรออนุมัติ');
     }
     await decideMembership(membershipId, 'rejected', auth.user.id, client);
-    await insertMembershipEvent({ membershipId, actorUserId: auth.user.id, action: 'rejected', note }, client);
+    const eventId = await insertMembershipEvent({ membershipId, actorUserId: auth.user.id, action: 'rejected', note }, client);
+    await notifyMembershipDecided(client, membershipId, 'rejected', note, eventId);
   });
 }
 
@@ -319,4 +337,75 @@ export async function restoreDeletedMembership(auth: AuthContext, clubId: string
     if (!restored) throw new AppError(409, 'MEMBERSHIP_NOT_DELETED', 'รายการนี้ไม่ได้ถูกลบ');
     await insertMembershipEvent({ membershipId, actorUserId: auth.user.id, action: 'restored', note }, client);
   });
+}
+
+// ---------- คำเชิญเข้าชมรม ----------
+
+/**
+ * กรรมการ (club_member:approve) เชิญบุคลากรเป็นสมาชิก → ผู้ถูกเชิญตอบรับเอง (ไม่เพิ่มชื่อโดยเจ้าตัวไม่รู้ — PDPA)
+ * ผู้ถูกเชิญต้องเคยเข้าสู่ระบบ ยังใช้งานได้ เป็นบุคลากร และยังไม่มีใบสมัคร/คำเชิญ/สมาชิกภาพในชมรมนี้
+ */
+export async function inviteMember(auth: AuthContext, clubId: string, userId: string, note: string | null): Promise<void> {
+  if (!(await hasClubPermission(auth, clubId, CLUB_PERMISSIONS.MEMBER_APPROVE))) {
+    throw new AppError(403, 'FORBIDDEN', 'ไม่มีสิทธิ์จัดการสมาชิกของชมรมนี้');
+  }
+  if (userId === auth.user.id) throw new AppError(422, 'CANNOT_INVITE_SELF', 'เชิญตัวเองไม่ได้');
+  await withTransaction(async (client) => {
+    await assertClubActive(clubId, client);
+    const [user] = await findUserSummariesByIds([userId], client);
+    if (!user || !user.isActive) throw new AppError(422, 'USER_NOT_FOUND', 'ไม่พบผู้ใช้ (ต้องเคยเข้าสู่ระบบแล้ว)');
+    if (!isEligibleForClub(user.email)) throw new AppError(422, 'USER_NOT_ELIGIBLE', 'เชิญได้เฉพาะบุคลากรของมหาวิทยาลัย');
+    const current = await lockCurrentMembership(clubId, userId, client);
+    if (current) {
+      throw new AppError(409, 'ALREADY_RELATED', 'ผู้ใช้นี้เป็นสมาชิก มีใบสมัคร หรือได้รับคำเชิญจากชมรมนี้อยู่แล้ว');
+    }
+    let membershipId: string;
+    try {
+      membershipId = await insertInvitation(clubId, userId, auth.user.id, client);
+    } catch (err) {
+      if ((err as { code?: string }).code === '23505') {
+        throw new AppError(409, 'ALREADY_RELATED', 'ผู้ใช้นี้เป็นสมาชิก มีใบสมัคร หรือได้รับคำเชิญจากชมรมนี้อยู่แล้ว');
+      }
+      throw err;
+    }
+    const eventId = await insertMembershipEvent({ membershipId, actorUserId: auth.user.id, action: 'invited', note }, client);
+    await notifyMembershipInvited(client, membershipId, auth.user.name ?? auth.user.email, eventId);
+  });
+}
+
+// ผู้ถูกเชิญตอบรับ (เป็นสมาชิกทันที) หรือปฏิเสธ — ต้อง login เท่านั้น ทำได้กับคำเชิญของตัวเอง
+export async function respondToInvitation(auth: AuthContext, clubId: string, decision: 'accept' | 'decline'): Promise<void> {
+  await withTransaction(async (client) => {
+    const current = await lockCurrentMembership(clubId, auth.user.id, client);
+    if (!current || current.status !== 'invited') {
+      throw new AppError(404, 'INVITATION_NOT_FOUND', 'ไม่พบคำเชิญที่รอคุณตอบ');
+    }
+    if (decision === 'accept') await assertClubActive(clubId, client);
+    await resolveInvitation(current.id, decision === 'accept' ? 'accepted' : 'declined', client);
+    await insertMembershipEvent(
+      { membershipId: current.id, actorUserId: auth.user.id, action: decision === 'accept' ? 'invite_accepted' : 'invite_declined', note: null },
+      client,
+    );
+  });
+}
+
+// กรรมการยกเลิกคำเชิญที่ยังไม่ได้ตอบ
+export async function cancelInvitation(auth: AuthContext, clubId: string, membershipId: string): Promise<void> {
+  await withTransaction(async (client) => {
+    const membership = await lockForDecision(auth, clubId, membershipId, client);
+    if (membership.status !== 'invited' || !(await resolveInvitation(membershipId, 'cancelled', client))) {
+      throw new AppError(409, 'INVALID_STATUS', 'คำเชิญนี้ไม่ได้รอตอบแล้ว');
+    }
+    await insertMembershipEvent({ membershipId, actorUserId: auth.user.id, action: 'invite_cancelled', note: null }, client);
+  });
+}
+
+// คำเชิญที่รอตอบของชมรม — route ตรวจสิทธิ์ชมรม club_member:approve แล้ว
+export async function listInvitations(clubId: string) {
+  return { items: await listClubInvitations(clubId) };
+}
+
+// คำเชิญที่รอฉันตอบ — ต้อง login เท่านั้น (ข้อมูลของตัวเอง)
+export async function getMyInvitations(auth: AuthContext) {
+  return { items: await listMyInvitations(auth.user.id) };
 }

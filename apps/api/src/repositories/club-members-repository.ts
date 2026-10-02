@@ -279,3 +279,88 @@ export async function hasMemberRecords(clubId: string, userId: string, db: Query
   );
   return result.rows[0]?.exists ?? false;
 }
+
+// ---------- สรุปสมาชิก ----------
+
+export interface MemberSummaryCounts {
+  active: number;
+  committee: number;
+  pendingApplications: number;
+  pendingInvitations: number;
+  pendingResignations: number;
+  joinedLast30Days: number;
+  joinedThisFiscalYear: number;
+  endedThisFiscalYear: number;
+}
+
+/**
+ * ตัวเลขสรุปสมาชิกของชมรม (คำสั่งเดียว ใช้ FILTER นับหลายเงื่อนไขพร้อมกันจากการอ่านตารางรอบเดียว)
+ * วันที่เข้าเป็นสมาชิก = decided_at (อนุมัติ/ตอบรับคำเชิญ) เทียบเป็นวันตามเวลาประเทศไทย
+ */
+export async function getMemberSummaryCounts(
+  clubId: string,
+  fiscalStart: string,
+  fiscalEnd: string,
+  db: Queryable = pool,
+): Promise<MemberSummaryCounts> {
+  const result = await db.query<MemberSummaryCounts>(
+    `SELECT count(*) FILTER (WHERE m.status = 'active')::int AS active,
+            (SELECT count(*)::int FROM club_committee_members cm WHERE cm.club_id = $1 AND cm.ended_on IS NULL) AS committee,
+            count(*) FILTER (WHERE m.status = 'pending')::int AS "pendingApplications",
+            count(*) FILTER (WHERE m.status = 'invited')::int AS "pendingInvitations",
+            count(*) FILTER (WHERE m.status = 'active' AND m.resign_requested_at IS NOT NULL)::int AS "pendingResignations",
+            count(*) FILTER (WHERE m.status IN ('active', 'ended') AND m.decided_at >= now() - interval '30 days')::int AS "joinedLast30Days",
+            count(*) FILTER (WHERE m.status IN ('active', 'ended')
+                               AND (m.decided_at AT TIME ZONE 'Asia/Bangkok')::date BETWEEN $2::date AND $3::date)::int AS "joinedThisFiscalYear",
+            count(*) FILTER (WHERE m.status = 'ended' AND m.ended_on BETWEEN $2::date AND $3::date)::int AS "endedThisFiscalYear"
+       FROM club_memberships m
+      WHERE m.club_id = $1`,
+    [clubId, fiscalStart, fiscalEnd],
+  );
+  return result.rows[0]!;
+}
+
+// สมาชิก active แยกตามหน่วยงาน (มากสุดก่อน 8 อันดับ ที่เหลือรวมเป็น "อื่น ๆ" ที่ฝั่งแสดงผล)
+export async function countActiveMembersByOrgUnit(clubId: string, db: Queryable = pool): Promise<{ orgUnitName: string | null; count: number }[]> {
+  const result = await db.query<{ orgUnitName: string | null; count: number }>(
+    `SELECT ou.name_th AS "orgUnitName", count(*)::int AS count
+       FROM club_memberships m
+       LEFT JOIN staff_profiles sp ON sp.user_id = m.user_id
+       LEFT JOIN org_units ou ON ou.id = sp.org_unit_id
+      WHERE m.club_id = $1 AND m.status = 'active'
+      GROUP BY ou.name_th
+      ORDER BY count DESC, ou.name_th NULLS LAST
+      LIMIT 8`,
+    [clubId],
+  );
+  return result.rows;
+}
+
+/**
+ * สมาชิกเข้า/ออกรายเดือน ย้อนหลัง 12 เดือน (รวมเดือนปัจจุบัน) ตามเวลาประเทศไทย
+ * generate_series สร้างเดือนให้ครบแม้เดือนนั้นไม่มีความเคลื่อนไหว
+ */
+export async function countMonthlyMemberFlow(
+  clubId: string,
+  db: Queryable = pool,
+): Promise<{ month: string; joined: number; left: number }[]> {
+  const result = await db.query<{ month: string; joined: number; left: number }>(
+    `WITH months AS (
+       SELECT generate_series(
+                date_trunc('month', (now() AT TIME ZONE 'Asia/Bangkok')) - interval '11 months',
+                date_trunc('month', (now() AT TIME ZONE 'Asia/Bangkok')),
+                interval '1 month')::date AS month
+     )
+     SELECT to_char(mo.month, 'YYYY-MM') AS month,
+            (SELECT count(*)::int FROM club_memberships m
+              WHERE m.club_id = $1 AND m.status IN ('active', 'ended')
+                AND date_trunc('month', m.decided_at AT TIME ZONE 'Asia/Bangkok')::date = mo.month) AS joined,
+            (SELECT count(*)::int FROM club_memberships m
+              WHERE m.club_id = $1 AND m.status = 'ended'
+                AND date_trunc('month', m.ended_on)::date = mo.month) AS "left"
+       FROM months mo
+      ORDER BY mo.month`,
+    [clubId],
+  );
+  return result.rows;
+}

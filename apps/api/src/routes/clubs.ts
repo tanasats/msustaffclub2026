@@ -5,7 +5,7 @@ import { PERMISSIONS } from '../services/permissions.js';
 import { CLUB_PERMISSIONS } from '../services/club-permissions.js';
 import { getClubLogoUrl, setClubLogo } from '../services/club-logo-service.js';
 import { getClubPage, listClubDirectory } from '../services/club-service.js';
-import { exportMembers, getMemberProfile, listMembers } from '../services/club-members-service.js';
+import { exportMembers, getMemberProfile, getMemberSummary, listMembers } from '../services/club-members-service.js';
 import { createRenewal, getRenewalStatus } from '../services/renewal-service.js';
 import {
   appointCommitteeMember,
@@ -19,7 +19,12 @@ import {
   acknowledgeResignation,
   applyForMembership,
   approveMembership,
+  cancelInvitation,
   cancelLeaveRequest,
+  getMyInvitations,
+  inviteMember,
+  listInvitations,
+  respondToInvitation,
   deleteMembership,
   restoreDeletedMembership,
   leaveClub,
@@ -58,6 +63,8 @@ clubsRouter.get('/clubs/:clubId', requireAuth, async (req, res) => {
   res.json(await getClubPage(getRequiredAuth(req), parseIdParam(req.params.clubId, 'CLUB_NOT_FOUND', 'ไม่พบชมรม')));
 });
 
+const inviteSchema = z.object({ userId: z.uuid(), note: optionalText(1000).optional() }).strict();
+const invitationResponseSchema = z.object({ decision: z.enum(['accept', 'decline']) }).strict();
 const memberListSchema = pageSchema.extend({
   q: z.string().trim().max(100).optional().transform((value) => value || null),
   // deleted ต้องมี club_membership:manage_deleted (ตรวจใน service)
@@ -86,6 +93,51 @@ clubsRouter.get(
     res.send(csv);
   },
 );
+
+// ต้องมีสิทธิ์ชมรม club:view_internal: สรุปสมาชิก (จำนวนตามสถานะ เข้า/ออกรายเดือน หน่วยงาน) — ประกาศก่อน /members/:userId
+clubsRouter.get(
+  '/clubs/:clubId/members/summary',
+  requireAuth,
+  requireClubPermission(CLUB_PERMISSIONS.VIEW_INTERNAL),
+  async (req, res) => {
+    res.json(await getMemberSummary(req.params.clubId as string));
+  },
+);
+
+// ต้องมีสิทธิ์ชมรม club_member:approve: คำเชิญที่รอตอบของชมรม
+clubsRouter.get(
+  '/clubs/:clubId/invitations',
+  requireAuth,
+  requireClubPermission(CLUB_PERMISSIONS.MEMBER_APPROVE),
+  async (req, res) => {
+    res.json(await listInvitations(req.params.clubId as string));
+  },
+);
+
+// ต้องมีสิทธิ์ชมรม club_member:approve (ตรวจใน service): เชิญบุคลากรเป็นสมาชิก
+clubsRouter.post('/clubs/:clubId/invitations', requireAuth, async (req, res) => {
+  const { userId, note } = inviteSchema.parse(req.body);
+  await inviteMember(getRequiredAuth(req), clubIdOf(req.params.clubId), userId, note ?? null);
+  res.status(204).end();
+});
+
+// ต้องมีสิทธิ์ชมรม club_member:approve (ตรวจใน service): ยกเลิกคำเชิญที่ยังไม่ได้ตอบ
+clubsRouter.post('/clubs/:clubId/memberships/:membershipId/cancel-invitation', requireAuth, async (req, res) => {
+  await cancelInvitation(getRequiredAuth(req), clubIdOf(req.params.clubId), membershipIdOf(req.params.membershipId));
+  res.status(204).end();
+});
+
+// ต้อง login เท่านั้น: ตอบคำเชิญของตัวเอง (ตอบรับ = เป็นสมาชิกทันที)
+clubsRouter.post('/clubs/:clubId/membership/invitation', requireAuth, async (req, res) => {
+  const { decision } = invitationResponseSchema.parse(req.body);
+  await respondToInvitation(getRequiredAuth(req), clubIdOf(req.params.clubId), decision);
+  res.status(204).end();
+});
+
+// ต้อง login เท่านั้น: คำเชิญเข้าชมรมที่รอฉันตอบ
+clubsRouter.get('/me/club-invitations', requireAuth, async (req, res) => {
+  res.json(await getMyInvitations(getRequiredAuth(req)));
+});
 
 // ต้องมีสิทธิ์ชมรม club:view_internal: ข้อมูลรายบุคคลของสมาชิก (ผลงาน/กิจกรรม/ตำแหน่ง/ประวัติในชมรมนี้)
 clubsRouter.get(
