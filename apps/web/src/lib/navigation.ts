@@ -7,7 +7,8 @@ export interface NavItem {
   // ชื่อสั้นสำหรับแถบเมนูล่างบนมือถือ
   shortLabel: string;
   icon: IconName;
-  group: 'main' | 'admin';
+  // main = ใช้ทั่วไป, work = งานตามบทบาท (ที่ปรึกษา/เจ้าหน้าที่/กรรมการคัดเลือก), admin = ผู้ดูแลระบบ
+  group: 'main' | 'work' | 'admin';
   // จำนวนงานค้าง (แสดงเป็นตัวเลขบนเมนู) ไม่มี/0 = ไม่แสดง
   badge?: number;
 }
@@ -46,22 +47,22 @@ export function buildNavigation(current: CurrentUser): NavItem[] {
       label: 'งานที่ปรึกษาชมรม',
       shortLabel: 'ที่ปรึกษา',
       icon: 'leaf',
-      group: 'main',
+      group: 'work',
       badge: advisor.pendingConsents + advisor.reportsToAcknowledge,
     });
   }
   if (has('club_application:review') || has('club_application:approve') || has('club:read_all')) {
-    items.push({ href: '/club-applications/queue', label: 'ตรวจและอนุมัติคำขอ', shortLabel: 'อนุมัติ', icon: 'inbox', group: 'main' });
+    items.push({ href: '/club-applications/queue', label: 'ตรวจและอนุมัติคำขอ', shortLabel: 'อนุมัติ', icon: 'inbox', group: 'work' });
   }
   // กำกับติดตามคำขอทุกสถานะ (super_admin ผ่านทุกสิทธิ์)
   if (has('club:read_all')) {
     items.push({ href: '/club-applications/all', label: 'คำขอทั้งหมด', shortLabel: 'คำขอทั้งหมด', icon: 'scroll', group: 'admin' });
   }
   if (has('club_report:review')) {
-    items.push({ href: '/reports/overview', label: 'ภาพรวมการส่งรายงาน', shortLabel: 'รายงาน', icon: 'check', group: 'main' });
+    items.push({ href: '/reports/overview', label: 'ภาพรวมการส่งรายงาน', shortLabel: 'รายงาน', icon: 'check', group: 'work' });
   }
   if (has('sport_selection:manage')) {
-    items.push({ href: '/selections', label: 'การคัดเลือกนักกีฬา', shortLabel: 'คัดเลือก', icon: 'award', group: 'main' });
+    items.push({ href: '/selections', label: 'การคัดเลือกนักกีฬา', shortLabel: 'คัดเลือก', icon: 'award', group: 'work' });
   }
   // ต้อง login เท่านั้น: ประกาศผลคัดเลือก
   items.push({ href: '/announcements', label: 'ประกาศผลคัดเลือก', shortLabel: 'ประกาศ', icon: 'scroll', group: 'main' });
