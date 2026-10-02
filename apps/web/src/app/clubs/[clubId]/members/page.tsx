@@ -9,6 +9,7 @@ import { getCurrentUser } from '@/lib/auth';
 import type { ClubPage } from '@/lib/club-types';
 import { formatDate, formatTimestampDate } from '@/lib/format';
 import { MEMBERSHIP_END_REASON_LABELS, type MemberListItem } from '@/lib/member-types';
+import { publicEnv } from '@/lib/public-env';
 
 const PAGE_SIZE = 30;
 const STATUS_TABS = [
@@ -47,6 +48,11 @@ export default async function ClubMembersPage({ params, searchParams }: { params
     getCurrentUser(),
   ]);
   const canManage = club.me.permissions.includes('club_member:approve') && club.status === 'active';
+  // ส่งออกใช้ตัวกรองเดียวกับที่แสดง (ไม่รวมหน้า) — ดาวน์โหลดตรงจาก API พร้อม cookie ของผู้ใช้
+  const exportQuery = new URLSearchParams(query);
+  exportQuery.delete('page');
+  exportQuery.delete('pageSize');
+  const canExport = club.me.permissions.includes('club_member:approve');
   const totalPages = Math.max(1, Math.ceil(data.total / PAGE_SIZE));
   // สร้างลิงก์โดยคงตัวกรองเดิม แล้วเปลี่ยนเฉพาะค่าที่ระบุ
   const link = (changes: Partial<SearchParams>) => {
@@ -87,7 +93,20 @@ export default async function ClubMembersPage({ params, searchParams }: { params
             ค้นหา
           </button>
         </form>
-        <p className="text-sm text-stone">พบ {data.total.toLocaleString('th-TH')} คน</p>
+        <div className="flex flex-wrap items-center justify-between gap-2">
+          <p className="text-sm text-stone">พบ {data.total.toLocaleString('th-TH')} คน</p>
+          {canExport && data.total > 0 && (
+            <a href={`${publicEnv.apiUrl}/clubs/${club.id}/members/export?${exportQuery}`} className="btn btn-secondary !min-h-10 text-sm" download>
+              <Icon name="download" className="size-[1.125rem]" />
+              ส่งออก CSV ({data.total.toLocaleString('th-TH')} คน)
+            </a>
+          )}
+        </div>
+        {canExport && (
+          <p className="text-xs text-stone">
+            ไฟล์ที่ส่งออกมีข้อมูลส่วนบุคคล ใช้เพื่องานของชมรมเท่านั้น และระบบบันทึกทุกครั้งที่มีการส่งออก
+          </p>
+        )}
       </div>
 
       {data.items.length === 0 ? (

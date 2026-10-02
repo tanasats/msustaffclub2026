@@ -4,7 +4,7 @@ import { getRequiredAuth, requireAuth, requireClubPermission } from '../middlewa
 import { CLUB_PERMISSIONS } from '../services/club-permissions.js';
 import { getClubLogoUrl, setClubLogo } from '../services/club-logo-service.js';
 import { getClubPage, listClubDirectory } from '../services/club-service.js';
-import { getMemberProfile, listMembers } from '../services/club-members-service.js';
+import { exportMembers, getMemberProfile, listMembers } from '../services/club-members-service.js';
 import { createRenewal, getRenewalStatus } from '../services/renewal-service.js';
 import {
   appointCommitteeMember,
@@ -63,6 +63,22 @@ clubsRouter.get('/clubs/:clubId/members', requireAuth, requireClubPermission(CLU
   const { page, pageSize, q, status, role } = memberListSchema.parse(req.query);
   res.json(await listMembers({ clubId: req.params.clubId as string, query: q, status, role, page, pageSize }));
 });
+
+// ต้องมีสิทธิ์ชมรม club_member:approve: ส่งออกรายชื่อเป็น CSV ตามตัวกรอง (บันทึกการส่งออก) — ประกาศก่อน /members/:userId
+clubsRouter.get(
+  '/clubs/:clubId/members/export',
+  requireAuth,
+  requireClubPermission(CLUB_PERMISSIONS.MEMBER_APPROVE),
+  async (req, res) => {
+    const { q, status, role } = memberListSchema.parse(req.query);
+    const csv = await exportMembers(getRequiredAuth(req), req.params.clubId as string, { query: q, status, role });
+    const date = new Date().toLocaleDateString('sv-SE', { timeZone: 'Asia/Bangkok' });
+    res.setHeader('Content-Type', 'text/csv; charset=utf-8');
+    res.setHeader('Content-Disposition', `attachment; filename="club-members-${date}.csv"`);
+    res.setHeader('Cache-Control', 'no-store');
+    res.send(csv);
+  },
+);
 
 // ต้องมีสิทธิ์ชมรม club:view_internal: ข้อมูลรายบุคคลของสมาชิก (ผลงาน/กิจกรรม/ตำแหน่ง/ประวัติในชมรมนี้)
 clubsRouter.get(

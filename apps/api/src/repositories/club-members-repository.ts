@@ -218,3 +218,19 @@ export async function listMemberCompetitionResults(clubId: string, userId: strin
   );
   return result.rows;
 }
+
+// ---------- ส่งออก ----------
+
+// จำนวนแถวสูงสุดที่ส่งออกได้ต่อครั้ง (ชมรมบุคลากรมีสมาชิกไม่ถึงหลักพัน)
+export const MEMBER_EXPORT_LIMIT = 5000;
+
+// บันทึกการส่งออก (ไม่เก็บรายชื่อ เก็บเฉพาะตัวกรองและจำนวนแถว)
+export async function insertMemberExportLog(
+  input: { clubId: string; exportedBy: string; filter: Record<string, string | null>; rowCount: number },
+  db: Queryable = pool,
+): Promise<void> {
+  await db.query(
+    `INSERT INTO club_member_exports (club_id, exported_by, filter, row_count) VALUES ($1, $2, $3, $4)`,
+    [input.clubId, input.exportedBy, JSON.stringify(input.filter), input.rowCount],
+  );
+}

@@ -116,3 +116,38 @@ describe('GET /clubs/:clubId/members/:userId — ข้อมูลรายบ�
     expect((await get(s.runner, `/clubs/${s.clubId}/members/${s.walker.id}`)).status).toBe(403);
   });
 });
+
+describe('GET /clubs/:clubId/members/export — ส่งออก CSV (club_member:approve)', () => {
+  it('ได้ CSV ภาษาไทย (BOM) ตามตัวกรอง กันสูตร Excel และบันทึกการส่งออก', async () => {
+    const s = await setup();
+    // ชื่อที่ขึ้นต้นด้วย = ต้องไม่ถูก Excel ตีความเป็นสูตร
+    await pool.query(`UPDATE users SET name = '=HYPERLINK("x")' WHERE id = $1`, [s.walker.id]);
+    const res = await get(s.president, `/clubs/${s.clubId}/members/export?role=member`);
+    expect(res.status).toBe(200);
+    expect(res.headers['content-type']).toContain('text/csv');
+    expect(res.headers['content-disposition']).toMatch(/attachment; filename="club-members-\d{4}-\d{2}-\d{2}\.csv"/);
+    expect(res.headers['cache-control']).toBe('no-store');
+    const text = res.text;
+    expect(text.startsWith('﻿"ลำดับ","ชื่อ-สกุล","อีเมล"')).toBe(true);
+    const lines = text.trim().split('\r\n');
+    expect(lines).toHaveLength(3); // หัวตาราง + สมาชิกทั่วไป 2 คน (ไม่รวมประธาน)
+    expect(text).toContain('"runner@msu.ac.th"');
+    expect(text).toContain(`"'=HYPERLINK(""x"")"`);
+    expect(text).not.toContain('ประธาน ใจดี');
+
+    const { rows } = await pool.query('SELECT exported_by, row_count, filter FROM club_member_exports WHERE club_id = $1', [s.clubId]);
+    expect(rows).toEqual([{ exported_by: s.president.id, row_count: 2, filter: { status: 'active', role: 'member', query: null } }]);
+    await expect(pool.query('DELETE FROM club_member_exports')).rejects.toThrow();
+  });
+
+  it('กรรมการที่ไม่มีสิทธิ์อนุมัติสมาชิก (เหรัญญิก) และสมาชิกทั่วไป → 403 และไม่มีบันทึก', async () => {
+    const s = await setup();
+    const treasurer = await actor('เหรัญญิก ชมรม');
+    await addMembership(s.clubId, treasurer.id, 'active');
+    await addCommittee(s.clubId, treasurer.id, 'treasurer');
+    expect((await get(treasurer, `/clubs/${s.clubId}/members`)).status).toBe(200); // ดูรายชื่อได้
+    expect((await get(treasurer, `/clubs/${s.clubId}/members/export`)).status).toBe(403);
+    expect((await get(s.runner, `/clubs/${s.clubId}/members/export`)).status).toBe(403);
+    expect((await pool.query('SELECT 1 FROM club_member_exports')).rowCount).toBe(0);
+  });
+});
