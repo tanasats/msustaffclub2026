@@ -11,7 +11,7 @@ import type { MyData } from '@/lib/my-data-types';
 import { DECISION_LABELS, KIND_LABELS } from '@/lib/selection-types';
 import { MEDAL_LABELS } from '@/lib/sport-types';
 
-const MEMBERSHIP_STATUS: Record<string, string> = { pending: 'รออนุมัติ', active: 'เป็นสมาชิก', rejected: 'ไม่อนุมัติ', ended: 'สิ้นสุดแล้ว', withdrawn: 'ถอนใบสมัคร' };
+const MEMBERSHIP_STATUS: Record<string, string> = { pending: 'รออนุมัติ', active: 'เป็นสมาชิก', rejected: 'ไม่อนุมัติ', ended: 'สิ้นสุดแล้ว', withdrawn: 'ถอนใบสมัคร', deleted: 'ถูกลบออกจากรายชื่อ (ระบบยังเก็บไว้)' };
 const FILE_PURPOSE: Record<string, string> = {
   activity_photo: 'รูปกิจกรรม',
   achievement_evidence: 'หลักฐานผลงาน',

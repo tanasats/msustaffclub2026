@@ -46,7 +46,8 @@ export interface CurrentUser {
   preferences: UserPreferences;
   advisor: AdvisorSummary;
   // จำนวนคำเสนอชื่อเป็นประธานชมรมที่รอฉันตอบ
-  nominations: { pendingPresident: number };
+  // และจำนวนคำเชิญเข้าชมรมที่รอฉันตอบ
+  nominations: { pendingPresident: number; clubInvitations: number };
   // ประกาศความเป็นส่วนตัว: ยังไม่รับทราบเวอร์ชันปัจจุบัน = แสดงหน้ารับทราบแทนทุกหน้า
   privacy: { currentVersion: string; acknowledged: boolean; acknowledgedEarlier: boolean };
 }

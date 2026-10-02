@@ -21,7 +21,8 @@ export function buildNavigation(current: CurrentUser): NavItem[] {
   const items: NavItem[] = [
     { href: '/', label: 'หน้าหลัก', shortLabel: 'หน้าหลัก', icon: 'home', group: 'main' },
     // ทุกคนที่ login ดูทำเนียบชมรมได้
-    { href: '/clubs', label: 'ทำเนียบชมรม', shortLabel: 'ชมรม', icon: 'users', group: 'main' },
+    // ตัวเลข = คำเชิญเข้าชมรมที่รอฉันตอบ
+    { href: '/clubs', label: 'ทำเนียบชมรม', shortLabel: 'ชมรม', icon: 'users', group: 'main', badge: current.nominations.clubInvitations },
   ];
 
   if (has('club_application:create')) {

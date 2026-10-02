@@ -4,6 +4,11 @@ import { pool } from './db/pool.js';
 import { logger } from './logger.js';
 import { startOutboxWorker } from './mail/outbox-worker.js';
 import { mailTransport } from './mail/index.js';
+import { startPeriodicJob } from './jobs/periodic.js';
+import { processDueResignations } from './services/membership-service.js';
+
+// งานสมาชิกตามรอบ (เช่น คำขอลาออกที่ครบกำหนดมีผลอัตโนมัติ) — ไม่ต้องตรงเวลาเป๊ะ จึงทำชั่วโมงละครั้ง
+const MEMBERSHIP_JOB_INTERVAL_MS = 60 * 60 * 1000;
 
 const app = createApp();
 const server = app.listen(config.port, () => {
@@ -17,6 +22,8 @@ if (mailTransport.kind === 'gmail') {
 } else {
   logger.warn('MAIL_TRANSPORT=log — ระบบจะไม่ส่งอีเมลแจ้งเตือนจริง');
 }
+
+const stopMembershipJob = startPeriodicJob('membership', processDueResignations, MEMBERSHIP_JOB_INTERVAL_MS);
 
 server.on('error', (err) => {
   logger.fatal({ err }, 'เริ่ม HTTP server ไม่สำเร็จ');
@@ -40,7 +47,7 @@ function shutdown(signal: string): void {
   server.close((closeErr) => {
     if (closeErr) logger.error({ err: closeErr }, 'ปิด HTTP server ผิดพลาด');
     // รอ worker ส่งอีเมลรอบปัจจุบันจบก่อนปิด pool
-    stopOutboxWorker()
+    Promise.all([stopOutboxWorker(), stopMembershipJob()])
       .then(() => pool.end())
       .then(() => {
         logger.info('ปิดระบบเรียบร้อย');

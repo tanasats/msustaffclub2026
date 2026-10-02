@@ -6,6 +6,8 @@ import { insertOutboxEmails } from '../repositories/email-outbox-repository.js';
 import {
   getApplicationNotice,
   getMonthlyReportNotice,
+  getMembershipNotice,
+  listClubPermissionHolders,
   listCurrentAdvisorUsers,
   listPendingCommitteeNominees,
   listPendingInternalAdvisors,
@@ -213,6 +215,86 @@ export async function notifyMonthlyReportSubmitted(db: Queryable, reportId: stri
       ],
       actionLabel: 'อ่านรายงาน',
       actionUrl: link(`/monthly-reports/${report.id}`),
+    }),
+  );
+}
+
+// ---------- สมาชิกภาพชมรม ----------
+
+const MEMBER_APPROVE = 'club_member:approve';
+const clubLink = (clubId: string) => link(`/clubs/${clubId}`);
+
+// ผู้สมัครใหม่ → กรรมการที่อนุมัติสมาชิกได้
+export async function notifyMembershipApplied(db: Queryable, membershipId: string, eventKey: string): Promise<void> {
+  const notice = await getMembershipNotice(membershipId, db);
+  if (!notice) return;
+  const approvers = await listClubPermissionHolders(notice.clubId, MEMBER_APPROVE, notice.member.userId, db);
+  await enqueue(db, NOTIFICATION_EVENTS.MEMBERSHIP_APPLIED, eventKey, approvers, (approver) =>
+    composeEmail({
+      subject: `มีผู้สมัครเป็นสมาชิก${notice.clubName}`,
+      recipientName: approver.name,
+      paragraphs: [`${notice.member.name ?? 'บุคลากร'} สมัครเป็นสมาชิก${notice.clubName}`, 'กรุณาพิจารณาอนุมัติหรือไม่อนุมัติ (ไม่อนุมัติต้องระบุเหตุผล)'],
+      actionLabel: 'พิจารณาใบสมัคร',
+      actionUrl: clubLink(notice.clubId),
+    }),
+  );
+}
+
+// ผลใบสมัคร → ผู้สมัคร
+export async function notifyMembershipDecided(
+  db: Queryable,
+  membershipId: string,
+  decision: 'approved' | 'rejected',
+  note: string | null,
+  eventKey: string,
+): Promise<void> {
+  const notice = await getMembershipNotice(membershipId, db);
+  if (!notice || !notice.memberActive) return;
+  const approved = decision === 'approved';
+  await enqueue(db, NOTIFICATION_EVENTS.MEMBERSHIP_DECIDED, eventKey, [notice.member], (member) =>
+    composeEmail({
+      subject: approved ? `คุณเป็นสมาชิก${notice.clubName}แล้ว` : `ใบสมัครสมาชิก${notice.clubName}ไม่ได้รับอนุมัติ`,
+      recipientName: member.name,
+      paragraphs: approved
+        ? [`คณะกรรมการ${notice.clubName}อนุมัติใบสมัครของคุณแล้ว`]
+        : [`ใบสมัครสมาชิก${notice.clubName}ของคุณไม่ได้รับอนุมัติ`, ...(note ? [`เหตุผล: ${note}`] : [])],
+      actionLabel: 'เปิดหน้าชมรม',
+      actionUrl: clubLink(notice.clubId),
+    }),
+  );
+}
+
+// คำเชิญเข้าชมรม → ผู้ถูกเชิญ
+export async function notifyMembershipInvited(db: Queryable, membershipId: string, inviterName: string, eventKey: string): Promise<void> {
+  const notice = await getMembershipNotice(membershipId, db);
+  if (!notice || !notice.memberActive) return;
+  await enqueue(db, NOTIFICATION_EVENTS.MEMBERSHIP_INVITED, eventKey, [notice.member], (member) =>
+    composeEmail({
+      subject: `คำเชิญเข้าร่วม${notice.clubName}`,
+      recipientName: member.name,
+      paragraphs: [`${inviterName} เชิญคุณเป็นสมาชิก${notice.clubName}`, 'กรุณาเข้าสู่ระบบเพื่อตอบรับหรือปฏิเสธคำเชิญ (ตอบรับแล้วเป็นสมาชิกทันที)'],
+      actionLabel: 'ดูคำเชิญ',
+      actionUrl: clubLink(notice.clubId),
+    }),
+  );
+}
+
+// สมาชิกยื่นลาออก → กรรมการที่อนุมัติสมาชิกได้
+export async function notifyResignationRequested(db: Queryable, membershipId: string, note: string, eventKey: string): Promise<void> {
+  const notice = await getMembershipNotice(membershipId, db);
+  if (!notice) return;
+  const approvers = await listClubPermissionHolders(notice.clubId, MEMBER_APPROVE, notice.member.userId, db);
+  await enqueue(db, NOTIFICATION_EVENTS.RESIGNATION_REQUESTED, eventKey, approvers, (approver) =>
+    composeEmail({
+      subject: `สมาชิกยื่นลาออกจาก${notice.clubName}`,
+      recipientName: approver.name,
+      paragraphs: [
+        `${notice.member.name ?? 'สมาชิก'} ยื่นลาออกจาก${notice.clubName}`,
+        `เหตุผล: ${note}`,
+        'กรุณารับทราบการลาออก หากไม่ดำเนินการ การลาออกจะมีผลอัตโนมัติเมื่อครบ 30 วัน',
+      ],
+      actionLabel: 'เปิดหน้าชมรม',
+      actionUrl: clubLink(notice.clubId),
     }),
   );
 }

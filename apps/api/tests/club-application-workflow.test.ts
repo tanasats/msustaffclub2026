@@ -477,7 +477,7 @@ describe('ผู้ยื่นเสนอบุคลากรอื่นเ�
     expect((await get(s.nominee, '/club-applications/president-nominations')).body.items).toMatchObject([
       { id: s.id, status: 'awaiting_consent', myConsentStatus: 'pending' },
     ]);
-    expect((await get(s.nominee, '/auth/me')).body.nominations).toEqual({ pendingPresident: 1 });
+    expect((await get(s.nominee, '/auth/me')).body.nominations).toMatchObject({ pendingPresident: 1 });
   });
 
   it('ยื่นไม่ได้จนกว่าประธานจะตอบรับ; ตอบรับแล้วยื่น ตรวจ อนุมัติ → ผู้ถูกเสนอเป็นประธานชมรม ผู้ยื่นเป็นสมาชิก', async () => {
@@ -490,7 +490,7 @@ describe('ผู้ยื่นเสนอบุคลากรอื่นเ�
     expect(early.body.error.code).toBe('PRESIDENT_CONSENT_PENDING');
 
     expect((await respond(s.nominee, s.id, 'accept')).status).toBe(204);
-    expect((await get(s.nominee, '/auth/me')).body.nominations).toEqual({ pendingPresident: 0 });
+    expect((await get(s.nominee, '/auth/me')).body.nominations).toMatchObject({ pendingPresident: 0 });
     // ผู้ถูกเสนอยื่นแทนผู้ยื่นไม่ได้
     expect((await post(s.nominee, `/club-applications/${s.id}/submit`)).status).toBe(404);
     expect((await post(s.applicant, `/club-applications/${s.id}/submit`)).status).toBe(204);

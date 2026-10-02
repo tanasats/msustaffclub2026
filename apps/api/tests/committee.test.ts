@@ -181,8 +181,8 @@ describe('พ้นตำแหน่ง', () => {
     expect((await eventsOf(id)).at(-1)).toEqual({ action: 'ended', note: 'มติที่ประชุม 2/2569', actor_user_id: president.id });
     const page = (await get(treasurer, `/clubs/${clubId}`)).body;
     expect(page.me).toMatchObject({ membershipStatus: 'active', positions: [] });
-    // พ้นตำแหน่งแล้วจึงลาออกจากชมรมได้
-    expect((await post(treasurer, `/clubs/${clubId}/membership/leave`)).status).toBe(204);
+    // พ้นตำแหน่งแล้วจึงยื่นลาออกจากชมรมได้
+    expect((await post(treasurer, `/clubs/${clubId}/membership/leave`, { note: 'ย้ายหน่วยงาน' })).status).toBe(204);
   });
 
   it('ให้ประธานพ้นตำแหน่งไม่ได้ (ต้องโอนตำแหน่ง) และให้ตัวเองพ้นตำแหน่งผ่านเมนูนี้ไม่ได้', async () => {
@@ -240,8 +240,8 @@ describe('โอนตำแหน่งประธาน', () => {
     const body = { userId: newcomer.id, positionCode: 'secretary' };
     expect((await post(president, `/clubs/${clubId}/committee`, body)).status).toBe(403);
     expect((await post(treasurer, `/clubs/${clubId}/committee`, body)).status).toBe(201);
-    // ประธานเดิมยังเป็นสมาชิก และลาออกจากชมรมได้แล้ว
-    expect((await post(president, `/clubs/${clubId}/membership/leave`)).status).toBe(204);
+    // ประธานเดิมยังเป็นสมาชิก และยื่นลาออกจากชมรมได้แล้ว
+    expect((await post(president, `/clubs/${clubId}/membership/leave`, { note: 'ภาระงานมาก' })).status).toBe(204);
   });
 
   it('ผู้รับต้องเป็นสมาชิก active ที่ไม่ใช่ตัวเอง', async () => {

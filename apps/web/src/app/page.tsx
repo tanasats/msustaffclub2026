@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import type { Invitation } from '@/lib/member-types';
 import { StatusBadge } from '@/components/club-applications/StatusBadge';
 import { ProfileDetails } from '@/components/ProfileCard';
 import { Landing } from '@/components/landing/Landing';
@@ -12,10 +13,11 @@ import type { ApplicationListItem } from '@/lib/club-application-types';
 import { daysLeftInFiscalYear, fiscalYearOf, greetingOf, thaiLongDate } from '@/lib/thai-date';
 
 // ดึงรายการแบบไม่ทำให้หน้าแรกพังถ้า endpoint ใดขัดข้อง (หน้าแรกเป็นแค่ภาพรวม)
-async function listOrNull(path: string): Promise<ApplicationListItem[] | null> {
+// รายการบนแดชบอร์ด: โหลดไม่ได้ให้ซ่อนกล่องนั้น (ไม่ทำให้ทั้งหน้าล้ม)
+async function listOrNull<T = ApplicationListItem>(path: string): Promise<T[] | null> {
   try {
     const res = await apiFetch(path);
-    return res.ok ? ((await res.json()) as { items: ApplicationListItem[] }).items : null;
+    return res.ok ? ((await res.json()) as { items: T[] }).items : null;
   } catch {
     return null;
   }
@@ -50,9 +52,10 @@ export default async function HomePage() {
   const isAdvisor = advisor.pendingConsents > 0 || advisor.activeClubs > 0;
   const canWorkQueue = has('club_application:review') || has('club_application:approve') || has('club:read_all');
 
-  const [mine, queue] = await Promise.all([
+  const [mine, queue, invitations] = await Promise.all([
     canApply ? listOrNull('/club-applications/mine') : null,
     canWorkQueue ? listOrNull('/club-applications/queue') : null,
+    nominations.clubInvitations > 0 ? listOrNull<Invitation>('/me/club-invitations') : null,
   ]);
   const openMine = mine?.filter((a) => !['approved', 'rejected', 'cancelled'].includes(a.status)) ?? [];
   const firstName = (user.name ?? user.email).split(' ')[0];
@@ -73,6 +76,25 @@ export default async function HomePage() {
             ไปตอบคำขอ
             <Icon name="arrowRight" className="size-[1.125rem]" />
           </Link>
+        </div>
+      )}
+      {/* แจ้งเตือน: คำเชิญเข้าชมรมที่ยังไม่ได้ตอบ */}
+      {invitations && invitations.length > 0 && (
+        <div role="status" className="col-span-2 flex flex-col gap-3 rounded-bento border border-kin/30 bg-kin-50 p-4 sm:p-5 lg:col-span-4">
+          <p className="flex items-start gap-3 text-ink">
+            <Icon name="users" className="mt-0.5 size-5 shrink-0 text-kin" />
+            <span className="font-medium">คุณได้รับคำเชิญเข้าชมรม {invitations.length} ชมรม</span>
+          </p>
+          <ul className="flex flex-wrap gap-2 pl-8">
+            {invitations.map((i) => (
+              <li key={i.membershipId}>
+                <Link href={`/clubs/${i.clubId}`} className={buttonClass('secondary', '!min-h-10 text-sm')}>
+                  {i.clubName}
+                  <Icon name="arrowRight" className="size-4" />
+                </Link>
+              </li>
+            ))}
+          </ul>
         </div>
       )}
       {/* แจ้งเตือน: ถูกเสนอชื่อเป็นประธานชมรมและยังไม่ได้ตอบ */}
