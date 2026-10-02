@@ -132,6 +132,11 @@ export const icons = {
       <path d="m5 12.5 4.5 4.5L19 7.5" />
     </Svg>
   ),
+  chevronDown: (p: IconProps) => (
+    <Svg {...p}>
+      <path d="m6.5 9.5 5.5 5.5 5.5-5.5" />
+    </Svg>
+  ),
   download: (p: IconProps) => (
     <Svg {...p}>
       <path d="M12 4v11M7.5 10.5 12 15l4.5-4.5M5 19.5h14" />

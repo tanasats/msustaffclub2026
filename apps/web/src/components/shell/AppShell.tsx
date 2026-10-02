@@ -2,8 +2,9 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import type { NavItem } from '@/lib/navigation';
+import { setNavGroupCollapsed, useCollapsedNavGroups } from '@/lib/nav-group-preference';
 import { setSidebarCollapsed, useSidebarCollapsed } from '@/lib/sidebar-preference';
 import { Avatar } from '@/components/ui/Avatar';
 import { Icon, LogoMark } from '@/components/ui/icons';
@@ -56,48 +57,128 @@ function NavBadge({ count, onDark, compact = false }: { count?: number; onDark: 
   );
 }
 
-function NavList({ nav, active, collapsed, onNavigate }: { nav: NavItem[]; active: string | null; collapsed: boolean; onNavigate?: () => void }) {
-  const groups: { key: NavItem['group']; label: string }[] = [
-    { key: 'main', label: 'เมนู' },
-    { key: 'admin', label: 'ผู้ดูแลระบบ' },
-  ];
+const GROUPS: { key: NavItem['group']; label: string; collapsible: boolean }[] = [
+  { key: 'main', label: 'เมนู', collapsible: false },
+  { key: 'work', label: 'งานที่รับผิดชอบ', collapsible: true },
+  { key: 'admin', label: 'ผู้ดูแลระบบ', collapsible: true },
+];
+
+/**
+ * รายการเมนูแบ่งกลุ่ม: กลุ่ม "งานที่รับผิดชอบ" และ "ผู้ดูแลระบบ" ย่อ/ขยายได้ (จำไว้ในเบราว์เซอร์)
+ * กลุ่มที่มีหน้าที่กำลังเปิดอยู่จะขยายเสมอ, ย่ออยู่ = แสดงจำนวนงานค้างรวมที่หัวกลุ่ม
+ * collapsed (sidebar แบบไอคอน) ไม่มีหัวกลุ่ม ใช้เส้นคั่นแทน
+ * dense = PC (ปุ่มสูง 40px) / มือถือใช้ 44px เพื่อให้แตะง่าย
+ */
+function NavList({
+  nav,
+  active,
+  collapsed,
+  dense,
+  onNavigate,
+}: {
+  nav: NavItem[];
+  active: string | null;
+  collapsed: boolean;
+  dense: boolean;
+  onNavigate?: () => void;
+}) {
+  const collapsedGroups = useCollapsedNavGroups();
+  const visibleGroups = GROUPS.filter((group) => nav.some((item) => item.group === group.key));
   return (
-    <nav aria-label="เมนูหลัก" className="flex flex-col gap-6">
-      {groups.map((group) => {
+    <nav aria-label="เมนูหลัก" className={`flex flex-col ${dense ? 'gap-3' : 'gap-5'}`}>
+      {visibleGroups.map((group, index) => {
         const items = nav.filter((item) => item.group === group.key);
-        if (items.length === 0) return null;
+        const containsActive = items.some((item) => item.href === active);
+        const open = collapsed || !group.collapsible || containsActive || !collapsedGroups.includes(group.key);
+        const listId = `nav-group-${group.key}`;
+        const groupBadge = items.reduce((sum, item) => sum + (item.badge ?? 0), 0);
         return (
           <div key={group.key}>
-            {!collapsed && <p className="mb-2 px-3 text-xs text-mist">{group.label}</p>}
-            <ul className="flex flex-col gap-1">
-              {items.map((item) => {
-                const isActive = item.href === active;
-                return (
-                  <li key={item.href}>
-                    <Link
-                      href={item.href}
-                      onClick={onNavigate}
-                      title={collapsed ? item.label : undefined}
-                      aria-current={isActive ? 'page' : undefined}
-                      className={`group flex min-h-11 items-center gap-3 rounded-xl px-3 text-[0.9375rem] transition ${
-                        collapsed ? 'justify-center' : ''
-                      } ${isActive ? 'bg-matcha-800 text-washi shadow-sm shadow-matcha-900/15' : 'text-stone hover:bg-matcha-50 hover:text-matcha-800'}`}
-                    >
-                      <span className="relative shrink-0">
-                        <Icon name={item.icon} className="size-5" />
-                        {collapsed && <NavBadge count={item.badge} onDark={isActive} compact />}
-                      </span>
-                      {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
-                      {!collapsed && <NavBadge count={item.badge} onDark={isActive} />}
-                    </Link>
-                  </li>
-                );
-              })}
-            </ul>
+            {collapsed ? (
+              index > 0 && <hr className="mx-2 mb-3 border-ink/[0.08]" />
+            ) : group.collapsible ? (
+              <button
+                type="button"
+                onClick={() => setNavGroupCollapsed(group.key, open)}
+                disabled={containsActive}
+                aria-expanded={open}
+                aria-controls={listId}
+                className="mb-1 flex min-h-8 w-full items-center gap-2 rounded-lg px-3 text-left text-xs text-stone transition hover:bg-ink/[0.04] hover:text-ink disabled:cursor-default disabled:hover:bg-transparent disabled:hover:text-stone"
+              >
+                <span className="flex-1">{group.label}</span>
+                {!open && <NavBadge count={groupBadge} onDark={false} />}
+                {!containsActive && (
+                  <Icon name="chevronDown" className={`size-4 transition-transform ${open ? '' : '-rotate-90'}`} />
+                )}
+              </button>
+            ) : (
+              <p className="mb-1 flex min-h-8 items-center px-3 text-xs text-stone">{group.label}</p>
+            )}
+            {open && (
+              <ul id={listId} className="flex flex-col gap-0.5">
+                {items.map((item) => {
+                  const isActive = item.href === active;
+                  return (
+                    <li key={item.href}>
+                      <Link
+                        href={item.href}
+                        onClick={onNavigate}
+                        title={collapsed ? item.label : undefined}
+                        aria-current={isActive ? 'page' : undefined}
+                        className={`group flex ${dense ? 'min-h-10' : 'min-h-11'} items-center gap-3 rounded-xl px-3 text-[0.9375rem] transition ${
+                          collapsed ? 'justify-center' : ''
+                        } ${isActive ? 'bg-matcha-800 text-washi shadow-sm shadow-matcha-900/15' : 'text-stone hover:bg-matcha-50 hover:text-matcha-800'}`}
+                      >
+                        <span className="relative shrink-0">
+                          <Icon name={item.icon} className="size-5" />
+                          {collapsed && <NavBadge count={item.badge} onDark={isActive} compact />}
+                        </span>
+                        {!collapsed && <span className="flex-1 truncate">{item.label}</span>}
+                        {!collapsed && <NavBadge count={item.badge} onDark={isActive} />}
+                      </Link>
+                    </li>
+                  );
+                })}
+              </ul>
+            )}
           </div>
         );
       })}
     </nav>
+  );
+}
+
+/**
+ * พื้นที่เลื่อนของรายการเมนู (หัว/ท้าย sidebar คงที่) — แสดงเส้นคั่นบน/ล่างเมื่อมีเมนูซ่อนอยู่นอกจอ
+ * ใช้เส้นทึบแทนเงาโปร่งแสง เพื่อความชัดเจน
+ */
+function NavScroll({ children }: { children: React.ReactNode }) {
+  const ref = useRef<HTMLDivElement>(null);
+  const [edges, setEdges] = useState({ top: false, bottom: false });
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    const update = () =>
+      setEdges({ top: el.scrollTop > 0, bottom: el.scrollTop + el.clientHeight < el.scrollHeight - 1 });
+    update();
+    el.addEventListener('scroll', update, { passive: true });
+    const observer = new ResizeObserver(update);
+    observer.observe(el);
+    if (el.firstElementChild) observer.observe(el.firstElementChild);
+    return () => {
+      el.removeEventListener('scroll', update);
+      observer.disconnect();
+    };
+  }, []);
+  return (
+    <div
+      ref={ref}
+      className={`-mx-1 min-h-0 flex-1 overflow-y-auto overscroll-contain border-y px-1 py-2 [scrollbar-width:thin] ${
+        edges.top ? 'border-t-ink/[0.08]' : 'border-t-transparent'
+      } ${edges.bottom ? 'border-b-ink/[0.08]' : 'border-b-transparent'}`}
+    >
+      {children}
+    </div>
   );
 }
 
@@ -151,26 +232,29 @@ export function AppShell({ user, nav, children }: AppShellProps) {
     <div className="min-h-dvh">
       {/* ---------- Sidebar (จอใหญ่) ---------- */}
       <aside
-        className={`fixed inset-y-3 left-3 z-30 hidden flex-col justify-between rounded-bento print:!hidden border border-ink/[0.08] bg-white p-3 transition-[width] duration-300 lg:flex ${
+        className={`fixed inset-y-3 left-3 z-30 hidden flex-col gap-3 rounded-bento print:!hidden border border-ink/[0.08] bg-white p-3 transition-[width] duration-300 lg:flex ${
           collapsed ? 'w-[4.75rem]' : 'w-[16.5rem]'
         }`}
       >
-        <div className="flex flex-col gap-8">
-          <div className={`flex items-center ${collapsed ? 'flex-col gap-3' : 'justify-between'} px-1 pt-1`}>
-            <Brand collapsed={collapsed} />
-            <button
-              type="button"
-              onClick={() => setSidebarCollapsed(!collapsed)}
-              aria-label={collapsed ? 'ขยายเมนู' : 'ย่อเมนู'}
-              title={collapsed ? 'ขยายเมนู' : 'ย่อเมนู'}
-              className="inline-flex size-9 items-center justify-center rounded-lg text-mist transition hover:bg-ink/[0.04] hover:text-ink"
-            >
-              <Icon name={collapsed ? 'expand' : 'collapse'} className="size-[1.125rem]" />
-            </button>
-          </div>
-          <NavList nav={nav} active={active} collapsed={collapsed} />
+        {/* หัว (คงที่) / รายการเมนู (เลื่อนได้เมื่อยาวเกินจอ) / ผู้ใช้ (คงที่) */}
+        <div className={`flex shrink-0 items-center ${collapsed ? 'flex-col gap-3' : 'justify-between'} px-1 pt-1`}>
+          <Brand collapsed={collapsed} />
+          <button
+            type="button"
+            onClick={() => setSidebarCollapsed(!collapsed)}
+            aria-label={collapsed ? 'ขยายเมนู' : 'ย่อเมนู'}
+            title={collapsed ? 'ขยายเมนู' : 'ย่อเมนู'}
+            className="inline-flex size-9 items-center justify-center rounded-lg text-mist transition hover:bg-ink/[0.04] hover:text-ink"
+          >
+            <Icon name={collapsed ? 'expand' : 'collapse'} className="size-[1.125rem]" />
+          </button>
         </div>
-        <ProfileFooter user={user} collapsed={collapsed} />
+        <NavScroll>
+          <NavList nav={nav} active={active} collapsed={collapsed} dense />
+        </NavScroll>
+        <div className="shrink-0">
+          <ProfileFooter user={user} collapsed={collapsed} />
+        </div>
       </aside>
 
       {/* ---------- แถบบน (มือถือ/แท็บเล็ต) ---------- */}
@@ -196,22 +280,24 @@ export function AppShell({ user, nav, children }: AppShellProps) {
       {drawerOpen && (
         <div className="fixed inset-0 z-50 lg:hidden" role="dialog" aria-modal="true" aria-label="เมนู">
           <button type="button" aria-label="ปิดเมนู" onClick={() => setDrawerOpen(false)} className="absolute inset-0 bg-ink/25 backdrop-blur-[2px]" />
-          <div className="absolute inset-y-0 left-0 flex w-[min(20rem,86vw)] flex-col justify-between bg-washi p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-xl">
-            <div className="flex flex-col gap-8">
-              <div className="flex items-center justify-between">
-                <Brand collapsed={false} />
-                <button
-                  type="button"
-                  onClick={() => setDrawerOpen(false)}
-                  aria-label="ปิดเมนู"
-                  className="inline-flex size-11 items-center justify-center rounded-xl text-stone hover:bg-ink/[0.04]"
-                >
-                  <Icon name="close" />
-                </button>
-              </div>
-              <NavList nav={nav} active={active} collapsed={false} onNavigate={() => setDrawerOpen(false)} />
+          <div className="absolute inset-y-0 left-0 flex w-[min(20rem,86vw)] flex-col gap-3 bg-washi p-4 pb-[max(1rem,env(safe-area-inset-bottom))] shadow-xl">
+            <div className="flex shrink-0 items-center justify-between">
+              <Brand collapsed={false} />
+              <button
+                type="button"
+                onClick={() => setDrawerOpen(false)}
+                aria-label="ปิดเมนู"
+                className="inline-flex size-11 items-center justify-center rounded-xl text-stone hover:bg-ink/[0.04]"
+              >
+                <Icon name="close" />
+              </button>
             </div>
-            <ProfileFooter user={user} collapsed={false} onNavigate={() => setDrawerOpen(false)} />
+            <NavScroll>
+              <NavList nav={nav} active={active} collapsed={false} dense={false} onNavigate={() => setDrawerOpen(false)} />
+            </NavScroll>
+            <div className="shrink-0">
+              <ProfileFooter user={user} collapsed={false} onNavigate={() => setDrawerOpen(false)} />
+            </div>
           </div>
         </div>
       )}
