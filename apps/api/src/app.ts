@@ -14,6 +14,7 @@ import { sportsRouter } from './routes/sports.js';
 import { competitionsRouter } from './routes/competitions.js';
 import { selectionsRouter } from './routes/selections.js';
 import { adminRolesRouter } from './routes/admin-roles.js';
+import { userAccountsRouter } from './routes/user-accounts.js';
 import { adminSettingsRouter } from './routes/admin-settings.js';
 import { createAuthRouter } from './routes/auth.js';
 import { clubApplicationsRouter } from './routes/club-applications.js';
@@ -56,6 +57,7 @@ export function createApp(): express.Express {
   app.use(selectionsRouter);
   app.use(adminSettingsRouter);
   app.use(adminRolesRouter);
+  app.use(userAccountsRouter);
   app.use(meRouter);
   app.use(filesRouter);
 
