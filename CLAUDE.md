@@ -204,6 +204,7 @@ Permission ที่ลงทะเบียนแล้ว (ยังไม่�
 | `system_setting:manage` | ตั้งค่าระบบ รวมถึงเปิด/ปิดการส่งอีเมลแจ้งเตือน (ไม่ผูก role → เฉพาะ `super_admin`) |
 | `club_application:manage_deleted` | ดูคำขอที่ผู้ยื่นลบแล้ว และกู้คืนคำขอที่ยกเลิก/ลบแล้วเป็นฉบับร่าง (ไม่ผูก role → เฉพาะ `super_admin`) |
 | `club_membership:manage_deleted` | ดูรายชื่อสมาชิก/ใบสมัครที่กรรมการลบแล้ว และกู้คืน (ไม่ผูก role → เฉพาะ `super_admin`) |
+| `user_account:deactivate` | ปิด/เปิดบัญชีผู้ใช้ที่พ้นจากมหาวิทยาลัย ปิดแล้วพ้นสภาพสมาชิก/กรรมการ/ที่ปรึกษาในทุกชมรม (ไม่ผูก role → เฉพาะ `super_admin`) |
 
 **สิทธิ์ระดับชมรม (club-scoped)** — ได้จากตำแหน่งของผู้ใช้ "ในชมรมนั้น" (กรรมการ/ที่ปรึกษา/สมาชิก) ไม่ใช่ role ของระบบ
 - ตำแหน่ง ↔ สิทธิ์ชมรม เก็บในตาราง `club_positions` / `club_permissions` / `club_position_permissions` (ค่าตั้งต้นดู `docs/design/club-establishment.md` หัวข้อ 3.3) ค่าคงที่อยู่ที่ `src/services/club-permissions.ts` ที่เดียว

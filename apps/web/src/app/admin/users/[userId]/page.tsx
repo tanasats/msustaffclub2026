@@ -1,9 +1,11 @@
+import Link from 'next/link';
+import { AccountStatusForm } from '@/components/admin/AccountStatusForm';
 import { GrantRoleForm } from '@/components/admin/GrantRoleForm';
 import { RevokeRoleButton } from '@/components/admin/RevokeRoleButton';
 import { RoleBadge } from '@/components/RoleBadge';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { apiGetJson } from '@/lib/api-server';
-import type { AdminRole, AdminUserOverview } from '@/lib/admin-types';
+import type { AccountOverview, AdminRole, AdminUserOverview } from '@/lib/admin-types';
 import { getCurrentUser } from '@/lib/auth';
 import { formatDateTime } from '@/lib/format';
 
@@ -15,6 +17,9 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
     getCurrentUser(),
   ]);
   const { user, history } = overview;
+  // ปิด/เปิดบัญชี: permission user_account:deactivate (ไม่ผูก role → super_admin) — เมนูเพื่อ UX เท่านั้น API ตรวจซ้ำ
+  const canManageAccount = Boolean(current && (current.roles.includes('super_admin') || current.permissions.includes('user_account:deactivate')));
+  const account = canManageAccount ? await apiGetJson<AccountOverview>(`/user-accounts/${encodeURIComponent(userId)}`) : null;
   const grantableByCode = new Map(roles.items.map((role) => [role.code, role.grantable]));
   const heldCodes = new Set(overview.roles.map((role) => role.code));
   // แก้ role ของตัวเองไม่ได้ (API ก็ปฏิเสธ) จึงไม่แสดงปุ่มเพื่อไม่ให้สับสน
@@ -55,6 +60,76 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
         <section className="mt-3 bento p-5 sm:mt-4 sm:p-6">
           <h2 className="mb-3 font-serif text-lg font-medium">ให้ role เพิ่ม</h2>
           <GrantRoleForm userId={user.id} options={grantOptions} />
+        </section>
+      )}
+
+      {account && (
+        <section className="mt-3 bento p-5 sm:mt-4 sm:p-6">
+          <h2 className="font-serif text-lg font-medium">สถานะบัญชี</h2>
+          {user.isActive ? (
+            <>
+              <p className="mt-1 text-sm text-stone">
+                ใช้เมื่อบุคลากรพ้นจากมหาวิทยาลัย (ระเบียบชมรมข้อ 20(2)): ปิดบัญชีและออกจากระบบทันที แล้วระบบให้พ้นสภาพในทุกชมรมพร้อมกัน
+              </p>
+              {isSelf ? (
+                <p className="mt-2 text-sm text-kin">ปิดบัญชีของตนเองไม่ได้</p>
+              ) : (
+                <>
+                  <ul className="mt-3 grid gap-1 text-sm">
+                    <li>
+                      สมาชิกภาพ/ใบสมัคร/คำเชิญที่จะสิ้นสุด: {account.effects.memberships.length === 0 ? 'ไม่มี' : account.effects.memberships.map((m) => m.clubName).join(', ')}
+                    </li>
+                    <li>
+                      ตำแหน่งกรรมการที่จะสิ้นสุด:{' '}
+                      {account.effects.committee.length === 0 ? 'ไม่มี' : account.effects.committee.map((c) => `${c.positionTitle} ${c.clubName}`).join(', ')}
+                    </li>
+                    <li>
+                      การเป็นที่ปรึกษาที่จะสิ้นสุด: {account.effects.advisorships.length === 0 ? 'ไม่มี' : account.effects.advisorships.map((a) => a.clubName).join(', ')}
+                    </li>
+                  </ul>
+                  {account.effects.committee.some((c) => c.isPresident) && (
+                    <p className="mt-3 rounded-xl border border-kin/20 bg-kin-50 px-3 py-2 text-sm text-kin">
+                      ชมรมต่อไปนี้จะไม่มีประธาน — ผู้ดูแลระบบโอนตำแหน่งประธานให้สมาชิกคนอื่นได้ที่หน้าชมรม:{' '}
+                      {account.effects.committee
+                        .filter((c) => c.isPresident)
+                        .map((c, i) => (
+                          <span key={c.id}>
+                            {i > 0 && ', '}
+                            <Link href={`/clubs/${c.clubId}`} className="underline">
+                              {c.clubName}
+                            </Link>
+                          </span>
+                        ))}
+                    </p>
+                  )}
+                  <div className="mt-4">
+                    <AccountStatusForm userId={user.id} mode="deactivate" />
+                  </div>
+                </>
+              )}
+            </>
+          ) : (
+            <>
+              <p className="mt-1 text-sm text-stone">บัญชีนี้ถูกปิดอยู่ เปิดคืนแล้วเข้าสู่ระบบได้อีก แต่สมาชิกภาพและตำแหน่งที่สิ้นสุดไปแล้วไม่คืนอัตโนมัติ</p>
+              <div className="mt-4">
+                <AccountStatusForm userId={user.id} mode="reactivate" />
+              </div>
+            </>
+          )}
+          {account.history.length > 0 && (
+            <ul className="mt-4 divide-y divide-ink/[0.06] border-t border-ink/[0.08] text-sm">
+              {account.history.map((h, i) => (
+                <li key={i} className="py-2">
+                  <span className={h.action === 'deactivated' ? 'text-beni' : 'text-matcha-700'}>{h.action === 'deactivated' ? 'ปิดบัญชี' : 'เปิดบัญชีคืน'}</span> — {h.reason}
+                  <p className="text-xs text-mist">
+                    {formatDateTime(h.createdAt)} โดย {h.actorName ?? 'ระบบ'}
+                    {h.action === 'deactivated' &&
+                      ` · พ้นสภาพสมาชิก ${h.effects.membershipsEnded ?? 0} · ยกเลิกใบสมัคร/คำเชิญ ${h.effects.applicationsWithdrawn ?? 0} · พ้นตำแหน่งกรรมการ ${h.effects.committeePositionsEnded ?? 0} · สิ้นสุดที่ปรึกษา ${h.effects.advisorshipsEnded ?? 0}`}
+                  </p>
+                </li>
+              ))}
+            </ul>
+          )}
         </section>
       )}
 

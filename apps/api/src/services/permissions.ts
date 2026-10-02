@@ -11,6 +11,7 @@ export const PERMISSIONS = {
   SPORT_MANAGE: 'sport:manage',
   SPORT_SELECTION_MANAGE: 'sport_selection:manage',
   SYSTEM_SETTING_MANAGE: 'system_setting:manage',
+  USER_ACCOUNT_DEACTIVATE: 'user_account:deactivate',
   CLUB_APPLICATION_MANAGE_DELETED: 'club_application:manage_deleted',
   CLUB_MEMBERSHIP_MANAGE_DELETED: 'club_membership:manage_deleted',
 } as const;

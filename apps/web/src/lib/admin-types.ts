@@ -48,3 +48,13 @@ export interface AdminUserOverview {
     createdAt: string;
   }[];
 }
+
+// GET /user-accounts/:userId — ผลที่จะเกิดถ้าปิดบัญชี และประวัติการปิด/เปิดบัญชี
+export interface AccountOverview {
+  effects: {
+    memberships: { id: string; clubId: string; clubName: string; status: 'pending' | 'active' | 'invited' }[];
+    committee: { id: string; clubId: string; clubName: string; positionTitle: string; isPresident: boolean }[];
+    advisorships: { id: string; clubId: string; clubName: string }[];
+  };
+  history: { action: 'deactivated' | 'reactivated'; reason: string; effects: Record<string, number>; actorName: string | null; createdAt: string }[];
+}
