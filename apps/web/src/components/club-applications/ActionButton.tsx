@@ -1,5 +1,6 @@
 'use client';
 
+import { useRouter } from 'next/navigation';
 import { useState } from 'react';
 import { useSave } from './useSave';
 
@@ -12,6 +13,8 @@ interface ActionButtonProps {
   note?: 'required' | 'optional';
   tone?: 'primary' | 'danger' | 'neutral';
   disabled?: boolean;
+  // สำเร็จแล้วไปหน้านี้ (เช่น รายการที่ลบแล้วผู้ใช้ดูต่อไม่ได้)
+  redirectTo?: string;
 }
 
 const TONES = {
@@ -21,12 +24,16 @@ const TONES = {
 };
 
 // ปุ่มเปลี่ยนสถานะคำขอ: ถ้ามีช่องหมายเหตุ กดครั้งแรกเปิดช่องกรอก กดยืนยันจึงส่ง
-export function ActionButton({ path, label, body = {}, note, tone = 'primary', disabled = false }: ActionButtonProps) {
+export function ActionButton({ path, label, body = {}, note, tone = 'primary', disabled = false, redirectTo }: ActionButtonProps) {
+  const router = useRouter();
   const { save, pending, error } = useSave();
   const [open, setOpen] = useState(false);
   const [text, setText] = useState('');
 
-  const submit = () => save('POST', path, note ? { ...body, note: text } : body);
+  const submit = async () => {
+    const ok = await save('POST', path, note ? { ...body, note: text } : body);
+    if (ok && redirectTo) router.push(redirectTo);
+  };
 
   if (note && open) {
     return (

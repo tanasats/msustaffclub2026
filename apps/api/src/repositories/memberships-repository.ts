@@ -1,6 +1,6 @@
 import { pool, type Queryable } from '../db/pool.js';
 
-export type MembershipStatus = 'pending' | 'active' | 'rejected' | 'ended' | 'withdrawn';
+export type MembershipStatus = 'pending' | 'active' | 'rejected' | 'ended' | 'withdrawn' | 'deleted';
 export type MembershipAction =
   | 'applied'
   | 'withdrawn'
@@ -9,7 +9,9 @@ export type MembershipAction =
   | 'left'
   | 'removed'
   | 'resign_requested'
-  | 'resign_cancelled';
+  | 'resign_cancelled'
+  | 'deleted'
+  | 'restored';
 export type MembershipEndReason =
   | 'resigned'
   | 'left_university'
@@ -248,4 +250,39 @@ export async function lockDueResignations(
     [days, limit],
   );
   return result.rows;
+}
+
+// ---------- ลบ / กู้คืน (soft delete) ----------
+
+// สถานะที่กรรมการลบได้ (ผู้ที่พ้นสภาพแล้วเป็นประวัติ ลบไม่ได้) — ต้องตรงกับ CHECK status_before_delete_check
+export const DELETABLE_MEMBERSHIP_STATUSES = ['pending', 'active', 'rejected', 'withdrawn'] as const;
+
+/**
+ * ลบรายชื่อ: เก็บสถานะเดิมไว้ใน status_before_delete แล้วเปลี่ยนเป็น deleted (ทางขวาของ SET อ่านค่าเดิมของแถว)
+ * ล้างคำขอลาออกที่ค้างในคำสั่งเดียวกัน คืน false ถ้าสถานะลบไม่ได้
+ */
+export async function softDeleteMembership(membershipId: string, deletedBy: string, db: Queryable): Promise<boolean> {
+  const result = await db.query(
+    `UPDATE club_memberships
+        SET status_before_delete = status, status = 'deleted', deleted_at = now(), deleted_by = $2,
+            resign_requested_at = NULL, resign_note = NULL
+      WHERE id = $1 AND status = ANY($3::text[])`,
+    [membershipId, deletedBy, DELETABLE_MEMBERSHIP_STATUSES],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+/**
+ * กู้คืนเป็นสถานะเดิม คืนสถานะที่กู้คืน (null = ไม่ได้ถูกลบ)
+ * ถ้าสถานะเดิมเป็น pending/active และผู้ใช้มีใบสมัคร/สมาชิกภาพใหม่แล้ว จะชน unique index club_memberships_current_key → 23505
+ */
+export async function restoreMembership(membershipId: string, db: Queryable): Promise<MembershipStatus | null> {
+  const result = await db.query<{ status: MembershipStatus }>(
+    `UPDATE club_memberships
+        SET status = status_before_delete, deleted_at = NULL, deleted_by = NULL, status_before_delete = NULL
+      WHERE id = $1 AND status = 'deleted'
+      RETURNING status`,
+    [membershipId],
+  );
+  return result.rows[0]?.status ?? null;
 }

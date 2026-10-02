@@ -1,6 +1,6 @@
 // รูปแบบข้อมูลจาก API รายชื่อ/ข้อมูลรายบุคคลของสมาชิก (ต้องตรงกับ apps/api/src/repositories/club-members-repository.ts)
 
-export type MembershipStatus = 'pending' | 'active' | 'rejected' | 'ended' | 'withdrawn';
+export type MembershipStatus = 'pending' | 'active' | 'rejected' | 'ended' | 'withdrawn' | 'deleted';
 
 export const MEMBERSHIP_STATUS_LABELS: Record<MembershipStatus, string> = {
   pending: 'รออนุมัติ',
@@ -8,6 +8,7 @@ export const MEMBERSHIP_STATUS_LABELS: Record<MembershipStatus, string> = {
   rejected: 'ไม่อนุมัติ',
   ended: 'พ้นสภาพ',
   withdrawn: 'ยกเลิกใบสมัคร',
+  deleted: 'ลบแล้ว',
 };
 
 // เหตุพ้นสภาพ (ระเบียบข้อ 20) ต้องตรงกับ end_reason ใน club_memberships
@@ -29,6 +30,8 @@ export const MEMBERSHIP_ACTION_LABELS: Record<string, string> = {
   removed: 'ให้พ้นสภาพ',
   resign_requested: 'ยื่นลาออก',
   resign_cancelled: 'ยกเลิกคำขอลาออก',
+  deleted: 'ลบรายชื่อ (บันทึกผิด)',
+  restored: 'กู้คืนรายชื่อ',
 };
 
 export interface ResignationRequest {
@@ -55,6 +58,9 @@ export interface MemberListItem {
   isCommittee: boolean;
   positionTitle: string | null;
   resignRequestedAt: string | null;
+  deletedAt: string | null;
+  deletedByName: string | null;
+  statusBeforeDelete: MembershipStatus | null;
 }
 
 export interface MemberProfile {

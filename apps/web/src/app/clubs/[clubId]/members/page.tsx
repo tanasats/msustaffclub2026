@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ActionButton } from '@/components/club-applications/ActionButton';
 import { RemoveMemberButton } from '@/components/clubs/RemoveMemberButton';
 import { Badge } from '@/components/ui/Badge';
 import { EmptyState } from '@/components/ui/EmptyState';
@@ -8,7 +9,7 @@ import { apiGetJson } from '@/lib/api-server';
 import { getCurrentUser } from '@/lib/auth';
 import type { ClubPage } from '@/lib/club-types';
 import { formatDate, formatTimestampDate } from '@/lib/format';
-import { MEMBERSHIP_END_REASON_LABELS, type MemberListItem } from '@/lib/member-types';
+import { MEMBERSHIP_END_REASON_LABELS, MEMBERSHIP_STATUS_LABELS, type MemberListItem } from '@/lib/member-types';
 import { publicEnv } from '@/lib/public-env';
 
 const PAGE_SIZE = 30;
@@ -16,6 +17,8 @@ const STATUS_TABS = [
   { value: 'active', label: 'สมาชิกปัจจุบัน' },
   { value: 'ended', label: 'พ้นสภาพแล้ว' },
   { value: 'all', label: 'ทั้งหมด' },
+  // เฉพาะผู้มี club_membership:manage_deleted (API ตรวจซ้ำ)
+  { value: 'deleted', label: 'ลบแล้ว' },
 ] as const;
 const ROLE_CHIPS = [
   { value: undefined, label: 'ทุกบทบาท' },
@@ -34,7 +37,10 @@ interface SearchParams {
 export default async function ClubMembersPage({ params, searchParams }: { params: Promise<{ clubId: string }>; searchParams: Promise<SearchParams> }) {
   const { clubId } = await params;
   const sp = await searchParams;
-  const status = STATUS_TABS.some((t) => t.value === sp.status) ? (sp.status as (typeof STATUS_TABS)[number]['value']) : 'active';
+  const current = await getCurrentUser();
+  const canSeeDeleted = Boolean(current && (current.roles.includes('super_admin') || current.permissions.includes('club_membership:manage_deleted')));
+  const tabs = STATUS_TABS.filter((t) => t.value !== 'deleted' || canSeeDeleted);
+  const status = tabs.some((t) => t.value === sp.status) ? (sp.status as (typeof STATUS_TABS)[number]['value']) : 'active';
   const role = sp.role === 'committee' || sp.role === 'member' ? sp.role : undefined;
   const page = Math.max(1, Number(sp.page) || 1);
   const query = new URLSearchParams({ status, page: String(page), pageSize: String(PAGE_SIZE) });
@@ -42,10 +48,9 @@ export default async function ClubMembersPage({ params, searchParams }: { params
   if (sp.q?.trim()) query.set('q', sp.q.trim());
 
   const id = encodeURIComponent(clubId);
-  const [club, data, current] = await Promise.all([
+  const [club, data] = await Promise.all([
     apiGetJson<ClubPage>(`/clubs/${id}`),
     apiGetJson<{ items: MemberListItem[]; total: number }>(`/clubs/${id}/members?${query}`),
-    getCurrentUser(),
   ]);
   const canManage = club.me.permissions.includes('club_member:approve') && club.status === 'active';
   // ส่งออกใช้ตัวกรองเดียวกับที่แสดง (ไม่รวมหน้า) — ดาวน์โหลดตรงจาก API พร้อม cookie ของผู้ใช้
@@ -71,7 +76,7 @@ export default async function ClubMembersPage({ params, searchParams }: { params
 
       <div className="mb-4 flex flex-col gap-3">
         <div className="flex flex-wrap gap-2" role="tablist" aria-label="สถานะสมาชิก">
-          {STATUS_TABS.map((t) => (
+          {tabs.map((t) => (
             <Link key={t.value} href={link({ status: t.value === 'active' ? undefined : t.value, page: undefined })} role="tab" aria-selected={status === t.value} className={chip(status === t.value)}>
               {t.label}
             </Link>
@@ -95,7 +100,7 @@ export default async function ClubMembersPage({ params, searchParams }: { params
         </form>
         <div className="flex flex-wrap items-center justify-between gap-2">
           <p className="text-sm text-stone">พบ {data.total.toLocaleString('th-TH')} คน</p>
-          {canExport && data.total > 0 && (
+          {canExport && data.total > 0 && status !== 'deleted' && (
             <a href={`${publicEnv.apiUrl}/clubs/${club.id}/members/export?${exportQuery}`} className="btn btn-secondary !min-h-10 text-sm" download>
               <Icon name="download" className="size-[1.125rem]" />
               ส่งออก CSV ({data.total.toLocaleString('th-TH')} คน)
@@ -121,13 +126,19 @@ export default async function ClubMembersPage({ params, searchParams }: { params
                   {m.isCommittee && <Badge tone="kin">{m.positionTitle ?? 'กรรมการ'}</Badge>}
                   {m.status === 'ended' && <Badge tone="neutral">พ้นสภาพ</Badge>}
                   {m.resignRequestedAt && <Badge tone="beni">ยื่นลาออก</Badge>}
+                  {m.status === 'deleted' && <Badge tone="beni">ลบแล้ว</Badge>}
                 </Link>
                 <p className="mt-0.5 text-xs text-stone">
                   {[m.orgUnitName, m.email].filter(Boolean).join(' · ')}
                   {m.status === 'active' && m.joinedAt && ` · สมาชิกตั้งแต่ ${formatTimestampDate(m.joinedAt)}`}
                   {m.status === 'ended' && ` · พ้นสภาพ ${formatDate(m.endedOn)} (${MEMBERSHIP_END_REASON_LABELS[m.endReason ?? ''] ?? m.endReason})`}
+                  {m.status === 'deleted' &&
+                    ` · ลบเมื่อ ${formatTimestampDate(m.deletedAt)}${m.deletedByName ? ` โดย ${m.deletedByName}` : ''} · สถานะเดิม: ${MEMBERSHIP_STATUS_LABELS[m.statusBeforeDelete ?? 'active']}`}
                 </p>
               </div>
+              {m.status === 'deleted' && canSeeDeleted && (
+                <ActionButton path={`/clubs/${club.id}/memberships/${m.membershipId}/restore`} label="กู้คืนรายชื่อ" note="required" tone="neutral" />
+              )}
               {canManage && m.status === 'active' && !m.isCommittee && m.userId !== current?.user.id && (
                 <RemoveMemberButton clubId={club.id} membershipId={m.membershipId} memberName={m.name ?? m.email} />
               )}

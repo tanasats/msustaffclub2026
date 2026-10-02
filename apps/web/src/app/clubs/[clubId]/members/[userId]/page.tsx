@@ -1,4 +1,5 @@
 import Link from 'next/link';
+import { ActionButton } from '@/components/club-applications/ActionButton';
 import { RemoveMemberButton } from '@/components/clubs/RemoveMemberButton';
 import { Badge } from '@/components/ui/Badge';
 import { Bento, BentoTitle } from '@/components/ui/Bento';
@@ -27,6 +28,12 @@ export default async function ClubMemberPage({ params }: { params: Promise<{ clu
   ]);
   const { person } = profile;
   const isCommittee = profile.positions.some((p) => p.endedOn === null);
+  const canApprove = club.me.permissions.includes('club_member:approve') && club.status === 'active';
+  // ลบได้เฉพาะใบสมัคร/สมาชิกที่บันทึกผิด (API ตรวจว่าสมาชิกยังไม่มีข้อมูลผูกกับชมรม)
+  const canDelete =
+    canApprove && ['pending', 'active', 'rejected', 'withdrawn'].includes(person.status) && !isCommittee && person.userId !== current?.user.id;
+  const canRestore =
+    person.status === 'deleted' && Boolean(current && (current.roles.includes('super_admin') || current.permissions.includes('club_membership:manage_deleted')));
   const canRemove =
     club.me.permissions.includes('club_member:approve') && club.status === 'active' && person.status === 'active' && !isCommittee && person.userId !== current?.user.id;
 
@@ -43,7 +50,9 @@ export default async function ClubMemberPage({ params }: { params: Promise<{ clu
         <Bento tone="cream">
           <BentoTitle className="mb-3">สมาชิกภาพ</BentoTitle>
           <p className="flex flex-wrap items-center gap-2">
-            <Badge tone={person.status === 'active' ? 'matcha' : person.status === 'pending' ? 'sky' : 'neutral'}>{MEMBERSHIP_STATUS_LABELS[person.status]}</Badge>
+            <Badge tone={person.status === 'active' ? 'matcha' : person.status === 'pending' ? 'sky' : person.status === 'deleted' ? 'beni' : 'neutral'}>
+              {MEMBERSHIP_STATUS_LABELS[person.status]}
+            </Badge>
             {isCommittee && <Badge tone="kin">กรรมการ</Badge>}
           </p>
           <dl className="mt-3 grid gap-1 text-sm">
@@ -58,6 +67,24 @@ export default async function ClubMemberPage({ params }: { params: Promise<{ clu
           {canRemove && (
             <div className="mt-4">
               <RemoveMemberButton clubId={club.id} membershipId={person.membershipId} memberName={person.name ?? person.email} />
+            </div>
+          )}
+          {canDelete && (
+            <div className="mt-4 grid gap-2 border-t border-ink/[0.08] pt-4">
+              <p className="text-xs text-stone">
+                ลบเฉพาะรายการที่บันทึกผิด (เช่น อนุมัติผิดคน) สมาชิกที่มีผลงาน/กิจกรรม/ตำแหน่งในชมรมแล้วให้ใช้ &quot;ให้พ้นสภาพ&quot; แทน
+              </p>
+              <div className="flex">
+                <ActionButton path={`/clubs/${club.id}/memberships/${person.membershipId}/delete`} label="ลบรายชื่อ (บันทึกผิด)" note="required" tone="danger" redirectTo={`/clubs/${club.id}/members`} />
+              </div>
+            </div>
+          )}
+          {canRestore && (
+            <div className="mt-4 grid gap-2 border-t border-ink/[0.08] pt-4">
+              <p className="text-xs text-stone">รายการนี้ถูกกรรมการลบ (เห็นเฉพาะผู้ดูแลระบบ) กู้คืนแล้วจะกลับเป็นสถานะเดิม</p>
+              <div className="flex">
+                <ActionButton path={`/clubs/${club.id}/memberships/${person.membershipId}/restore`} label="กู้คืนรายชื่อ" note="required" tone="neutral" />
+              </div>
             </div>
           )}
         </Bento>

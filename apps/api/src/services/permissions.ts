@@ -12,6 +12,7 @@ export const PERMISSIONS = {
   SPORT_SELECTION_MANAGE: 'sport_selection:manage',
   SYSTEM_SETTING_MANAGE: 'system_setting:manage',
   CLUB_APPLICATION_MANAGE_DELETED: 'club_application:manage_deleted',
+  CLUB_MEMBERSHIP_MANAGE_DELETED: 'club_membership:manage_deleted',
 } as const;
 
 export type PermissionCode = (typeof PERMISSIONS)[keyof typeof PERMISSIONS];

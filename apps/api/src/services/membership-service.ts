@@ -15,12 +15,18 @@ import {
   lockCurrentMembership,
   lockMembership,
   requestResignation,
+  restoreMembership,
+  softDeleteMembership,
   withdrawMembership,
+  DELETABLE_MEMBERSHIP_STATUSES,
   type MembershipEndReason,
   type MembershipRecord,
 } from '../repositories/memberships-repository.js';
 import { endAthletesOfMember } from '../repositories/sports-repository.js';
-import type { AuthContext } from './authorization.js';
+import { hasMemberRecords } from '../repositories/club-members-repository.js';
+import { findUserSummariesByIds } from '../repositories/users-repository.js';
+import { hasPermission, type AuthContext } from './authorization.js';
+import { PERMISSIONS } from './permissions.js';
 import { hasClubPermission } from './club-authorization.js';
 import { CLUB_PERMISSIONS } from './club-permissions.js';
 import { isEligibleForClub } from './club-rules.js';
@@ -254,5 +260,63 @@ export async function removeMember(
     await endMembership(membershipId, bangkokDateString(), reason, client);
     await endAthletesOfMember(clubId, membership.userId, auth.user.id, client);
     await insertMembershipEvent({ membershipId, actorUserId: auth.user.id, action: 'removed', note }, client);
+  });
+}
+
+// ---------- ลบรายชื่อ / กู้คืน ----------
+
+// ผู้มีสิทธิ์ดูและกู้คืนรายชื่อที่ถูกลบ (permission ระบบ ไม่ผูก role → super_admin)
+export function canManageDeletedMemberships(auth: AuthContext): boolean {
+  return hasPermission(auth, PERMISSIONS.CLUB_MEMBERSHIP_MANAGE_DELETED);
+}
+
+/**
+ * กรรมการ (club_member:approve) ลบรายชื่อที่บันทึกผิด (soft delete) ต้องมีเหตุผล
+ * - ใบสมัคร (รอ/ไม่อนุมัติ/ยกเลิก) ลบได้
+ * - สมาชิก active ลบได้เฉพาะเมื่อยังไม่มีข้อมูลผูกกับชมรม (ผลงาน/กิจกรรม/นักกีฬา/ผลแข่งขัน/ตำแหน่งกรรมการ)
+ *   ถ้ามีแล้วต้องใช้ "ให้พ้นสภาพ" เพื่อเก็บประวัติ
+ * - ผู้ที่พ้นสภาพแล้วลบไม่ได้ (เป็นประวัติของชมรม)
+ */
+export async function deleteMembership(auth: AuthContext, clubId: string, membershipId: string, note: string): Promise<void> {
+  await withTransaction(async (client) => {
+    const membership = await lockForDecision(auth, clubId, membershipId, client);
+    if (!(DELETABLE_MEMBERSHIP_STATUSES as readonly string[]).includes(membership.status)) {
+      throw new AppError(409, 'MEMBERSHIP_NOT_DELETABLE', 'ลบได้เฉพาะใบสมัครหรือสมาชิกที่บันทึกผิด ผู้ที่พ้นสภาพแล้วลบไม่ได้');
+    }
+    if (membership.status === 'active' && (await hasMemberRecords(clubId, membership.userId, client))) {
+      throw new AppError(409, 'MEMBER_HAS_RECORDS', 'สมาชิกคนนี้มีข้อมูลผูกกับชมรมแล้ว (ผลงาน/กิจกรรม/ตำแหน่ง) กรุณาใช้ "ให้พ้นสภาพ" แทน');
+    }
+    await softDeleteMembership(membershipId, auth.user.id, client);
+    await insertMembershipEvent({ membershipId, actorUserId: auth.user.id, action: 'deleted', note }, client);
+  });
+}
+
+/**
+ * ผู้ดูแลระบบกู้คืนรายชื่อที่ถูกลบเป็นสถานะเดิม ต้องมีเหตุผล
+ * สถานะเดิมรอ/สมาชิก: ผู้ใช้ต้องยังใช้งานได้ และต้องยังไม่มีใบสมัคร/สมาชิกภาพใหม่ในชมรมเดียวกัน
+ */
+export async function restoreDeletedMembership(auth: AuthContext, clubId: string, membershipId: string, note: string): Promise<void> {
+  if (!canManageDeletedMemberships(auth)) throw new AppError(403, 'FORBIDDEN', 'ไม่มีสิทธิ์ดำเนินการนี้');
+  await withTransaction(async (client) => {
+    const membership = await lockMembership(membershipId, clubId, client);
+    if (!membership) throw membershipNotFound();
+    if (membership.status !== 'deleted') {
+      throw new AppError(409, 'MEMBERSHIP_NOT_DELETED', 'รายการนี้ไม่ได้ถูกลบ');
+    }
+    const [user] = await findUserSummariesByIds([membership.userId], client);
+    if (!user || !user.isActive) {
+      throw new AppError(422, 'USER_INACTIVE', 'บัญชีของผู้ใช้นี้ถูกปิดการใช้งานแล้ว จึงกู้คืนไม่ได้');
+    }
+    let restored: string | null;
+    try {
+      restored = await restoreMembership(membershipId, client);
+    } catch (err) {
+      if ((err as { code?: string }).code === '23505') {
+        throw new AppError(409, 'MEMBERSHIP_CONFLICT', 'ผู้ใช้นี้มีใบสมัครหรือสมาชิกภาพใหม่ในชมรมนี้แล้ว จึงกู้คืนรายการเดิมไม่ได้');
+      }
+      throw err;
+    }
+    if (!restored) throw new AppError(409, 'MEMBERSHIP_NOT_DELETED', 'รายการนี้ไม่ได้ถูกลบ');
+    await insertMembershipEvent({ membershipId, actorUserId: auth.user.id, action: 'restored', note }, client);
   });
 }

@@ -1,6 +1,7 @@
 import { Router } from 'express';
 import { z } from 'zod';
-import { getRequiredAuth, requireAuth, requireClubPermission } from '../middlewares/auth.js';
+import { getRequiredAuth, requireAuth, requireClubPermission, requirePermission } from '../middlewares/auth.js';
+import { PERMISSIONS } from '../services/permissions.js';
 import { CLUB_PERMISSIONS } from '../services/club-permissions.js';
 import { getClubLogoUrl, setClubLogo } from '../services/club-logo-service.js';
 import { getClubPage, listClubDirectory } from '../services/club-service.js';
@@ -19,6 +20,8 @@ import {
   applyForMembership,
   approveMembership,
   cancelLeaveRequest,
+  deleteMembership,
+  restoreDeletedMembership,
   leaveClub,
   listMembershipRequests,
   listResignations,
@@ -57,14 +60,15 @@ clubsRouter.get('/clubs/:clubId', requireAuth, async (req, res) => {
 
 const memberListSchema = pageSchema.extend({
   q: z.string().trim().max(100).optional().transform((value) => value || null),
-  status: z.enum(['active', 'ended', 'all']).default('active'),
+  // deleted ต้องมี club_membership:manage_deleted (ตรวจใน service)
+  status: z.enum(['active', 'ended', 'all', 'deleted']).default('active'),
   role: z.enum(['committee', 'member']).optional().transform((value) => value ?? null),
 });
 
 // ต้องมีสิทธิ์ชมรม club:view_internal: รายชื่อสมาชิก ค้นหา/กรองสถานะและบทบาท
 clubsRouter.get('/clubs/:clubId/members', requireAuth, requireClubPermission(CLUB_PERMISSIONS.VIEW_INTERNAL), async (req, res) => {
   const { page, pageSize, q, status, role } = memberListSchema.parse(req.query);
-  res.json(await listMembers({ clubId: req.params.clubId as string, query: q, status, role, page, pageSize }));
+  res.json(await listMembers(getRequiredAuth(req), { clubId: req.params.clubId as string, query: q, status, role, page, pageSize }));
 });
 
 // ต้องมีสิทธิ์ชมรม club_member:approve: ส่งออกรายชื่อเป็น CSV ตามตัวกรอง (บันทึกการส่งออก) — ประกาศก่อน /members/:userId
@@ -90,7 +94,7 @@ clubsRouter.get(
   requireClubPermission(CLUB_PERMISSIONS.VIEW_INTERNAL),
   async (req, res) => {
     const userId = parseIdParam(req.params.userId, 'MEMBER_NOT_FOUND', 'ไม่พบสมาชิกคนนี้ในชมรม');
-    res.json(await getMemberProfile(req.params.clubId as string, userId));
+    res.json(await getMemberProfile(getRequiredAuth(req), req.params.clubId as string, userId));
   },
 );
 
@@ -172,6 +176,25 @@ clubsRouter.post('/clubs/:clubId/memberships/:membershipId/remove', requireAuth,
   await removeMember(getRequiredAuth(req), clubIdOf(req.params.clubId), membershipIdOf(req.params.membershipId), reason, note);
   res.status(204).end();
 });
+
+// ต้องมีสิทธิ์ชมรม club_member:approve (ตรวจใน service): ลบรายชื่อที่บันทึกผิด (soft delete) ต้องมีเหตุผล
+clubsRouter.post('/clubs/:clubId/memberships/:membershipId/delete', requireAuth, async (req, res) => {
+  const { note } = requiredNoteSchema.parse(req.body ?? {});
+  await deleteMembership(getRequiredAuth(req), clubIdOf(req.params.clubId), membershipIdOf(req.params.membershipId), note);
+  res.status(204).end();
+});
+
+// ต้องมี club_membership:manage_deleted (super_admin): กู้คืนรายชื่อที่ถูกลบ ต้องมีเหตุผล
+clubsRouter.post(
+  '/clubs/:clubId/memberships/:membershipId/restore',
+  requireAuth,
+  requirePermission(PERMISSIONS.CLUB_MEMBERSHIP_MANAGE_DELETED),
+  async (req, res) => {
+    const { note } = requiredNoteSchema.parse(req.body ?? {});
+    await restoreDeletedMembership(getRequiredAuth(req), clubIdOf(req.params.clubId), membershipIdOf(req.params.membershipId), note);
+    res.status(204).end();
+  },
+);
 
 // ---------- คณะกรรมการ ----------
 
