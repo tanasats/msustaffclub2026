@@ -1,7 +1,15 @@
 import { pool, type Queryable } from '../db/pool.js';
 
 export type MembershipStatus = 'pending' | 'active' | 'rejected' | 'ended' | 'withdrawn';
-export type MembershipAction = 'applied' | 'withdrawn' | 'approved' | 'rejected' | 'left' | 'removed';
+export type MembershipAction =
+  | 'applied'
+  | 'withdrawn'
+  | 'approved'
+  | 'rejected'
+  | 'left'
+  | 'removed'
+  | 'resign_requested'
+  | 'resign_cancelled';
 export type MembershipEndReason =
   | 'resigned'
   | 'left_university'
@@ -65,6 +73,7 @@ export async function withdrawMembership(membershipId: string, db: Queryable): P
 }
 
 // สิ้นสุดการเป็นสมาชิก (ลาออก/พ้นสภาพ) — ended_on ใช้วันที่ตามเวลาประเทศไทย
+// ล้างคำขอลาออกที่ค้าง (ถ้ามี) ในคำสั่งเดียวกัน ตาม CHECK resign_consistency
 export async function endMembership(
   membershipId: string,
   endedOn: string,
@@ -72,7 +81,9 @@ export async function endMembership(
   db: Queryable,
 ): Promise<void> {
   await db.query(
-    `UPDATE club_memberships SET status = 'ended', ended_on = $2::date, end_reason = $3 WHERE id = $1`,
+    `UPDATE club_memberships
+        SET status = 'ended', ended_on = $2::date, end_reason = $3, resign_requested_at = NULL, resign_note = NULL
+      WHERE id = $1`,
     [membershipId, endedOn, reason],
   );
 }
@@ -154,4 +165,87 @@ export async function findLatestRejection(
     [clubId, userId],
   );
   return result.rows[0] ?? null;
+}
+
+// ---------- ยื่นลาออก ----------
+
+// บันทึกคำขอลาออก (เฉพาะสมาชิก active ที่ยังไม่ได้ยื่น) คืน false ถ้าไม่เข้าเงื่อนไข
+export async function requestResignation(membershipId: string, note: string, db: Queryable): Promise<boolean> {
+  const result = await db.query(
+    `UPDATE club_memberships SET resign_requested_at = now(), resign_note = $2
+      WHERE id = $1 AND status = 'active' AND resign_requested_at IS NULL`,
+    [membershipId, note],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+export async function cancelResignation(membershipId: string, db: Queryable): Promise<boolean> {
+  const result = await db.query(
+    `UPDATE club_memberships SET resign_requested_at = NULL, resign_note = NULL
+      WHERE id = $1 AND status = 'active' AND resign_requested_at IS NOT NULL`,
+    [membershipId],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+// คำขอลาออกที่ยังไม่มีผลของผู้ใช้ในชมรม (แสดงที่หน้าชมรม)
+export async function findMyResignation(
+  clubId: string,
+  userId: string,
+  db: Queryable = pool,
+): Promise<{ requestedAt: Date; note: string } | null> {
+  const result = await db.query<{ requestedAt: Date; note: string }>(
+    `SELECT resign_requested_at AS "requestedAt", resign_note AS note FROM club_memberships
+      WHERE club_id = $1 AND user_id = $2 AND status = 'active' AND resign_requested_at IS NOT NULL`,
+    [clubId, userId],
+  );
+  return result.rows[0] ?? null;
+}
+
+export interface ResignationRequestRow {
+  membershipId: string;
+  userId: string;
+  name: string | null;
+  email: string;
+  orgUnitName: string | null;
+  requestedAt: Date;
+  note: string;
+}
+
+// คำขอลาออกที่รอกรรมการรับทราบ (เก่าสุดก่อน)
+export async function listResignationRequests(clubId: string, db: Queryable = pool): Promise<ResignationRequestRow[]> {
+  const result = await db.query<ResignationRequestRow>(
+    `SELECT m.id AS "membershipId", m.user_id AS "userId", u.name, u.email, ou.name_th AS "orgUnitName",
+            m.resign_requested_at AS "requestedAt", m.resign_note AS note
+       FROM club_memberships m
+       JOIN users u ON u.id = m.user_id
+       LEFT JOIN staff_profiles sp ON sp.user_id = u.id
+       LEFT JOIN org_units ou ON ou.id = sp.org_unit_id
+      WHERE m.club_id = $1 AND m.status = 'active' AND m.resign_requested_at IS NOT NULL
+      ORDER BY m.resign_requested_at
+      LIMIT 200`,
+    [clubId],
+  );
+  return result.rows;
+}
+
+/**
+ * คำขอลาออกที่ครบกำหนดมีผลอัตโนมัติ (ยื่นมาแล้วอย่างน้อย days วัน) พร้อมล็อกแถว
+ * SKIP LOCKED: ถ้ากรรมการกำลังรับทราบแถวเดียวกันอยู่ ให้ข้ามไปก่อน ไม่ทำซ้ำ
+ */
+export async function lockDueResignations(
+  days: number,
+  limit: number,
+  db: Queryable,
+): Promise<{ id: string; clubId: string; userId: string }[]> {
+  const result = await db.query<{ id: string; clubId: string; userId: string }>(
+    `SELECT id, club_id AS "clubId", user_id AS "userId" FROM club_memberships
+      WHERE status = 'active' AND resign_requested_at IS NOT NULL
+        AND resign_requested_at <= now() - make_interval(days => $1)
+      ORDER BY resign_requested_at
+      LIMIT $2
+      FOR UPDATE SKIP LOCKED`,
+    [days, limit],
+  );
+  return result.rows;
 }

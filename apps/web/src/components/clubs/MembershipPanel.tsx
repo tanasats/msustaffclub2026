@@ -1,6 +1,7 @@
 import { ActionButton } from '@/components/club-applications/ActionButton';
 import { Bento, BentoLabel } from '@/components/ui/Bento';
 import type { ClubPage } from '@/lib/club-types';
+import { formatTimestampDate } from '@/lib/format';
 
 interface MembershipPanelProps {
   club: ClubPage;
@@ -32,9 +33,23 @@ export function MembershipPanel({ club, eligible, isPresident }: MembershipPanel
               <ActionButton path={`/clubs/${club.id}/committee/resign`} label="ลาออกจากตำแหน่งกรรมการ" note="optional" tone="neutral" />
             </div>
           </>
+        ) : club.me.resignation ? (
+          <div className="mt-3 grid gap-3">
+            <p className="rounded-xl border border-kin/20 bg-kin-50 px-3 py-2 text-sm text-kin">
+              คุณยื่นลาออกเมื่อ {formatTimestampDate(club.me.resignation.requestedAt)} รอกรรมการรับทราบ — มีผลอัตโนมัติภายใน{' '}
+              {formatTimestampDate(club.me.resignation.effectiveAt)}
+              <span className="block">เหตุผล: {club.me.resignation.note}</span>
+            </p>
+            <div>
+              <ActionButton path={`${base}/leave/cancel`} label="ยกเลิกคำขอลาออก" tone="neutral" />
+            </div>
+          </div>
         ) : (
-          <div className="mt-3">
-            <ActionButton path={`${base}/leave`} label="ลาออกจากชมรม" note="optional" tone="danger" />
+          <div className="mt-3 grid gap-2">
+            <p className="text-sm text-stone">ยื่นลาออกพร้อมเหตุผล กรรมการรับทราบแล้วมีผลทันที หรือมีผลอัตโนมัติเมื่อครบ 30 วัน</p>
+            <div>
+              <ActionButton path={`${base}/leave`} label="ยื่นลาออกจากชมรม" note="required" tone="danger" />
+            </div>
           </div>
         )}
       </>

@@ -79,9 +79,11 @@ export default async function ClubMemberPage({ params }: { params: Promise<{ clu
                       {a.award && ` · ${a.award}`}
                     </p>
                   </div>
-                  <Badge tone={a.status === 'approved' ? 'matcha' : a.status === 'pending' ? 'sky' : 'neutral'}>
-                    {ACHIEVEMENT_STATUS_LABELS[a.status as AchievementStatus] ?? a.status}
-                  </Badge>
+                  <span className="self-start sm:self-center">
+                    <Badge tone={a.status === 'approved' ? 'matcha' : a.status === 'pending' ? 'sky' : 'neutral'}>
+                      {ACHIEVEMENT_STATUS_LABELS[a.status as AchievementStatus] ?? a.status}
+                    </Badge>
+                  </span>
                 </li>
               ))}
             </ul>

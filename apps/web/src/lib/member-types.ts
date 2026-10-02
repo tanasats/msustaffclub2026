@@ -27,7 +27,20 @@ export const MEMBERSHIP_ACTION_LABELS: Record<string, string> = {
   rejected: 'ไม่อนุมัติใบสมัคร',
   left: 'ลาออก',
   removed: 'ให้พ้นสภาพ',
+  resign_requested: 'ยื่นลาออก',
+  resign_cancelled: 'ยกเลิกคำขอลาออก',
 };
+
+export interface ResignationRequest {
+  membershipId: string;
+  userId: string;
+  name: string | null;
+  email: string;
+  orgUnitName: string | null;
+  requestedAt: string;
+  note: string;
+  effectiveAt: string;
+}
 
 export interface MemberListItem {
   membershipId: string;
@@ -41,6 +54,7 @@ export interface MemberListItem {
   endReason: string | null;
   isCommittee: boolean;
   positionTitle: string | null;
+  resignRequestedAt: string | null;
 }
 
 export interface MemberProfile {

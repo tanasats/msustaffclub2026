@@ -21,8 +21,9 @@ import type { AchievementItem, AchievementPage } from '@/lib/achievement-types';
 import type { ActivityItem } from '@/lib/activity-types';
 import type { ClubPosition } from '@/lib/club-application-types';
 import type { ClubMember, ClubPage, CommitteeHistoryItem, MembershipRequest } from '@/lib/club-types';
+import type { ResignationRequest } from '@/lib/member-types';
 import { committeeEndReasonLabel } from '@/lib/committee-labels';
-import { formatDate, formatDateTime } from '@/lib/format';
+import { formatDate, formatDateTime, formatTimestampDate } from '@/lib/format';
 import type { Athlete, ClubSport, Sport } from '@/lib/sport-types';
 import { bangkokToday } from '@/lib/thai-date';
 
@@ -57,9 +58,10 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
   const expired = club.registeredUntil < bangkokToday();
   const isMember = club.me.membershipStatus === 'active';
   const canManageSports = club.me.permissions.includes('club_sport:manage') && club.status === 'active';
-  const [members, requests, positions, history, achievements, achievementQueue, activities, renewal, clubSports, allSports, athletes] = await Promise.all([
+  const [members, requests, resignations, positions, history, achievements, achievementQueue, activities, renewal, clubSports, allSports, athletes] = await Promise.all([
     canViewInternal ? apiGetJson<{ items: ClubMember[]; total: number }>(`/clubs/${club.id}/members?pageSize=100`) : null,
     canApproveMembers ? apiGetJson<{ items: MembershipRequest[] }>(`/clubs/${club.id}/membership-requests`) : null,
+    canApproveMembers ? apiGetJson<{ items: ResignationRequest[] }>(`/clubs/${club.id}/resignation-requests`) : null,
     canManageCommittee ? apiGetJson<{ items: ClubPosition[] }>('/club-positions') : null,
     canViewInternal ? apiGetJson<{ items: CommitteeHistoryItem[] }>(`/clubs/${club.id}/committee/history`) : null,
     apiGetJson<AchievementPage>(`/clubs/${club.id}/achievements?pageSize=50`),
@@ -184,6 +186,31 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
                 ))}
               </ul>
             )}
+          </Bento>
+        )}
+
+        {resignations && resignations.items.length > 0 && (
+          <Bento className="lg:col-span-2">
+            <BentoTitle className="mb-1">คำขอลาออกที่รอรับทราบ ({resignations.items.length})</BentoTitle>
+            <p className="mb-3 text-sm text-stone">การลาออกปฏิเสธไม่ได้ (ระเบียบข้อ 20) หากไม่รับทราบ จะมีผลอัตโนมัติตามวันที่ระบุ</p>
+            <ul className="grid gap-2">
+              {resignations.items.map((r) => (
+                <li key={r.membershipId} className="flex flex-col gap-3 rounded-xl border border-ink/[0.08] p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <Link href={`/clubs/${club.id}/members/${r.userId}`} className="font-medium underline-offset-2 hover:underline">
+                      {r.name ?? r.email}
+                    </Link>
+                    <p className="text-xs text-stone">
+                      ยื่นเมื่อ {formatDateTime(r.requestedAt)} · มีผลอัตโนมัติ {formatTimestampDate(r.effectiveAt)}
+                    </p>
+                    <p className="mt-1 text-sm">เหตุผล: {r.note}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <ActionButton path={`/clubs/${club.id}/memberships/${r.membershipId}/acknowledge-resignation`} label="รับทราบการลาออก" note="optional" />
+                  </div>
+                </li>
+              ))}
+            </ul>
           </Bento>
         )}
 

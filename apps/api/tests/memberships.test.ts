@@ -5,6 +5,7 @@ import { createTestUser, resetDatabase } from './helpers/db.js';
 import { createSessionCookie, grantRole, WEB_ORIGIN } from './helpers/auth.js';
 import { addCommittee, addMembership, createTestClub } from './helpers/clubs.js';
 import { request } from './helpers/http.js';
+import { processDueResignations } from '../src/services/membership-service.js';
 
 beforeEach(resetDatabase);
 
@@ -170,20 +171,76 @@ describe('กรรมการอนุมัติ/ปฏิเสธ', () => 
 });
 
 describe('ลาออก / ให้พ้นสภาพ', () => {
-  it('สมาชิกลาออกได้ทันที (เหตุ = ลาออก)', async () => {
+  it('ยื่นลาออก (ต้องมีเหตุผล) → ยังเป็นสมาชิก รอกรรมการรับทราบ → พ้นสภาพ (เหตุ = ลาออก)', async () => {
+    const { clubId, president } = await clubWithCommittee();
+    const member = await actor();
+    await addMembership(clubId, member.id, 'active');
+    const path = `/clubs/${clubId}/membership/leave`;
+
+    expect((await post(member, path, {})).status).toBe(400);
+    expect((await post(member, path, { note: 'ย้ายไปชมรมอื่น' })).status).toBe(204);
+    expect((await post(member, path, { note: 'ซ้ำ' })).body.error.code).toBe('RESIGNATION_ALREADY_REQUESTED');
+    const membership = (await membershipOf(clubId, member.id))!;
+    expect(membership.status).toBe('active');
+    const me = (await get(member, `/clubs/${clubId}`)).body.me;
+    expect(me.resignation).toMatchObject({ note: 'ย้ายไปชมรมอื่น' });
+    expect(new Date(me.resignation.effectiveAt).getTime() - new Date(me.resignation.requestedAt).getTime()).toBe(30 * 24 * 3600 * 1000);
+
+    const list = (await get(president, `/clubs/${clubId}/resignation-requests`)).body.items;
+    expect(list).toMatchObject([{ membershipId: membership.id, note: 'ย้ายไปชมรมอื่น' }]);
+    const ack = `/clubs/${clubId}/memberships/${membership.id}/acknowledge-resignation`;
+    expect((await post(president, ack, { note: 'ขอบคุณที่ร่วมกิจกรรม' })).status).toBe(204);
+    expect(await membershipOf(clubId, member.id)).toMatchObject({ status: 'ended', end_reason: 'resigned' });
+    expect((await eventsOf(membership.id)).map((e) => [e.action, e.note])).toEqual([
+      ['resign_requested', 'ย้ายไปชมรมอื่น'],
+      ['left', 'รับทราบการลาออก: ขอบคุณที่ร่วมกิจกรรม'],
+    ]);
+    // รับทราบซ้ำไม่ได้
+    expect((await post(president, ack)).status).toBe(409);
+  });
+
+  it('ยกเลิกคำขอลาออกได้ก่อนมีผล', async () => {
     const { clubId } = await clubWithCommittee();
     const member = await actor();
     await addMembership(clubId, member.id, 'active');
+    await post(member, `/clubs/${clubId}/membership/leave`, { note: 'ลองดู' });
+    expect((await post(member, `/clubs/${clubId}/membership/leave/cancel`)).status).toBe(204);
+    expect((await get(member, `/clubs/${clubId}`)).body.me.resignation).toBeNull();
+    expect((await post(member, `/clubs/${clubId}/membership/leave/cancel`)).status).toBe(404);
+  });
 
-    expect((await post(member, `/clubs/${clubId}/membership/leave`, { note: 'ย้ายไปชมรมอื่น' })).status).toBe(204);
-    const membership = await membershipOf(clubId, member.id);
-    expect(membership).toMatchObject({ status: 'ended', end_reason: 'resigned' });
-    expect((await eventsOf(membership!.id)).at(-1)).toMatchObject({ action: 'left', note: 'ย้ายไปชมรมอื่น' });
+  it('ไม่มีกรรมการรับทราบ → มีผลอัตโนมัติเมื่อครบ 30 วัน (ผู้กระทำ = ระบบ) ยังไม่ครบไม่มีผล', async () => {
+    const { clubId } = await clubWithCommittee();
+    const [early, due] = [await actor(), await actor()];
+    for (const who of [early, due]) {
+      await addMembership(clubId, who.id, 'active');
+      await post(who, `/clubs/${clubId}/membership/leave`, { note: 'ลาออก' });
+    }
+    await pool.query(`UPDATE club_memberships SET resign_requested_at = now() - interval '29 days' WHERE user_id = $1`, [early.id]);
+    await pool.query(`UPDATE club_memberships SET resign_requested_at = now() - interval '30 days 1 minute' WHERE user_id = $1`, [due.id]);
+
+    expect(await processDueResignations()).toBe(1);
+    expect((await membershipOf(clubId, early.id))?.status).toBe('active');
+    const ended = (await membershipOf(clubId, due.id))!;
+    expect(ended).toMatchObject({ status: 'ended', end_reason: 'resigned' });
+    expect((await eventsOf(ended.id)).at(-1)).toMatchObject({ action: 'left', actor_user_id: null });
+    expect(await processDueResignations()).toBe(0);
+  });
+
+  it('รับทราบการลาออก: ต้องมีสิทธิ์ club_member:approve (เหรัญญิก → 403) และรับทราบของตัวเองไม่ได้', async () => {
+    const { clubId, treasurer } = await clubWithCommittee();
+    const member = await actor();
+    await addMembership(clubId, member.id, 'active');
+    await post(member, `/clubs/${clubId}/membership/leave`, { note: 'ลาออก' });
+    const { id } = (await membershipOf(clubId, member.id))!;
+    expect((await get(treasurer, `/clubs/${clubId}/resignation-requests`)).status).toBe(403);
+    expect((await post(treasurer, `/clubs/${clubId}/memberships/${id}/acknowledge-resignation`)).status).toBe(403);
+    expect((await post(member, `/clubs/${clubId}/memberships/${id}/acknowledge-resignation`)).status).toBe(403);
   });
 
   it('กรรมการลาออกจากชมรมไม่ได้จนกว่าจะพ้นตำแหน่ง', async () => {
     const { clubId, treasurer } = await clubWithCommittee();
-    const res = await post(treasurer, `/clubs/${clubId}/membership/leave`);
+    const res = await post(treasurer, `/clubs/${clubId}/membership/leave`, { note: 'ลาออก' });
     expect(res.status).toBe(409);
     expect(res.body.error.code).toBe('COMMITTEE_MUST_RESIGN_FIRST');
   });

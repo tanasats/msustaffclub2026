@@ -5,6 +5,7 @@ import { createTestUser, resetDatabase } from './helpers/db.js';
 import { createSessionCookie, grantRole, WEB_ORIGIN } from './helpers/auth.js';
 import { addCommittee, addMembership, createTestClub } from './helpers/clubs.js';
 import { request } from './helpers/http.js';
+import { processDueResignations } from '../src/services/membership-service.js';
 
 beforeEach(resetDatabase);
 
@@ -130,7 +131,11 @@ describe('นักกีฬา', () => {
     await send('put', manager, `/clubs/${clubId}/sports`, { sportIds: [football] });
     await send('post', member, `/clubs/${clubId}/athletes`, { sportId: football });
 
-    expect((await send('post', member, `/clubs/${clubId}/membership/leave`)).status).toBe(204);
+    // ยื่นลาออกแล้วยังเป็นนักกีฬา จนกว่าการลาออกจะมีผล (ครบกำหนดอัตโนมัติ)
+    expect((await send('post', member, `/clubs/${clubId}/membership/leave`, { note: 'ย้ายงาน' })).status).toBe(204);
+    expect((await get(manager, `/clubs/${clubId}/athletes`)).body.items).toHaveLength(1);
+    await pool.query(`UPDATE club_memberships SET resign_requested_at = now() - interval '31 days' WHERE user_id = $1`, [member.id]);
+    expect(await processDueResignations()).toBe(1);
     expect((await get(manager, `/clubs/${clubId}/athletes`)).body.items).toEqual([]);
   });
 });

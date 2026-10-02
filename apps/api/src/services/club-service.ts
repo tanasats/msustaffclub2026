@@ -7,6 +7,7 @@ import {
   listCurrentCommittee,
 } from '../repositories/clubs-repository.js';
 import { findLatestRejection } from '../repositories/memberships-repository.js';
+import { getMyResignation } from './membership-service.js';
 import type { AuthContext } from './authorization.js';
 import { getClubPermissions } from './club-authorization.js';
 import { CLUB_PERMISSIONS } from './club-permissions.js';
@@ -51,6 +52,8 @@ export async function getClubPage(auth: AuthContext, clubId: string) {
   const internal = (permissions ?? []).includes(CLUB_PERMISSIONS.VIEW_INTERNAL);
   // ใบสมัครล่าสุดถูกปฏิเสธ → แสดงเหตุผลให้ผู้สมัครเห็น (ข้อมูลของตัวเอง)
   const rejection = membershipStatus === null ? await findLatestRejection(clubId, auth.user.id) : null;
+  // คำขอลาออกของฉันที่ยังไม่มีผล
+  const resignation = membershipStatus === 'active' ? await getMyResignation(clubId, auth.user.id) : null;
 
   return {
     ...club,
@@ -74,6 +77,7 @@ export async function getClubPage(auth: AuthContext, clubId: string) {
     me: {
       membershipStatus,
       rejection,
+      resignation,
       positions: committee.filter((c) => c.userId === auth.user.id).map((c) => c.positionTitle),
       isAdvisor: advisors.some((a) => a.userId === auth.user.id),
       permissions: permissions ?? [],

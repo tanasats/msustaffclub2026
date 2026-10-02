@@ -56,6 +56,8 @@ export interface ClubPage {
     membershipStatus: 'pending' | 'active' | null;
     // ใบสมัครล่าสุดถูกปฏิเสธ (แสดงเหตุผลให้ผู้สมัคร)
     rejection: { note: string | null; decidedAt: string } | null;
+    // คำขอลาออกของฉันที่ยังไม่มีผล
+    resignation: { requestedAt: string; note: string; effectiveAt: string } | null;
     positions: string[];
     isAdvisor: boolean;
     permissions: string[];

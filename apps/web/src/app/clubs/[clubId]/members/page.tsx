@@ -120,6 +120,7 @@ export default async function ClubMembersPage({ params, searchParams }: { params
                   {m.name ?? m.email}
                   {m.isCommittee && <Badge tone="kin">{m.positionTitle ?? 'กรรมการ'}</Badge>}
                   {m.status === 'ended' && <Badge tone="neutral">พ้นสภาพ</Badge>}
+                  {m.resignRequestedAt && <Badge tone="beni">ยื่นลาออก</Badge>}
                 </Link>
                 <p className="mt-0.5 text-xs text-stone">
                   {[m.orgUnitName, m.email].filter(Boolean).join(' · ')}

@@ -1,15 +1,20 @@
 import { withTransaction, type DbClient } from '../db/pool.js';
 import { AppError } from '../errors.js';
 import {
+  cancelResignation,
   decideMembership,
   endMembership,
+  findMyResignation,
   insertMembershipEvent,
   insertPendingMembership,
   isCurrentCommitteeMember,
   listPendingRequests,
+  listResignationRequests,
   lockClubStatus,
+  lockDueResignations,
   lockCurrentMembership,
   lockMembership,
+  requestResignation,
   withdrawMembership,
   type MembershipEndReason,
   type MembershipRecord,
@@ -20,6 +25,10 @@ import { hasClubPermission } from './club-authorization.js';
 import { CLUB_PERMISSIONS } from './club-permissions.js';
 import { isEligibleForClub } from './club-rules.js';
 import { bangkokDateString } from './fiscal-year.js';
+import { logger } from '../logger.js';
+
+// ยื่นลาออกแล้วไม่มีกรรมการรับทราบ → มีผลอัตโนมัติเมื่อครบจำนวนวันนี้ (ผู้ใช้ยืนยันแล้ว)
+export const RESIGNATION_AUTO_EFFECT_DAYS = 30;
 
 /**
  * เหตุพ้นสภาพที่กรรมการกำหนดได้ (ระเบียบข้อ 20)
@@ -82,20 +91,41 @@ export async function withdrawApplication(auth: AuthContext, clubId: string): Pr
 }
 
 /**
- * ลาออกจากชมรม มีผลทันที (ระเบียบข้อ 20(3))
+ * ยื่นลาออกจากชมรม พร้อมเหตุผล → กรรมการรับทราบ หรือมีผลอัตโนมัติเมื่อครบ RESIGNATION_AUTO_EFFECT_DAYS วัน
+ * กรรมการปฏิเสธไม่ได้ (ระเบียบข้อ 20(3) การเป็นสมาชิกสิ้นสุดเมื่อลาออก) ระหว่างรอยังเป็นสมาชิกตามปกติ
  * กรรมการต้องพ้นจากตำแหน่งกรรมการก่อน (ระเบียบข้อ 12 แยกการลาออกจากกรรมการไว้ต่างหาก)
  */
-export async function leaveClub(auth: AuthContext, clubId: string, note: string | null): Promise<void> {
+export async function leaveClub(auth: AuthContext, clubId: string, note: string): Promise<void> {
   await withTransaction(async (client) => {
     const current = await lockCurrentMembership(clubId, auth.user.id, client);
     if (!current || current.status !== 'active') throw membershipNotFound();
     if (await isCurrentCommitteeMember(clubId, auth.user.id, client)) {
       throw new AppError(409, 'COMMITTEE_MUST_RESIGN_FIRST', 'คุณเป็นกรรมการของชมรมนี้ ต้องพ้นจากตำแหน่งกรรมการก่อนจึงลาออกจากชมรมได้');
     }
-    await endMembership(current.id, bangkokDateString(), 'resigned', client);
-    await endAthletesOfMember(clubId, auth.user.id, auth.user.id, client);
-    await insertMembershipEvent({ membershipId: current.id, actorUserId: auth.user.id, action: 'left', note }, client);
+    if (!(await requestResignation(current.id, note, client))) {
+      throw new AppError(409, 'RESIGNATION_ALREADY_REQUESTED', 'คุณยื่นลาออกไว้แล้ว รอกรรมการรับทราบ');
+    }
+    await insertMembershipEvent({ membershipId: current.id, actorUserId: auth.user.id, action: 'resign_requested', note }, client);
   });
+}
+
+// ยกเลิกคำขอลาออกที่ยังไม่มีผล
+export async function cancelLeaveRequest(auth: AuthContext, clubId: string): Promise<void> {
+  await withTransaction(async (client) => {
+    const current = await lockCurrentMembership(clubId, auth.user.id, client);
+    if (!current || current.status !== 'active' || !(await cancelResignation(current.id, client))) {
+      throw new AppError(404, 'RESIGNATION_NOT_FOUND', 'ไม่พบคำขอลาออกที่รอดำเนินการ');
+    }
+    await insertMembershipEvent({ membershipId: current.id, actorUserId: auth.user.id, action: 'resign_cancelled', note: null }, client);
+  });
+}
+
+// คำขอลาออกของฉันที่ยังไม่มีผล พร้อมวันที่จะมีผลอัตโนมัติ (แสดงที่หน้าชมรม)
+export async function getMyResignation(clubId: string, userId: string) {
+  const row = await findMyResignation(clubId, userId);
+  if (!row) return null;
+  const effectiveAt = new Date(row.requestedAt.getTime() + RESIGNATION_AUTO_EFFECT_DAYS * 24 * 60 * 60 * 1000);
+  return { ...row, effectiveAt };
 }
 
 // ---------- กรรมการจัดการสมาชิก (สิทธิ์ชมรม club_member:approve) ----------
@@ -120,6 +150,64 @@ async function lockForDecision(
 
 export async function listMembershipRequests(clubId: string) {
   return { items: await listPendingRequests(clubId) };
+}
+
+// คำขอลาออกที่รอรับทราบ — route ตรวจสิทธิ์ชมรม club_member:approve แล้ว
+export async function listResignations(clubId: string) {
+  const items = await listResignationRequests(clubId);
+  const day = 24 * 60 * 60 * 1000;
+  return {
+    items: items.map((r) => ({ ...r, effectiveAt: new Date(r.requestedAt.getTime() + RESIGNATION_AUTO_EFFECT_DAYS * day) })),
+  };
+}
+
+/**
+ * กรรมการรับทราบการลาออก → พ้นสภาพ (เหตุ resigned) ทันที
+ * ผู้ที่ถูกแต่งตั้งเป็นกรรมการหลังยื่นลาออก ต้องพ้นตำแหน่งก่อน
+ */
+export async function acknowledgeResignation(auth: AuthContext, clubId: string, membershipId: string, note: string | null): Promise<void> {
+  await withTransaction(async (client) => {
+    const membership = await lockForDecision(auth, clubId, membershipId, client);
+    const pending = membership.status === 'active' ? await findMyResignation(clubId, membership.userId, client) : null;
+    if (!pending) {
+      throw new AppError(409, 'RESIGNATION_NOT_FOUND', 'ไม่พบคำขอลาออกที่รอรับทราบ');
+    }
+    if (await isCurrentCommitteeMember(clubId, membership.userId, client)) {
+      throw new AppError(409, 'COMMITTEE_MUST_RESIGN_FIRST', 'สมาชิกคนนี้เป็นกรรมการ ต้องให้พ้นจากตำแหน่งกรรมการก่อน');
+    }
+    await endMembership(membershipId, bangkokDateString(), 'resigned', client);
+    await endAthletesOfMember(clubId, membership.userId, auth.user.id, client);
+    await insertMembershipEvent(
+      { membershipId, actorUserId: auth.user.id, action: 'left', note: note ? `รับทราบการลาออก: ${note}` : 'รับทราบการลาออก' },
+      client,
+    );
+  });
+}
+
+/**
+ * งานอัตโนมัติ: คำขอลาออกที่ครบ RESIGNATION_AUTO_EFFECT_DAYS วันโดยไม่มีกรรมการรับทราบ → มีผล (ผู้กระทำ = ระบบ)
+ * ข้ามผู้ที่ยังดำรงตำแหน่งกรรมการ (ต้องพ้นตำแหน่งก่อน) ทำรอบละไม่เกิน limit แถว คืนจำนวนที่มีผล
+ */
+export async function processDueResignations(limit = 100): Promise<number> {
+  return withTransaction(async (client) => {
+    const due = await lockDueResignations(RESIGNATION_AUTO_EFFECT_DAYS, limit, client);
+    let ended = 0;
+    for (const row of due) {
+      if (await isCurrentCommitteeMember(row.clubId, row.userId, client)) {
+        logger.warn({ membershipId: row.id }, 'membership: ข้ามการลาออกอัตโนมัติ เพราะยังเป็นกรรมการ');
+        continue;
+      }
+      await endMembership(row.id, bangkokDateString(), 'resigned', client);
+      // ผู้ยุติการเป็นนักกีฬา = ผู้ลาออกเอง (การลาออกเป็นการกระทำของเขา ระบบเพียงทำให้มีผลตามกำหนด)
+      await endAthletesOfMember(row.clubId, row.userId, row.userId, client);
+      await insertMembershipEvent(
+        { membershipId: row.id, actorUserId: null, action: 'left', note: `ลาออกมีผลอัตโนมัติ (ครบ ${RESIGNATION_AUTO_EFFECT_DAYS} วันหลังยื่น)` },
+        client,
+      );
+      ended += 1;
+    }
+    return ended;
+  });
 }
 
 export async function approveMembership(auth: AuthContext, clubId: string, membershipId: string): Promise<void> {

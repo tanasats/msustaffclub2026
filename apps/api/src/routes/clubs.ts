@@ -15,10 +15,13 @@ import {
   transferPresidency,
 } from '../services/committee-service.js';
 import {
+  acknowledgeResignation,
   applyForMembership,
   approveMembership,
+  cancelLeaveRequest,
   leaveClub,
   listMembershipRequests,
+  listResignations,
   rejectMembership,
   removeMember,
   REMOVAL_REASONS,
@@ -111,10 +114,33 @@ clubsRouter.post('/clubs/:clubId/membership/withdraw', requireAuth, async (req, 
   res.status(204).end();
 });
 
-// ต้อง login เท่านั้น: ลาออกจากชมรม (มีผลทันที)
+// ต้อง login เท่านั้น: ยื่นลาออกจากชมรม (ต้องมีเหตุผล) → กรรมการรับทราบ หรือมีผลอัตโนมัติเมื่อครบกำหนด
 clubsRouter.post('/clubs/:clubId/membership/leave', requireAuth, async (req, res) => {
+  const { note } = requiredNoteSchema.parse(req.body ?? {});
+  await leaveClub(getRequiredAuth(req), clubIdOf(req.params.clubId), note);
+  res.status(204).end();
+});
+
+// ต้อง login เท่านั้น: ยกเลิกคำขอลาออกของตัวเอง
+clubsRouter.post('/clubs/:clubId/membership/leave/cancel', requireAuth, async (req, res) => {
+  await cancelLeaveRequest(getRequiredAuth(req), clubIdOf(req.params.clubId));
+  res.status(204).end();
+});
+
+// ต้องมีสิทธิ์ชมรม club_member:approve: คำขอลาออกที่รอรับทราบ
+clubsRouter.get(
+  '/clubs/:clubId/resignation-requests',
+  requireAuth,
+  requireClubPermission(CLUB_PERMISSIONS.MEMBER_APPROVE),
+  async (req, res) => {
+    res.json(await listResignations(req.params.clubId as string));
+  },
+);
+
+// ต้องมีสิทธิ์ชมรม club_member:approve (ตรวจใน service): รับทราบการลาออก (ปฏิเสธไม่ได้ ตามระเบียบข้อ 20(3))
+clubsRouter.post('/clubs/:clubId/memberships/:membershipId/acknowledge-resignation', requireAuth, async (req, res) => {
   const { note } = noteSchema.parse(req.body ?? {});
-  await leaveClub(getRequiredAuth(req), clubIdOf(req.params.clubId), note ?? null);
+  await acknowledgeResignation(getRequiredAuth(req), clubIdOf(req.params.clubId), membershipIdOf(req.params.membershipId), note ?? null);
   res.status(204).end();
 });
 

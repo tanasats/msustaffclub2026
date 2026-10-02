@@ -27,6 +27,8 @@ export interface MemberListRow {
   endReason: MembershipEndReason | null;
   isCommittee: boolean;
   positionTitle: string | null;
+  // ยื่นลาออกแล้ว รอมีผล
+  resignRequestedAt: Date | null;
 }
 
 const escapeLike = (text: string) => `%${text.replace(/[\\%_]/g, (char) => `\\${char}`)}%`;
@@ -47,6 +49,7 @@ export async function searchClubMembers(
             m.status, m.decided_at AS "joinedAt", to_char(m.ended_on, 'YYYY-MM-DD') AS "endedOn", m.end_reason AS "endReason",
             (cm.position_title IS NOT NULL AND m.status = 'active') AS "isCommittee",
             CASE WHEN m.status = 'active' THEN cm.position_title END AS "positionTitle",
+            m.resign_requested_at AS "resignRequestedAt",
             count(*) OVER ()::int AS total
        FROM club_memberships m
        JOIN users u ON u.id = m.user_id
