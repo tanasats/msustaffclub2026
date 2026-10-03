@@ -11,7 +11,34 @@ export interface ClubListItem {
   establishedOn: string;
   registeredUntil: string;
   myMembershipStatus: 'pending' | 'active' | null;
+  presidentName: string | null;
+  // มีคำขอต่อทะเบียนที่ยื่นต่อสโมสรแล้ว
+  renewalPending: boolean;
 }
+
+// ชมรมที่อยู่ระหว่างขอจัดตั้ง (คำขอจัดตั้งที่ยื่นต่อสโมสรแล้ว) — GET /clubs/proposed
+export interface ProposedClubItem {
+  id: string;
+  nameTh: string;
+  status: 'submitted' | 'reviewed';
+  category: { code: string; nameTh: string } | null;
+  motto: string | null;
+  logoFileId: string | null;
+  presidentName: string | null;
+  submittedAt: string | null;
+}
+
+export interface ProposedClubDetail extends ProposedClubItem {
+  categoryDetail: string | null;
+  objectives: string[];
+  logoMeaning: string | null;
+  fiscalYear: number;
+  presidentOrgUnit: string | null;
+  // ผู้ใช้ดูคำขอฉบับเต็มได้ (ผู้ยื่น/ที่ปรึกษา/เจ้าหน้าที่)
+  canViewApplication: boolean;
+}
+
+export const PROPOSED_STATUS_LABELS = { submitted: 'รอเจ้าหน้าที่ตรวจ', reviewed: 'รอนายกสโมสรอนุมัติ' } as const;
 
 export interface ClubPage {
   id: string;

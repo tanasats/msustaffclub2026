@@ -4,7 +4,13 @@ import { getRequiredAuth, requireAuth, requireClubPermission, requirePermission 
 import { PERMISSIONS } from '../services/permissions.js';
 import { CLUB_PERMISSIONS } from '../services/club-permissions.js';
 import { getClubLogoUrl, setClubLogo } from '../services/club-logo-service.js';
-import { getClubPage, listClubDirectory } from '../services/club-service.js';
+import {
+  getClubPage,
+  getProposedClub,
+  getProposedClubLogoUrl,
+  listClubDirectory,
+  listProposedClubDirectory,
+} from '../services/club-service.js';
 import { exportMembers, getMemberProfile, getMemberSummary, listMembers } from '../services/club-members-service.js';
 import { createRenewal, getRenewalStatus } from '../services/renewal-service.js';
 import {
@@ -44,6 +50,8 @@ const listSchema = z.object({
   q: z.string().trim().max(100).optional().transform((value) => value || null),
   category: z.string().regex(/^[a-z][a-z0-9_]*$/).max(50).optional().transform((value) => value ?? null),
   mine: z.enum(['1', 'true']).optional().transform((value) => Boolean(value)),
+  // 1 = เฉพาะชมรมที่มีคำขอต่อทะเบียนยื่นแล้ว
+  renewing: z.enum(['1', 'true']).optional().transform((value) => Boolean(value)),
   page: z.coerce.number().int().min(1).max(10000).default(1),
   pageSize: z.coerce.number().int().min(1).max(60).default(24),
 });
@@ -54,8 +62,28 @@ const pageSchema = z.object({
 
 // ต้อง login เท่านั้น: ทำเนียบชมรม (?mine=1 = ชมรมของฉัน)
 clubsRouter.get('/clubs', requireAuth, async (req, res) => {
-  const { q, category, mine, page, pageSize } = listSchema.parse(req.query);
-  res.json(await listClubDirectory(getRequiredAuth(req), { query: q, categoryCode: category, mineOnly: mine, page, pageSize }));
+  const { q, category, mine, renewing, page, pageSize } = listSchema.parse(req.query);
+  res.json(
+    await listClubDirectory(getRequiredAuth(req), { query: q, categoryCode: category, mineOnly: mine, renewingOnly: renewing, page, pageSize }),
+  );
+});
+
+// ต้อง login เท่านั้น: ชมรมที่อยู่ระหว่างขอจัดตั้ง (คำขอที่ยื่นต่อสโมสรแล้ว) — ประกาศก่อน /clubs/:clubId
+clubsRouter.get('/clubs/proposed', requireAuth, async (req, res) => {
+  const { q, category, page, pageSize } = listSchema.parse(req.query);
+  res.json(await listProposedClubDirectory({ query: q, categoryCode: category, page, pageSize }));
+});
+
+// ต้อง login เท่านั้น: หน้าสรุปสาธารณะของชมรมที่อยู่ระหว่างขอจัดตั้ง
+clubsRouter.get('/clubs/proposed/:applicationId', requireAuth, async (req, res) => {
+  const id = parseIdParam(req.params.applicationId, 'PROPOSED_CLUB_NOT_FOUND', 'ไม่พบชมรมที่อยู่ระหว่างขอจัดตั้ง');
+  res.json(await getProposedClub(getRequiredAuth(req), id));
+});
+
+// ต้อง login เท่านั้น: ตราของชมรมที่อยู่ระหว่างขอจัดตั้ง (redirect ไป URL อายุสั้น)
+clubsRouter.get('/clubs/proposed/:applicationId/logo', requireAuth, async (req, res) => {
+  const id = parseIdParam(req.params.applicationId, 'PROPOSED_CLUB_NOT_FOUND', 'ไม่พบชมรมที่อยู่ระหว่างขอจัดตั้ง');
+  redirectToImage(res, await getProposedClubLogoUrl(id));
 });
 
 // ต้อง login เท่านั้น: หน้าชมรม (ข้อมูลภายในแสดงตามสิทธิ์ชมรม)
