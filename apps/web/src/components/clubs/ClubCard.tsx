@@ -14,12 +14,14 @@ export function ClubCard({ club }: { club: ClubListItem }) {
           <Badge tone="matcha">{club.category.nameTh}</Badge>
           {club.myMembershipStatus === 'active' && <Badge tone="kin">สมาชิก</Badge>}
           {club.myMembershipStatus === 'pending' && <Badge tone="sky">รออนุมัติสมาชิก</Badge>}
-          {club.registeredUntil < bangkokToday() && <Badge tone="beni">ทะเบียนหมดอายุ</Badge>}
+          {club.renewalPending && <Badge tone="sky">ระหว่างต่ออายุ</Badge>}
+          {club.registeredUntil < bangkokToday() && !club.renewalPending && <Badge tone="beni">ทะเบียนหมดอายุ</Badge>}
         </div>
         <div className="mt-3 flex items-start gap-3">
           <ClubLogo path={`/clubs/${club.id}/logo`} fileId={club.logoFileId} name={club.nameTh} size="sm" />
           <div className="min-w-0">
             <h2 className="font-serif text-xl leading-snug font-medium text-ink group-hover:text-matcha-800">{club.nameTh}</h2>
+            <p className="mt-1 text-sm text-stone">ประธาน: {club.presidentName ?? '—'}</p>
             {club.motto && <p className="mt-1 text-sm text-stone">“{club.motto}”</p>}
           </div>
         </div>

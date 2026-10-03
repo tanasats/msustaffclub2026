@@ -118,6 +118,10 @@ export interface ClubListItem {
   registeredUntil: string;
   // สถานะของผู้ใช้ปัจจุบันในชมรมนี้ (null = ไม่ได้เป็นสมาชิก/ไม่ได้สมัคร)
   myMembershipStatus: 'pending' | 'active' | null;
+  // ประธานชมรมคนปัจจุบัน (null = ยังไม่มี เช่น ประธานพ้นจากมหาวิทยาลัย)
+  presidentName: string | null;
+  // มีคำขอต่อทะเบียนที่ยื่นต่อสโมสรแล้ว อยู่ระหว่างตรวจ/อนุมัติ
+  renewalPending: boolean;
 }
 
 export interface ClubListFilter {
@@ -125,6 +129,8 @@ export interface ClubListFilter {
   categoryCode: string | null;
   // true = เฉพาะชมรมที่ผู้ใช้เป็นสมาชิก/กรรมการ/ที่ปรึกษา
   mineOnly: boolean;
+  // true = เฉพาะชมรมที่มีคำขอต่อทะเบียนยื่นแล้ว (ระหว่างต่ออายุ)
+  renewingOnly: boolean;
   userId: string;
   limit: number;
   offset: number;
@@ -136,7 +142,11 @@ export interface ClubListFilter {
  * - myMembershipStatus: สถานะใบสมัคร/สมาชิกที่ยังมีผลของผู้ใช้ (partial unique index รับประกันว่ามีไม่เกิน 1 แถว)
  * - count(*) OVER () ได้จำนวนทั้งหมดก่อน LIMIT ในคำสั่งเดียว
  */
-export async function listClubs(filter: ClubListFilter, db: Queryable = pool): Promise<{ items: ClubListItem[]; total: number }> {
+export async function listClubs(
+  filter: ClubListFilter,
+  presidentPositionCode: string,
+  db: Queryable = pool,
+): Promise<{ items: ClubListItem[]; total: number }> {
   const pattern = filter.query ? `%${filter.query.replace(/[\\%_]/g, (char) => `\\${char}`)}%` : null;
   const result = await db.query<ClubListItem & { total: number }>(
     `SELECT c.id, c.name_th AS "nameTh", c.status,
@@ -147,11 +157,24 @@ export async function listClubs(filter: ClubListFilter, db: Queryable = pool): P
             to_char(c.registered_until, 'YYYY-MM-DD') AS "registeredUntil",
             (SELECT m.status FROM club_memberships m
               WHERE m.club_id = c.id AND m.user_id = $4 AND m.status IN ('pending', 'active')) AS "myMembershipStatus",
+            (SELECT u.name FROM club_committee_members cm
+               JOIN club_positions p ON p.id = cm.position_id AND p.code = $8
+               JOIN users u ON u.id = cm.user_id
+              WHERE cm.club_id = c.id AND cm.ended_on IS NULL
+              LIMIT 1) AS "presidentName",
+            ren.pending AS "renewalPending",
             count(*) OVER ()::int AS total
        FROM clubs c
        JOIN club_categories cat ON cat.id = c.category_id
+       -- คำขอต่อทะเบียนที่ยื่นแล้ว (ใช้ index club_applications_club_id_idx)
+       CROSS JOIN LATERAL (
+         SELECT EXISTS (SELECT 1 FROM club_applications a
+                         WHERE a.club_id = c.id AND a.type = 'renewal' AND a.deleted_at IS NULL
+                           AND a.status IN ('submitted', 'reviewed')) AS pending
+       ) ren
       WHERE c.deleted_at IS NULL
         AND c.status = 'active'
+        AND (NOT $7 OR ren.pending)
         AND ($1::text IS NULL OR c.name_th ILIKE $1)
         AND ($2::text IS NULL OR cat.code = $2)
         AND (NOT $3 OR EXISTS (SELECT 1 FROM club_memberships m WHERE m.club_id = c.id AND m.user_id = $4 AND m.status = 'active')
@@ -159,7 +182,7 @@ export async function listClubs(filter: ClubListFilter, db: Queryable = pool): P
                     OR EXISTS (SELECT 1 FROM club_advisors a WHERE a.club_id = c.id AND a.user_id = $4 AND a.ended_on IS NULL))
       ORDER BY c.name_th
       LIMIT $5 OFFSET $6`,
-    [pattern, filter.categoryCode, filter.mineOnly, filter.userId, filter.limit, filter.offset],
+    [pattern, filter.categoryCode, filter.mineOnly, filter.userId, filter.limit, filter.offset, filter.renewingOnly, presidentPositionCode],
   );
   return {
     items: result.rows.map(({ total: _total, ...item }) => item),
@@ -360,4 +383,80 @@ export async function insertPlannedActivitiesFromApplication(
      ON CONFLICT (application_activity_id) DO NOTHING`,
     [clubId, applicationId, fiscalYear],
   );
+}
+
+// ---------- ชมรมที่อยู่ระหว่างขอจัดตั้ง (คำขอจัดตั้งที่ยื่นต่อสโมสรแล้ว) ----------
+
+// สถานะคำขอจัดตั้งที่แสดงในทำเนียบ: ยื่นแล้วรอตรวจ / ตรวจผ่านรออนุมัติ (ร่างและรอการตอบรับยังเป็นงานภายในของผู้ยื่น)
+export const PROPOSED_CLUB_STATUSES = ['submitted', 'reviewed'] as const;
+
+export interface ProposedClubItem {
+  id: string;
+  nameTh: string;
+  status: 'submitted' | 'reviewed';
+  category: { code: string; nameTh: string } | null;
+  motto: string | null;
+  logoFileId: string | null;
+  presidentName: string | null;
+  submittedAt: Date | null;
+}
+
+const PROPOSED_COLUMNS = `
+  a.id, a.name_th AS "nameTh", a.status,
+  CASE WHEN cat.id IS NULL THEN NULL ELSE json_build_object('code', cat.code, 'nameTh', cat.name_th) END AS category,
+  a.motto, a.logo_file_id AS "logoFileId",
+  (SELECT u.name FROM club_application_committee m
+     JOIN club_positions p ON p.id = m.position_id AND p.code = $1
+     JOIN users u ON u.id = m.user_id
+    WHERE m.application_id = a.id LIMIT 1) AS "presidentName",
+  a.submitted_at AS "submittedAt"`;
+
+/**
+ * คำขอจัดตั้งที่ยื่นต่อสโมสรแล้ว ค้นชื่อ/กรองประเภท แบ่งหน้า (ใช้ index club_applications_status_idx)
+ * เฉพาะข้อมูลแนะนำชมรม (ไม่มีข้อมูลติดต่อ/รายชื่อสมาชิก)
+ */
+export async function listProposedClubs(
+  filter: { query: string | null; categoryCode: string | null; limit: number; offset: number },
+  presidentPositionCode: string,
+  db: Queryable = pool,
+): Promise<{ items: ProposedClubItem[]; total: number }> {
+  const pattern = filter.query ? `%${filter.query.replace(/[\\%_]/g, (char) => `\\${char}`)}%` : null;
+  const result = await db.query<ProposedClubItem & { total: number }>(
+    `SELECT ${PROPOSED_COLUMNS}, count(*) OVER ()::int AS total
+       FROM club_applications a
+       LEFT JOIN club_categories cat ON cat.id = a.category_id
+      WHERE a.type = 'establish' AND a.deleted_at IS NULL AND a.status = ANY($2::text[])
+        AND ($3::text IS NULL OR a.name_th ILIKE $3)
+        AND ($4::text IS NULL OR cat.code = $4)
+      ORDER BY a.submitted_at DESC NULLS LAST, a.id
+      LIMIT $5 OFFSET $6`,
+    [presidentPositionCode, PROPOSED_CLUB_STATUSES, pattern, filter.categoryCode, filter.limit, filter.offset],
+  );
+  return { items: result.rows.map(({ total: _total, ...item }) => item), total: result.rows[0]?.total ?? 0 };
+}
+
+export interface ProposedClubDetail extends ProposedClubItem {
+  categoryDetail: string | null;
+  objectives: string[];
+  logoMeaning: string | null;
+  fiscalYear: number;
+  presidentOrgUnit: string | null;
+}
+
+// หน้าสรุปสาธารณะของคำขอจัดตั้งที่ยื่นแล้ว (null = ไม่พบ หรือไม่อยู่ในสถานะที่เปิดเผย)
+export async function findProposedClub(id: string, presidentPositionCode: string, db: Queryable = pool): Promise<ProposedClubDetail | null> {
+  const result = await db.query<ProposedClubDetail>(
+    `SELECT ${PROPOSED_COLUMNS},
+            a.category_detail AS "categoryDetail", a.objectives, a.logo_meaning AS "logoMeaning", a.fiscal_year AS "fiscalYear",
+            (SELECT ou.name_th FROM club_application_committee m
+               JOIN club_positions p ON p.id = m.position_id AND p.code = $1
+               JOIN staff_profiles sp ON sp.user_id = m.user_id
+               JOIN org_units ou ON ou.id = sp.org_unit_id
+              WHERE m.application_id = a.id LIMIT 1) AS "presidentOrgUnit"
+       FROM club_applications a
+       LEFT JOIN club_categories cat ON cat.id = a.category_id
+      WHERE a.id = $2 AND a.type = 'establish' AND a.deleted_at IS NULL AND a.status = ANY($3::text[])`,
+    [presidentPositionCode, id, PROPOSED_CLUB_STATUSES],
+  );
+  return result.rows[0] ?? null;
 }
