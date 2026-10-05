@@ -126,6 +126,10 @@ export interface AnnualReportDetailRow {
   submittedByName: string | null;
   submittedAt: Date | null;
   acknowledgedByName: string | null;
+  // ชื่อพร้อมคำนำหน้าสำหรับเอกสารพิมพ์ (user_formal_name)
+  submittedByFormalName: string | null;
+  createdByFormalName: string | null;
+  acknowledgedByFormalName: string | null;
   acknowledgedAt: Date | null;
   acknowledgementNote: string | null;
 }
@@ -138,7 +142,10 @@ export async function findAnnualReportDetail(id: string, db: Queryable = pool): 
             COALESCE(cu.name, cu.email) AS "createdByName",
             COALESCE(su.name, su.email) AS "submittedByName", r.submitted_at AS "submittedAt",
             COALESCE(au.name, au.email) AS "acknowledgedByName", r.acknowledged_at AS "acknowledgedAt",
-            r.acknowledgement_note AS "acknowledgementNote"
+            r.acknowledgement_note AS "acknowledgementNote",
+            user_formal_name(r.submitted_by) AS "submittedByFormalName",
+            user_formal_name(r.created_by) AS "createdByFormalName",
+            user_formal_name(r.acknowledged_by) AS "acknowledgedByFormalName"
        FROM club_annual_reports r
        JOIN clubs c ON c.id = r.club_id
        JOIN users cu ON cu.id = r.created_by

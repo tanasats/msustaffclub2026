@@ -202,6 +202,8 @@ export async function listRanking(
 export interface ResultRow {
   userId: string;
   name: string | null;
+  // ชื่อพร้อมคำนำหน้าสำหรับประกาศ (user_formal_name)
+  formalName: string;
   decision: 'selected' | 'reserve';
   reason: string;
   clubs: string[];
@@ -210,7 +212,7 @@ export interface ResultRow {
 // ผลที่ประกาศ (คัดเลือก/สำรอง) ของรอบที่ปิดแล้ว
 export async function listAnnouncedResults(roundId: string, db: Queryable = pool): Promise<ResultRow[]> {
   const result = await db.query<ResultRow>(
-    `SELECT u.id AS "userId", COALESCE(u.name, u.email) AS name, sc.decision, sc.reason,
+    `SELECT u.id AS "userId", COALESCE(u.name, u.email) AS name, user_formal_name(u.id) AS "formalName", sc.decision, sc.reason,
             ARRAY(SELECT DISTINCT cl.name_th FROM club_athletes a JOIN clubs cl ON cl.id = a.club_id
                    WHERE a.user_id = u.id AND a.ended_at IS NULL ORDER BY cl.name_th) AS clubs
        FROM selection_candidates sc

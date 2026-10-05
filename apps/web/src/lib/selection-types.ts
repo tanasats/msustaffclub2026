@@ -53,5 +53,6 @@ export interface Announcement {
   fiscalYear: number;
   criteria: string | null;
   closedAt: string;
-  results: { userId: string; name: string; decision: 'selected' | 'reserve'; reason: string; clubs: string[] }[];
+  // formalName = ชื่อพร้อมคำนำหน้า สำหรับเอกสารประกาศ
+  results: { userId: string; name: string; formalName: string; decision: 'selected' | 'reserve'; reason: string; clubs: string[] }[];
 }

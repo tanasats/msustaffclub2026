@@ -37,6 +37,10 @@ export interface MonthlyReportDetail {
   submittedByName: string | null;
   submittedAt: string | null;
   acknowledgedByName: string | null;
+  // ชื่อพร้อมคำนำหน้า สำหรับเอกสารพิมพ์
+  submittedByFormalName: string | null;
+  createdByFormalName: string | null;
+  acknowledgedByFormalName: string | null;
   acknowledgedAt: string | null;
   acknowledgementNote: string | null;
   me: { canEdit: boolean; canAcknowledge: boolean };
@@ -80,6 +84,10 @@ export interface AnnualReportDetail {
   submittedByName: string | null;
   submittedAt: string | null;
   acknowledgedByName: string | null;
+  // ชื่อพร้อมคำนำหน้า สำหรับเอกสารพิมพ์
+  submittedByFormalName: string | null;
+  createdByFormalName: string | null;
+  acknowledgedByFormalName: string | null;
   acknowledgedAt: string | null;
   acknowledgementNote: string | null;
   me: { canEdit: boolean; canAcknowledge: boolean; canViewClubReports: boolean };

@@ -107,6 +107,14 @@ async function ensureSystemRole(userId: string, roleCode: string, reason: string
  * ดึงข้อมูลบุคลากรจาก ERP-HR โดยไม่ทำให้ login ล้ม
  * ถ้าเรียกไม่สำเร็จหรือไม่พบข้อมูล คืน null (ข้อมูลเดิมในฐานข้อมูลยังอยู่ และจะดึงใหม่ใน login ครั้งถัดไป)
  */
+// ชื่อแสดงจาก ERP = "ชื่อ นามสกุล" ภาษาไทย (ไม่มีคำนำหน้า — คำนำหน้าใช้ในเอกสารพิมพ์ผ่าน user_formal_name)
+// ข้อมูลไม่ครบ → null (ใช้ชื่อเดิม/ชื่อ Google แทน ไม่ให้ชื่อแสดงขาดครึ่ง)
+export function erpDisplayName(info: ErpStaffInfo | null): string | null {
+  const first = info?.firstNameTh?.trim();
+  const last = info?.lastNameTh?.trim();
+  return first && last ? `${first} ${last}` : null;
+}
+
 async function fetchStaffInfoSafely(accessToken: string): Promise<ErpStaffInfo | null> {
   try {
     const info = await erpHr.fetchStaffInfo(accessToken);
@@ -152,7 +160,7 @@ export async function completeGoogleLogin(input: CompleteLoginInput): Promise<Lo
   const token = generateToken();
   return withTransaction(async (client) => {
     const result = await upsertUserOnLogin(
-      { googleSub: payload.sub, email, name: payload.name ?? null, pictureUrl: payload.picture ?? null },
+      { googleSub: payload.sub, email, googleName: payload.name ?? null, erpName: erpDisplayName(staffInfo), pictureUrl: payload.picture ?? null },
       client,
     );
     if (result.status === 'inactive') {

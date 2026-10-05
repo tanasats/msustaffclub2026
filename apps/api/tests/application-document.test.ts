@@ -87,6 +87,21 @@ describe('ข้อมูลสำหรับพิมพ์ชุดเอก�
     expect(res.body.members.map((m: { name: string }) => m.name)).toEqual(['ประธาน ทดสอบ', 'ผู้จัดทำ ทดสอบ']);
   });
 
+  it('เอกสารทางการใช้ชื่อพร้อมคำนำหน้าจาก ERP (หน้าจอปกติไม่มีคำนำหน้า)', async () => {
+    const applicant = await actor(undefined, 'สมหญิง ตัวอย่าง');
+    await pool.query(
+      `INSERT INTO staff_profiles (user_id, staff_code, prefix_name_th, first_name_th, last_name_th, synced_at)
+       VALUES ($1, '1', 'นางสาว', 'สมหญิง', 'ตัวอย่าง', now())`,
+      [applicant.id],
+    );
+    const { body } = await send('post', applicant, '/club-applications', { nameTh: 'ชมรมหมากรุก' });
+    const doc = (await get(applicant, `/club-applications/${body.id}/document`)).body;
+    expect(doc.applicant.name).toBe('นางสาวสมหญิง ตัวอย่าง');
+    expect(doc.committee).toMatchObject([{ name: 'นางสาวสมหญิง ตัวอย่าง', positionCode: 'president' }]);
+    const detail = (await get(applicant, `/club-applications/${body.id}`)).body;
+    expect(detail.applicant.name).toBe('สมหญิง ตัวอย่าง');
+  });
+
   it('คำขอต่อทะเบียน: กรรมการและสมาชิกมาจากข้อมูลจริงของชมรม', async () => {
     const clubId = await createTestClub({ name: 'ชมรมวิ่ง' });
     const president = await actor(undefined, 'ประธานวิ่ง');

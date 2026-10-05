@@ -373,6 +373,8 @@ export interface ApplicationDetailRow extends ApplicationBase {
   createdAt: Date;
   updatedAt: Date;
   deletedByName: string | null;
+  // ชื่อผู้ยื่นพร้อมคำนำหน้าสำหรับเอกสารพิมพ์
+  applicantFormalName: string;
 }
 
 export async function findApplicationDetail(id: string, db: Queryable = pool, includeDeleted = false): Promise<ApplicationDetailRow | null> {
@@ -388,7 +390,8 @@ export async function findApplicationDetail(id: string, db: Queryable = pool, in
             a.regulation_text AS "regulationText",
             a.submitted_at AS "submittedAt", a.reviewed_at AS "reviewedAt", a.decided_at AS "decidedAt",
             a.decision_note AS "decisionNote", a.created_at AS "createdAt", a.updated_at AS "updatedAt",
-            a.deleted_at AS "deletedAt", du.name AS "deletedByName"
+            a.deleted_at AS "deletedAt", du.name AS "deletedByName",
+            user_formal_name(a.applicant_user_id) AS "applicantFormalName"
        FROM club_applications a
        JOIN users u ON u.id = a.applicant_user_id
        LEFT JOIN club_categories c ON c.id = a.category_id
@@ -401,6 +404,8 @@ export async function findApplicationDetail(id: string, db: Queryable = pool, in
 
 export interface AdvisorDetailRow extends AdvisorRow {
   userName: string | null;
+  // ชื่อพร้อมคำนำหน้า (ที่ปรึกษาบุคลากร) สำหรับเอกสารพิมพ์
+  userFormalName: string | null;
   external: {
     prefixTh: string | null;
     firstNameTh: string;
@@ -421,6 +426,7 @@ export async function listAdvisorDetails(applicationId: string, db: Queryable = 
             a.consent_status AS "consentStatus", a.responded_at AS "respondedAt", a.consent_file_id AS "consentFileId",
             a.consent_verified_by AS "consentVerifiedBy", a.consent_verified_at AS "consentVerifiedAt",
             u.name AS "userName",
+            CASE WHEN a.user_id IS NULL THEN NULL ELSE user_formal_name(a.user_id) END AS "userFormalName",
             CASE WHEN e.id IS NULL THEN NULL ELSE json_build_object(
               'prefixTh', e.prefix_th, 'firstNameTh', e.first_name_th, 'lastNameTh', e.last_name_th,
               'organization', e.organization, 'position', e.position, 'email', e.email, 'phone', e.phone
@@ -456,11 +462,14 @@ export interface CommitteeDetailRow {
   bio: string | null;
   consentStatus: 'pending' | 'accepted' | 'declined' | null;
   respondedAt: Date | null;
+  // ชื่อพร้อมคำนำหน้าสำหรับเอกสารพิมพ์
+  userFormalName: string;
 }
 
 export async function listCommitteeDetails(applicationId: string, db: Queryable = pool): Promise<CommitteeDetailRow[]> {
   const result = await db.query<CommitteeDetailRow>(
     `SELECT m.user_id AS "userId", u.name AS "userName", u.email AS "userEmail", u.is_active AS "userIsActive",
+            user_formal_name(m.user_id) AS "userFormalName",
             ou.name_th AS "orgUnitName",
             p.id AS "positionId", p.code AS "positionCode", p.name_th AS "positionNameTh",
             m.position_title AS "positionTitle", m.sort_order AS "sortOrder",
@@ -482,6 +491,8 @@ export async function listCommitteeDetails(applicationId: string, db: Queryable 
 export interface MemberDetailRow {
   userId: string;
   userName: string | null;
+  // ชื่อพร้อมคำนำหน้าสำหรับเอกสารพิมพ์
+  userFormalName: string;
   userEmail: string;
   userIsActive: boolean;
   orgUnitName: string | null;
@@ -489,8 +500,8 @@ export interface MemberDetailRow {
 
 export async function listMemberDetails(applicationId: string, db: Queryable = pool): Promise<MemberDetailRow[]> {
   const result = await db.query<MemberDetailRow>(
-    `SELECT m.user_id AS "userId", u.name AS "userName", u.email AS "userEmail", u.is_active AS "userIsActive",
-            ou.name_th AS "orgUnitName"
+    `SELECT m.user_id AS "userId", u.name AS "userName", user_formal_name(u.id) AS "userFormalName",
+            u.email AS "userEmail", u.is_active AS "userIsActive", ou.name_th AS "orgUnitName"
        FROM club_application_members m
        JOIN users u ON u.id = m.user_id
        LEFT JOIN staff_profiles sp ON sp.user_id = u.id
