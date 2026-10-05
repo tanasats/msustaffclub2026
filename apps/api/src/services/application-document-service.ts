@@ -45,8 +45,9 @@ export async function getApplicationDocument(auth: AuthContext, applicationId: s
   let members: { name: string; orgUnitName: string | null }[];
   if (detail.type === 'renewal' && detail.clubId) {
     const [clubCommittee, clubMembers] = await Promise.all([listCurrentCommittee(detail.clubId), listActiveMembers(detail.clubId, 1000, 0)]);
+    // เอกสารทางการ: ชื่อพร้อมคำนำหน้า (user_formal_name)
     committee = clubCommittee.map((c) => ({
-      name: c.name ?? c.email,
+      name: c.formalName,
       positionCode: c.positionCode,
       positionTitle: c.positionTitle,
       orgUnitName: c.orgUnitName,
@@ -57,11 +58,11 @@ export async function getApplicationDocument(auth: AuthContext, applicationId: s
       consentStatus: null,
       respondedAt: null,
     }));
-    members = clubMembers.items.map((m) => ({ name: m.name ?? m.email, orgUnitName: m.orgUnitName }));
+    members = clubMembers.items.map((m) => ({ name: m.formalName, orgUnitName: m.orgUnitName }));
   } else {
     const [appCommittee, appMembers] = await Promise.all([listCommitteeDetails(applicationId), listMemberDetails(applicationId)]);
     committee = appCommittee.map((c) => ({
-      name: c.userName ?? c.userEmail,
+      name: c.userFormalName,
       positionCode: c.positionCode,
       positionTitle: c.positionTitle,
       orgUnitName: c.orgUnitName,
@@ -74,8 +75,8 @@ export async function getApplicationDocument(auth: AuthContext, applicationId: s
     }));
     const committeeIds = new Set(appCommittee.map((c) => c.userId));
     members = [
-      ...appCommittee.map((c) => ({ name: c.userName ?? c.userEmail, orgUnitName: c.orgUnitName })),
-      ...appMembers.filter((m) => !committeeIds.has(m.userId)).map((m) => ({ name: m.userName ?? m.userEmail, orgUnitName: m.orgUnitName })),
+      ...appCommittee.map((c) => ({ name: c.userFormalName, orgUnitName: c.orgUnitName })),
+      ...appMembers.filter((m) => !committeeIds.has(m.userId)).map((m) => ({ name: m.userFormalName, orgUnitName: m.orgUnitName })),
     ];
   }
 
@@ -87,7 +88,7 @@ export async function getApplicationDocument(auth: AuthContext, applicationId: s
     fiscalYear: detail.fiscalYear,
     submittedAt: detail.submittedAt,
     nameTh: detail.nameTh,
-    applicant: { name: detail.applicantName ?? detail.applicantEmail, orgUnitName: orgUnits.get(detail.applicantUserId) ?? null },
+    applicant: { name: detail.applicantFormalName, orgUnitName: orgUnits.get(detail.applicantUserId) ?? null },
     categoryCode: detail.categoryCode,
     categoryDetail: detail.categoryDetail,
     categories: categories.map((c) => ({ code: c.code, nameTh: c.nameTh })),
@@ -103,7 +104,7 @@ export async function getApplicationDocument(auth: AuthContext, applicationId: s
     advisors: advisors.map((a) => ({
       name: a.external
         ? `${a.external.prefixTh ?? ''}${a.external.firstNameTh} ${a.external.lastNameTh}`
-        : (a.userName ?? a.email ?? ''),
+        : (a.userFormalName ?? a.email ?? ''),
       orgUnitName: a.external ? a.external.organization : a.userId ? (orgUnits.get(a.userId) ?? null) : null,
       kind: a.external ? ('external' as const) : ('internal' as const),
       consentStatus: a.consentStatus,

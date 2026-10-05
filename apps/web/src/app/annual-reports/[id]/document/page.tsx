@@ -61,10 +61,10 @@ export default async function AnnualReportDocumentPage({ params }: { params: Pro
 
         <p className="mt-4 indent-16">จึงเรียนมาเพื่อโปรดทราบ</p>
         <div className="mt-8 ml-auto w-3/5 break-inside-avoid">
-          <Signature name={r.submittedByName ?? r.createdByName} role={`ผู้รายงาน ${club}`} />
+          <Signature name={r.submittedByFormalName ?? r.createdByFormalName} role={`ผู้รายงาน ${club}`} />
         </div>
 
-        <Acknowledgement heading="สำหรับสโมสรบุคลากร" role="กรรมการดำเนินงานสโมสรบุคลากร" byName={r.acknowledgedByName} at={r.acknowledgedAt} note={r.acknowledgementNote} />
+        <Acknowledgement heading="สำหรับสโมสรบุคลากร" role="กรรมการดำเนินงานสโมสรบุคลากร" byName={r.acknowledgedByFormalName} at={r.acknowledgedAt} note={r.acknowledgementNote} />
       </Page>
     </div>
   );

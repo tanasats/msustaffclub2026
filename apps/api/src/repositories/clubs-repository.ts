@@ -240,12 +240,14 @@ export interface ClubCommitteeRow {
   contactPhone: string | null;
   workLocation: string | null;
   startedOn: string;
+  // ชื่อพร้อมคำนำหน้าสำหรับเอกสารพิมพ์
+  formalName: string;
 }
 
 // กรรมการชุดปัจจุบัน (ยังไม่สิ้นสุดตำแหน่ง) เรียงตามลำดับที่กำหนด ใช้ partial index club_committee_members_current_idx
 export async function listCurrentCommittee(clubId: string, db: Queryable = pool): Promise<ClubCommitteeRow[]> {
   const result = await db.query<ClubCommitteeRow>(
-    `SELECT cm.id, cm.user_id AS "userId", u.name, u.email, ou.name_th AS "orgUnitName",
+    `SELECT cm.id, cm.user_id AS "userId", u.name, u.email, ou.name_th AS "orgUnitName", user_formal_name(cm.user_id) AS "formalName",
             p.code AS "positionCode", cm.position_title AS "positionTitle",
             cm.contact_phone AS "contactPhone", cm.work_location AS "workLocation",
             to_char(cm.started_on, 'YYYY-MM-DD') AS "startedOn"
@@ -300,6 +302,8 @@ export interface ClubMemberRow {
   email: string;
   orgUnitName: string | null;
   joinedAt: Date | null;
+  // ชื่อพร้อมคำนำหน้าสำหรับเอกสารพิมพ์
+  formalName: string;
 }
 
 // รายชื่อสมาชิก active (ข้อมูลภายใน) แบ่งหน้า
@@ -310,7 +314,7 @@ export async function listActiveMembers(
   db: Queryable = pool,
 ): Promise<{ items: ClubMemberRow[]; total: number }> {
   const result = await db.query<ClubMemberRow & { total: number }>(
-    `SELECT m.id AS "membershipId", m.user_id AS "userId", u.name, u.email, ou.name_th AS "orgUnitName",
+    `SELECT m.id AS "membershipId", m.user_id AS "userId", u.name, u.email, ou.name_th AS "orgUnitName", user_formal_name(m.user_id) AS "formalName",
             m.decided_at AS "joinedAt",
             EXISTS (SELECT 1 FROM club_committee_members cm
                      WHERE cm.club_id = m.club_id AND cm.user_id = m.user_id AND cm.ended_on IS NULL) AS "isCommittee",

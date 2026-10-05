@@ -44,7 +44,10 @@ export async function findUsersByEmail(email: string, db: Queryable = pool): Pro
 export interface LoginProfile {
   googleSub: string;
   email: string;
-  name: string | null;
+  // ชื่อจากบัญชี Google (ผู้ใช้แก้เองได้) — เก็บไว้ใน google_name เสมอ
+  googleName: string | null;
+  // ชื่อจาก ERP-HR ("ชื่อ นามสกุล" ภาษาไทย) — null = ไม่ใช่บุคลากร หรือ ERP ไม่ตอบ/ไม่มีข้อมูลรอบนี้
+  erpName: string | null;
   pictureUrl: string | null;
 }
 
@@ -56,22 +59,34 @@ export type UpsertLoginResult =
 /**
  * บันทึกผู้ใช้ตอน login ด้วยคำสั่งเดียว (ปลอดภัยเมื่อ login พร้อมกันหลายแท็บ)
  * - ยังไม่มี google_sub นี้ → INSERT ผู้ใช้ใหม่
- * - มีแล้วและ is_active → UPDATE ข้อมูลโปรไฟล์ล่าสุดจาก Google + last_login_at
+ * - มีแล้วและ is_active → UPDATE ข้อมูลโปรไฟล์ล่าสุด + last_login_at
+ * ชื่อแสดง (name) ใช้ชื่อตาม ERP ซึ่งเป็นฐานข้อมูลหลัก:
+ *   1) รอบนี้ได้ชื่อจาก ERP → ใช้ชื่อนั้น
+ *   2) ERP ไม่ตอบรอบนี้ แต่เคยมีชื่อจาก ERP (staff_profiles มีชื่อ-นามสกุล) → คงชื่อเดิม ไม่ให้ชื่อ Google ทับ
+ *   3) ไม่เคยมีข้อมูล ERP (นิสิต/ERP ไม่มีข้อมูล) → ชื่อจาก Google
  * - มีแล้วแต่ถูกปิดใช้งาน → WHERE users.is_active ทำให้ไม่ UPDATE และไม่คืนแถว
  * (xmax = 0) เป็นเทคนิคของ PostgreSQL บอกว่าแถวที่คืนมาเกิดจาก INSERT (true) หรือ UPDATE (false)
  */
 export async function upsertUserOnLogin(profile: LoginProfile, db: Queryable = pool): Promise<UpsertLoginResult> {
   const upserted = await db.query<{ id: string; inserted: boolean }>(
-    `INSERT INTO users (google_sub, email, name, picture_url, last_login_at)
-     VALUES ($1, $2, $3, $4, now())
+    `INSERT INTO users (google_sub, email, name, google_name, picture_url, last_login_at)
+     VALUES ($1, $2, COALESCE($5, $3), $3, $4, now())
      ON CONFLICT (google_sub) DO UPDATE
         SET email         = EXCLUDED.email,
-            name          = EXCLUDED.name,
+            google_name   = EXCLUDED.google_name,
+            name          = CASE
+                              WHEN $5::text IS NOT NULL THEN $5
+                              WHEN EXISTS (SELECT 1 FROM staff_profiles sp
+                                            WHERE sp.user_id = users.id
+                                              AND btrim(coalesce(sp.first_name_th, '')) <> ''
+                                              AND btrim(coalesce(sp.last_name_th, '')) <> '') THEN users.name
+                              ELSE EXCLUDED.google_name
+                            END,
             picture_url   = EXCLUDED.picture_url,
             last_login_at = now()
       WHERE users.is_active
      RETURNING id, (xmax = 0) AS inserted`,
-    [profile.googleSub, profile.email, profile.name, profile.pictureUrl],
+    [profile.googleSub, profile.email, profile.googleName, profile.pictureUrl, profile.erpName],
   );
   const row = upserted.rows[0];
   if (row) {

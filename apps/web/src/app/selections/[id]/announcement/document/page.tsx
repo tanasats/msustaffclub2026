@@ -30,7 +30,7 @@ function ResultTable({ rows }: { rows: Result[] }) {
           rows.map((r, i) => (
             <tr key={r.userId} className="break-inside-avoid">
               <td className="text-center">{thaiDigits(i + 1)}</td>
-              <td>{r.name}</td>
+              <td>{r.formalName}</td>
               <td>{r.clubs.join(', ') || '-'}</td>
               <td className="whitespace-pre-line">{r.reason}</td>
             </tr>
