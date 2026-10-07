@@ -68,6 +68,7 @@ async function completeDraft(who: Actor, id: string) {
   await send('patch', who, `/club-applications/${id}`, {
     categoryId: await categoryId('ethics_culture'),
     objectives: ['ส่งเสริมดนตรีไทย'],
+    history: 'ก่อตั้งโดยกลุ่มบุคลากรที่รักดนตรีไทย',
   });
   await send('put', who, `/club-applications/${id}/advisors`, { advisors: [{ userId: advisor.id }] });
   await send('put', who, `/club-applications/${id}/committee`, {
@@ -242,7 +243,7 @@ describe('PUT /club-applications/:id/advisors', () => {
   });
 
   it.each([
-    ['เกิน 2 คน', [{ email: 'a.a@msu.ac.th' }, { email: 'b.b@msu.ac.th' }, { email: 'c.c@msu.ac.th' }], 'TOO_MANY_ADVISORS'],
+    ['เกิน 5 คน', ['a', 'b', 'c', 'd', 'e', 'f'].map((x) => ({ email: `${x}.${x}@msu.ac.th` })), 'TOO_MANY_ADVISORS'],
     ['นอกโดเมน', [{ email: 'someone@gmail.com' }], 'ADVISOR_EMAIL_NOT_ALLOWED'],
     ['บัญชีนิสิต', [{ email: '65010999001@msu.ac.th' }], 'ADVISOR_EMAIL_NOT_ALLOWED'],
     ['ซ้ำกัน', [{ email: 'a.a@msu.ac.th' }, { email: 'A.A@msu.ac.th' }], 'DUPLICATE_ADVISOR'],
@@ -252,6 +253,15 @@ describe('PUT /club-applications/:id/advisors', () => {
     const res = await send('put', applicant, `/club-applications/${id}/advisors`, { advisors });
     expect(res.status).toBe(422);
     expect(res.body.error.code).toBe(code);
+  });
+
+  it('มีที่ปรึกษาได้ 5 คน (ลำดับ 1–5)', async () => {
+    const applicant = await actor();
+    const id = await createDraft(applicant);
+    const advisors = ['a', 'b', 'c', 'd', 'e'].map((x) => ({ email: `${x}.${x}@msu.ac.th` }));
+    expect((await send('put', applicant, `/club-applications/${id}/advisors`, { advisors })).status).toBe(204);
+    const saved = (await get(applicant, `/club-applications/${id}`)).body.advisors;
+    expect(saved.map((a: { sortOrder: number }) => a.sortOrder)).toEqual([1, 2, 3, 4, 5]);
   });
 
   it('ผู้ยื่นเป็นที่ปรึกษาของตัวเองไม่ได้', async () => {
@@ -385,6 +395,7 @@ describe('GET /club-applications/:id/validation', () => {
     expect(issues.map((i: { code: string }) => i.code)).toEqual([
       'CATEGORY_REQUIRED',
       'OBJECTIVES_REQUIRED',
+      'HISTORY_REQUIRED',
       'ADVISOR_REQUIRED',
       'MIN_MEMBERS',
     ]);

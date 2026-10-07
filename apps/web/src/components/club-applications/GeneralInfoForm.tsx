@@ -120,8 +120,16 @@ export function GeneralInfoForm({ application, categories }: GeneralInfoFormProp
         <textarea value={form.logoMeaning} onChange={set('logoMeaning')} rows={3} maxLength={5000} className={inputClass} />
       </label>
       <label className="grid gap-1 text-sm">
-        ประวัติชมรม (ถ้ามี)
-        <textarea value={form.history} onChange={set('history')} rows={4} maxLength={20000} className={inputClass} />
+        {/* คำขอจัดตั้งต้องกรอกประวัติชมรม (API ตรวจซ้ำก่อนส่งขอการตอบรับ) คำขอต่อทะเบียนไม่บังคับ */}
+        {application.type === 'establish' ? 'ประวัติชมรม *' : 'ประวัติชมรม (ถ้ามี)'}
+        <textarea
+          value={form.history}
+          onChange={set('history')}
+          rows={4}
+          maxLength={20000}
+          placeholder={application.type === 'establish' ? 'ความเป็นมาของการรวมกลุ่ม กิจกรรมที่ผ่านมา และเหตุผลที่ขอจัดตั้งชมรม' : undefined}
+          className={inputClass}
+        />
       </label>
       <label className="grid gap-1 text-sm">
         ระเบียบข้อบังคับของชมรม * (ตั้งต้นจากแม่แบบของสโมสร แก้ไขเพิ่มเติมได้)

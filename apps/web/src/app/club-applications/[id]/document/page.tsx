@@ -74,7 +74,10 @@ export default async function ApplicationDocumentPage({ params }: { params: Prom
   const fy = thaiDigits(d.fiscalYear);
   const submitted = d.submittedAt ? thaiDateParts(d.submittedAt) : null;
   const president = d.committee.find((c) => c.positionCode === 'president') ?? null;
-  const advisors = [d.advisors[0] ?? null, d.advisors[1] ?? null];
+  // ที่ปรึกษาตามจริง (สูงสุด 5 คน) — ถ้ามีไม่ถึง 2 คน เว้นช่องว่างไว้ให้ครบ 2 ช่องตามแบบฟอร์มเดิม
+  const advisors: (ApplicationDocument['advisors'][number] | null)[] = [...d.advisors, null, null].slice(0, Math.max(2, d.advisors.length));
+  // หน้าคำยินยอม: หน้าละ 2 คน เพื่อไม่ให้ล้นหน้า A4
+  const consentPages = Array.from({ length: Math.ceil(advisors.length / 2) }, (_, i) => advisors.slice(i * 2, i * 2 + 2));
   const consentNote = (a: ApplicationDocument['advisors'][number] | null) =>
     a && a.consentStatus === 'accepted'
       ? a.kind === 'internal' && a.respondedAt
@@ -121,7 +124,7 @@ export default async function ApplicationDocumentPage({ params }: { params: Prom
         <ol className="list-decimal pl-8">
           <li>แบบขอ{action}ชมรม</li>
           <li>บันทึกขอเสนอชื่อแต่งตั้งที่ปรึกษาชมรม</li>
-          <li>ประวัติชมรม (ถ้ามี)</li>
+          <li>{renewal ? 'ประวัติชมรม (ถ้ามี)' : 'ประวัติชมรม'}</li>
           <li>ข้อมูลผู้ประสานงานของชมรม (เฉพาะกรรมการชมรม ทุกคน)</li>
           <li>ตราสัญลักษณ์ คำขวัญและความหมายตราสัญลักษณ์ของชมรม</li>
           <li>วัตถุประสงค์ของการจัดตั้งชมรม</li>
@@ -188,7 +191,9 @@ export default async function ApplicationDocumentPage({ params }: { params: Prom
         </div>
         <div className="mt-8 grid grid-cols-2 gap-6">
           {advisors.map((a, i) => (
-            <Signature key={i} name={a?.name ?? null} role={`ที่ปรึกษา ${club}`} note={consentNote(a)} />
+            <div key={i} className="break-inside-avoid">
+              <Signature name={a?.name ?? null} role={`ที่ปรึกษา ${club}`} note={consentNote(a)} />
+            </div>
           ))}
         </div>
         {preparedBy && (
@@ -236,25 +241,27 @@ export default async function ApplicationDocumentPage({ params }: { params: Prom
         </div>
       </Page>
 
-      {/* คำยินยอมจากที่ปรึกษา */}
-      <Page>
-        {advisors.map((a, i) => (
-          <div key={i} className="mb-10">
-            <p className="font-bold underline">คำยินยอมจากที่ปรึกษา</p>
-            <p className="indent-16">
-              ข้าพเจ้า <Fill value={a?.name} /> มีความยินดีและยินยอมรับเป็นที่ปรึกษาของ {club} ตั้งแต่บัดนี้เป็นต้นไป
-            </p>
-            <div className="mt-4 ml-auto w-1/2">
-              <Signature name={a?.name ?? null} role={`ที่ปรึกษา${club}`} note={consentNote(a)} />
+      {/* คำยินยอมจากที่ปรึกษา (หน้าละ 2 คน) */}
+      {consentPages.map((pageAdvisors, pageIndex) => (
+        <Page key={pageIndex}>
+          {pageAdvisors.map((a, i) => (
+            <div key={i} className="mb-10">
+              <p className="font-bold underline">คำยินยอมจากที่ปรึกษา</p>
+              <p className="indent-16">
+                ข้าพเจ้า <Fill value={a?.name} /> มีความยินดีและยินยอมรับเป็นที่ปรึกษาของ {club} ตั้งแต่บัดนี้เป็นต้นไป
+              </p>
+              <div className="mt-4 ml-auto w-1/2">
+                <Signature name={a?.name ?? null} role={`ที่ปรึกษา${club}`} note={consentNote(a)} />
+              </div>
+              {/* PDPA มาตรา 23: แจ้งการเก็บข้อมูลแก่ที่ปรึกษา (รวมบุคคลภายนอกที่ไม่ได้ใช้ระบบ) */}
+              <p className="mt-3 text-[11pt]">
+                หมายเหตุ ข้อมูลส่วนบุคคลของท่าน (ชื่อ-สกุล หน่วยงาน ตำแหน่ง และช่องทางติดต่อ) ใช้เพื่อการจัดตั้งและบริหารชมรมเท่านั้น
+                รายละเอียดตามประกาศความเป็นส่วนตัวของระบบ {siteOrigin}/privacy
+              </p>
             </div>
-            {/* PDPA มาตรา 23: แจ้งการเก็บข้อมูลแก่ที่ปรึกษา (รวมบุคคลภายนอกที่ไม่ได้ใช้ระบบ) */}
-            <p className="mt-3 text-[11pt]">
-              หมายเหตุ ข้อมูลส่วนบุคคลของท่าน (ชื่อ-สกุล หน่วยงาน ตำแหน่ง และช่องทางติดต่อ) ใช้เพื่อการจัดตั้งและบริหารชมรมเท่านั้น
-              รายละเอียดตามประกาศความเป็นส่วนตัวของระบบ {siteOrigin}/privacy
-            </p>
-          </div>
-        ))}
-      </Page>
+          ))}
+        </Page>
+      ))}
 
       {/* 3. ประวัติชมรม */}
       <Page>
