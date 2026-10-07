@@ -105,6 +105,9 @@ export interface ApplicationDetail {
     // การตอบรับผ่านระบบ (ประธานที่ผู้ยื่นเสนอชื่อ) null = ไม่ต้องตอบรับ
     consentStatus: ConsentStatus | null;
     respondedAt: string | null;
+    // ใบตอบรับที่ลงนามแล้ว (ผู้ถูกเสนอเป็นประธานที่ไม่สะดวกเข้าระบบ)
+    consentFile: { id: string; originalName: string | null } | null;
+    consentVerified: { at: string; byName: string | null } | null;
   }[];
   members: PersonRef[];
   activities: { activityDate: string | null; activityTime: string | null; title: string; note: string | null }[];
@@ -178,7 +181,14 @@ export interface ApplicationDocument {
   contactPhone: string | null;
   contactEmail: string | null;
   regulationText: string | null;
-  advisors: { name: string; orgUnitName: string | null; kind: 'internal' | 'external'; consentStatus: 'pending' | 'accepted' | 'declined'; respondedAt: string | null }[];
+  advisors: {
+    name: string;
+    orgUnitName: string | null;
+    kind: 'internal' | 'external';
+    consentStatus: 'pending' | 'accepted' | 'declined';
+    respondedAt: string | null;
+    hasConsentFile: boolean;
+  }[];
   committee: {
     name: string;
     positionCode: string;
@@ -190,6 +200,7 @@ export interface ApplicationDocument {
     isApplicant: boolean;
     consentStatus: ConsentStatus | null;
     respondedAt: string | null;
+    hasConsentFile: boolean;
   }[];
   members: { name: string; orgUnitName: string | null }[];
   activities: { activityDate: string | null; activityTime: string | null; title: string; note: string | null }[];
