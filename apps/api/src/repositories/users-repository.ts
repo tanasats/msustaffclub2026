@@ -2,7 +2,8 @@ import { pool, type Queryable } from '../db/pool.js';
 
 export interface UserRecord {
   id: string;
-  googleSub: string;
+  // null = บัญชีที่ผู้ดูแลเพิ่มล่วงหน้า เจ้าตัวยังไม่เคย login (ผูกเมื่อ login ครั้งแรก)
+  googleSub: string | null;
   email: string;
   name: string | null;
   pictureUrl: string | null;
@@ -54,7 +55,37 @@ export interface LoginProfile {
 export type UpsertLoginResult =
   | { status: 'created'; userId: string }
   | { status: 'updated'; userId: string }
+  // บัญชีที่ผู้ดูแลเพิ่มล่วงหน้า ถูกผูกกับบัญชี Google ใน login ครั้งนี้
+  | { status: 'linked'; userId: string }
   | { status: 'inactive'; userId: string };
+
+/**
+ * ผูกบัญชีที่ผู้ดูแลเพิ่มล่วงหน้า (google_sub ว่าง) กับบัญชี Google ที่ login ด้วยอีเมลเดียวกัน
+ * - เงื่อนไข google_sub IS NULL: ไม่มีทางยึดบัญชีที่ผูกแล้ว, อีเมลมาจาก ID token ที่ Google ยืนยันแล้ว
+ * - NOT EXISTS: google_sub นี้ยังไม่มีบัญชีของตัวเอง (กันมี 2 บัญชีของคนเดียว)
+ * - ชื่อแสดง: ชื่อจาก ERP ถ้ามี ไม่เช่นนั้นคงชื่อที่ผู้ดูแลกรอกไว้
+ * คืนผลการผูก, inactive ถ้าบัญชีที่รอผูกถูกปิดใช้งาน, null ถ้าไม่มีบัญชีรอผูก
+ */
+async function linkProvisionedUser(profile: LoginProfile, db: Queryable): Promise<UpsertLoginResult | null> {
+  const linked = await db.query<{ id: string }>(
+    `UPDATE users
+        SET google_sub = $1, google_name = $3, picture_url = $4, last_login_at = now(),
+            name = COALESCE($5, name)
+      WHERE google_sub IS NULL AND email = $2 AND is_active
+        AND NOT EXISTS (SELECT 1 FROM users other WHERE other.google_sub = $1)
+     RETURNING id`,
+    [profile.googleSub, profile.email, profile.googleName, profile.pictureUrl, profile.erpName],
+  );
+  if (linked.rows[0]) return { status: 'linked', userId: linked.rows[0].id };
+  // บัญชีที่รอผูกถูกปิดใช้งาน: ห้ามสร้างบัญชีใหม่แทน (เท่ากับหลบการปิดบัญชี)
+  const inactive = await db.query<{ id: string }>(
+    `SELECT id FROM users WHERE google_sub IS NULL AND email = $1 AND NOT is_active
+        AND NOT EXISTS (SELECT 1 FROM users other WHERE other.google_sub = $2)
+      LIMIT 1`,
+    [profile.email, profile.googleSub],
+  );
+  return inactive.rows[0] ? { status: 'inactive', userId: inactive.rows[0].id } : null;
+}
 
 /**
  * บันทึกผู้ใช้ตอน login ด้วยคำสั่งเดียว (ปลอดภัยเมื่อ login พร้อมกันหลายแท็บ)
@@ -68,6 +99,9 @@ export type UpsertLoginResult =
  * (xmax = 0) เป็นเทคนิคของ PostgreSQL บอกว่าแถวที่คืนมาเกิดจาก INSERT (true) หรือ UPDATE (false)
  */
 export async function upsertUserOnLogin(profile: LoginProfile, db: Queryable = pool): Promise<UpsertLoginResult> {
+  const provisioned = await linkProvisionedUser(profile, db);
+  if (provisioned) return provisioned;
+
   const upserted = await db.query<{ id: string; inserted: boolean }>(
     `INSERT INTO users (google_sub, email, name, google_name, picture_url, last_login_at)
      VALUES ($1, $2, COALESCE($5, $3), $3, $4, now())
@@ -109,11 +143,14 @@ export interface UserSummary {
   isActive: boolean;
   // หน่วยงานสังกัด (จาก staff_profiles → org_units) ถ้ามี
   orgUnitName: string | null;
+  // false = บัญชีที่ผู้ดูแลเพิ่มล่วงหน้า เจ้าตัวยังไม่เคยเข้าระบบ
+  hasLoggedIn: boolean;
 }
 
 // LEFT JOIN เพราะผู้ใช้บางคนยังไม่มีข้อมูลบุคลากรหรือยังจับคู่หน่วยงานไม่ได้
 const USER_SUMMARY_SELECT = `
-  SELECT u.id, u.email, u.name, u.is_active AS "isActive", ou.name_th AS "orgUnitName"
+  SELECT u.id, u.email, u.name, u.is_active AS "isActive", ou.name_th AS "orgUnitName",
+         (u.google_sub IS NOT NULL) AS "hasLoggedIn"
     FROM users u
     LEFT JOIN staff_profiles sp ON sp.user_id = u.id
     LEFT JOIN org_units ou ON ou.id = sp.org_unit_id`;
@@ -156,6 +193,8 @@ export interface AdminUserListItem {
   isActive: boolean;
   lastLoginAt: Date | null;
   roles: string[];
+  // false = บัญชีที่ผู้ดูแลเพิ่มล่วงหน้า เจ้าตัวยังไม่เคยเข้าระบบ
+  hasLoggedIn: boolean;
 }
 
 export interface AdminUserPage {
@@ -177,6 +216,7 @@ export async function listUsersForAdmin(
   const pattern = query ? `%${query.replace(/[\\%_]/g, (char) => `\\${char}`)}%` : null;
   const result = await db.query<AdminUserListItem & { total: number }>(
     `SELECT u.id, u.email, u.name, u.is_active AS "isActive", u.last_login_at AS "lastLoginAt",
+            (u.google_sub IS NOT NULL) AS "hasLoggedIn",
             ARRAY(SELECT r.code FROM user_roles ur JOIN roles r ON r.id = ur.role_id
                    WHERE ur.user_id = u.id ORDER BY r.code) AS roles,
             count(*) OVER ()::int AS total

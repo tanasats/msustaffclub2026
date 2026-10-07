@@ -19,3 +19,16 @@ export async function findStudentFacultyByCode(code: string, db: Queryable = poo
   );
   return result.rows[0] ?? null;
 }
+
+// หน่วยงานที่ใช้งานอยู่ทั้งหมด (ตัวเลือกตอนผู้ดูแลเพิ่มบุคลากรล่วงหน้า) — มีไม่เกินร้อยหน่วยงาน
+export async function listActiveOrgUnits(db: Queryable = pool): Promise<{ id: string; code: string; nameTh: string }[]> {
+  const result = await db.query<{ id: string; code: string; nameTh: string }>(
+    `SELECT id, code, name_th AS "nameTh" FROM org_units WHERE is_active ORDER BY code LIMIT 500`,
+  );
+  return result.rows;
+}
+
+export async function isActiveOrgUnit(id: string, db: Queryable = pool): Promise<boolean> {
+  const result = await db.query<{ exists: boolean }>(`SELECT EXISTS (SELECT 1 FROM org_units WHERE id = $1 AND is_active) AS "exists"`, [id]);
+  return result.rows[0]?.exists ?? false;
+}

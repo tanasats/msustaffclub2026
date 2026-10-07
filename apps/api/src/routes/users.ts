@@ -20,5 +20,5 @@ usersRouter.get('/users/search', requirePermission(PERMISSIONS.CLUB_APPLICATION_
   const { q } = searchQuerySchema.parse(req.query);
   // ดึงเผื่อไว้แล้วกรองบัญชีที่ไม่มีสิทธิ์ออก ให้เหลือไม่เกิน 20 รายการ
   const users = (await searchActiveUsers(q, 50)).filter((user) => isEligibleForClub(user.email)).slice(0, 20);
-  res.json({ items: users.map(({ id, email, name, orgUnitName }) => ({ id, email, name, orgUnitName })) });
+  res.json({ items: users.map(({ id, email, name, orgUnitName, hasLoggedIn }) => ({ id, email, name, orgUnitName, hasLoggedIn })) });
 });

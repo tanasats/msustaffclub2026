@@ -28,7 +28,7 @@ export async function deleteAllSessionsOfUser(userId: string, db: Queryable): Pr
 }
 
 export async function insertAccountEvent(
-  input: { userId: string; actorUserId: string; action: 'deactivated' | 'reactivated'; reason: string; effects: Record<string, number> },
+  input: { userId: string; actorUserId: string; action: AccountEventAction; reason: string; effects: Record<string, number> },
   db: Queryable,
 ): Promise<void> {
   await db.query(
@@ -37,8 +37,10 @@ export async function insertAccountEvent(
   );
 }
 
+export type AccountEventAction = 'deactivated' | 'reactivated' | 'created' | 'updated' | 'linked';
+
 export interface AccountEventRow {
-  action: 'deactivated' | 'reactivated';
+  action: AccountEventAction;
   reason: string;
   effects: Record<string, number>;
   actorName: string | null;
@@ -136,4 +138,92 @@ export async function endAdvisorshipsOfUser(userId: string, endedOn: string, db:
     [userId, endedOn],
   );
   return result.rowCount ?? 0;
+}
+
+// ---------- บัญชีที่ผู้ดูแลเพิ่มล่วงหน้า (ยังไม่ผูกกับบัญชี Google) ----------
+
+export interface ProvisionedProfileInput {
+  email: string;
+  prefixNameTh: string;
+  firstNameTh: string;
+  lastNameTh: string;
+  prefixNameEn: string | null;
+  firstNameEn: string | null;
+  lastNameEn: string | null;
+  orgUnitId: string;
+  positionNameTh: string | null;
+}
+
+// มีบัญชีที่ใช้งานอยู่ (ผูกแล้วหรือยัง) ด้วยอีเมลนี้หรือไม่ (ยกเว้นบัญชี excludeUserId — ใช้ตอนแก้ไข)
+export async function hasActiveUserWithEmail(email: string, excludeUserId: string | null, db: Queryable): Promise<boolean> {
+  const result = await db.query<{ exists: boolean }>(
+    `SELECT EXISTS (SELECT 1 FROM users WHERE email = $1 AND is_active AND ($2::uuid IS NULL OR id <> $2)) AS "exists"`,
+    [email, excludeUserId],
+  );
+  return result.rows[0]?.exists ?? false;
+}
+
+// สร้างบัญชีที่ยังไม่ผูก (google_sub ว่าง) — ชื่อแสดง = "ชื่อ นามสกุล" ไทย เหมือนชื่อจาก ERP
+// อีเมลซ้ำกับบัญชีที่ยังไม่ผูกอื่นจะชน unique index users_unlinked_email_key → 23505
+export async function insertProvisionedUser(input: ProvisionedProfileInput, createdBy: string, db: Queryable): Promise<string> {
+  const result = await db.query<{ id: string }>(
+    `INSERT INTO users (google_sub, email, name, created_by) VALUES (NULL, $1, $2, $3) RETURNING id`,
+    [input.email, `${input.firstNameTh} ${input.lastNameTh}`, createdBy],
+  );
+  return result.rows[0]!.id;
+}
+
+// ข้อมูลบุคลากรที่ผู้ดูแลกรอก (source = admin, ไม่มีรหัสบุคลากร) ถูกแทนด้วยข้อมูล ERP เมื่อเจ้าตัว login
+export async function upsertProvisionedStaffProfile(userId: string, input: ProvisionedProfileInput, db: Queryable): Promise<void> {
+  await db.query(
+    `INSERT INTO staff_profiles (user_id, staff_code, prefix_name_th, first_name_th, last_name_th,
+                                prefix_name_en, first_name_en, last_name_en, position_name_th, org_unit_id, source, synced_at)
+     VALUES ($1, NULL, $2, $3, $4, $5, $6, $7, $8, $9, 'admin', now())
+     ON CONFLICT (user_id) DO UPDATE
+        SET prefix_name_th = EXCLUDED.prefix_name_th, first_name_th = EXCLUDED.first_name_th, last_name_th = EXCLUDED.last_name_th,
+            prefix_name_en = EXCLUDED.prefix_name_en, first_name_en = EXCLUDED.first_name_en, last_name_en = EXCLUDED.last_name_en,
+            position_name_th = EXCLUDED.position_name_th, org_unit_id = EXCLUDED.org_unit_id, synced_at = now()
+      WHERE staff_profiles.source = 'admin'`,
+    [
+      userId,
+      input.prefixNameTh,
+      input.firstNameTh,
+      input.lastNameTh,
+      input.prefixNameEn,
+      input.firstNameEn,
+      input.lastNameEn,
+      input.positionNameTh,
+      input.orgUnitId,
+    ],
+  );
+}
+
+// แก้ข้อมูลบัญชีที่ยังไม่ผูก (ผูกแล้ว = ข้อมูลตาม ERP แก้ที่นี่ไม่ได้) คืน false ถ้าไม่ใช่บัญชีที่ยังไม่ผูก
+export async function updateProvisionedUser(userId: string, input: ProvisionedProfileInput, db: Queryable): Promise<boolean> {
+  const result = await db.query(
+    `UPDATE users SET email = $2, name = $3 WHERE id = $1 AND google_sub IS NULL`,
+    [userId, input.email, `${input.firstNameTh} ${input.lastNameTh}`],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+export interface ProvisionedProfile extends ProvisionedProfileInput {
+  createdByName: string | null;
+  createdAt: Date;
+}
+
+// ข้อมูลที่ผู้ดูแลกรอกของบัญชีที่ยังไม่ผูก (null = ผูกแล้ว/ไม่ใช่บัญชีที่เพิ่มล่วงหน้า)
+export async function findProvisionedProfile(userId: string, db: Queryable = pool): Promise<ProvisionedProfile | null> {
+  const result = await db.query<ProvisionedProfile>(
+    `SELECT u.email, sp.prefix_name_th AS "prefixNameTh", sp.first_name_th AS "firstNameTh", sp.last_name_th AS "lastNameTh",
+            sp.prefix_name_en AS "prefixNameEn", sp.first_name_en AS "firstNameEn", sp.last_name_en AS "lastNameEn",
+            sp.org_unit_id AS "orgUnitId", sp.position_name_th AS "positionNameTh",
+            c.name AS "createdByName", u.created_at AS "createdAt"
+       FROM users u
+       LEFT JOIN staff_profiles sp ON sp.user_id = u.id
+       LEFT JOIN users c ON c.id = u.created_by
+      WHERE u.id = $1 AND u.google_sub IS NULL`,
+    [userId],
+  );
+  return result.rows[0] ?? null;
 }

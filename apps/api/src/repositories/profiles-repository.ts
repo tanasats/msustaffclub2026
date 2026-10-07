@@ -55,7 +55,9 @@ export async function upsertStaffProfile(
             erp_program_id      = EXCLUDED.erp_program_id,
             erp_program_name    = EXCLUDED.erp_program_name,
             org_unit_id         = EXCLUDED.org_unit_id,
-            synced_at           = EXCLUDED.synced_at`,
+            synced_at           = EXCLUDED.synced_at,
+            -- ข้อมูลจาก ERP แทนข้อมูลที่ผู้ดูแลกรอกไว้ (บัญชีที่เพิ่มล่วงหน้า)
+            source              = 'erp'`,
     [
       userId,
       info.staffCode,
