@@ -110,25 +110,9 @@ export default async function ClubsPage({ searchParams }: { searchParams: Promis
         </div>
       </div>
 
+      {/* แท็บทั้งหมด: หัวข้อชมรมที่ดำเนินการอยู่ (แสดงเมื่อมีส่วนระหว่างขอจัดตั้งตามมาด้านล่าง) */}
       {showProposedSection && (
-        <section className="mb-6">
-          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
-            <h2 className="font-serif text-lg font-medium text-ink">ระหว่างขอจัดตั้ง ({proposed.total})</h2>
-            {proposed.total > proposed.items.length && (
-              <Link href={link({ view: 'proposed', page: undefined })} className="text-sm text-matcha-700 underline">
-                ดูทั้งหมด
-              </Link>
-            )}
-          </div>
-          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
-            {proposed.items.map((club) => (
-              <li key={club.id}>
-                <ProposedClubCard club={club} />
-              </li>
-            ))}
-          </ul>
-          <h2 className="mt-6 font-serif text-lg font-medium text-ink">ชมรมที่ดำเนินการอยู่ ({clubs?.total ?? 0})</h2>
-        </section>
+        <h2 className="mb-3 font-serif text-lg font-medium text-ink">ชมรมที่ดำเนินการอยู่ ({clubs?.total ?? 0})</h2>
       )}
 
       {view === 'proposed' ? (
@@ -167,6 +151,32 @@ export default async function ClubsPage({ searchParams }: { searchParams: Promis
           <span className="text-stone">หน้า {page} / {totalPages}</span>
           {page < totalPages ? <Link href={link({ page: String(page + 1) })} className="btn btn-secondary">ถัดไป →</Link> : <span />}
         </nav>
+      )}
+
+      {/* ระหว่างขอจัดตั้ง: ต่อท้ายรายการชมรมที่ดำเนินการอยู่ (แท็บทั้งหมด หน้าแรก) การ์ดแบบเรียบกว่า */}
+      {showProposedSection && (
+        <section className="mt-10 border-t border-ink/[0.08] pt-6" aria-labelledby="proposed-heading">
+          <div className="mb-3 flex flex-wrap items-center justify-between gap-2">
+            <div>
+              <h2 id="proposed-heading" className="font-serif text-lg font-medium text-ink">
+                ระหว่างขอจัดตั้ง ({proposed.total})
+              </h2>
+              <p className="text-sm text-stone">ชมรมที่ยื่นคำขอจัดตั้งต่อสโมสรแล้ว อยู่ระหว่างตรวจและอนุมัติ</p>
+            </div>
+            {proposed.total > proposed.items.length && (
+              <Link href={link({ view: 'proposed', page: undefined })} className="text-sm text-matcha-700 underline">
+                ดูทั้งหมด
+              </Link>
+            )}
+          </div>
+          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 sm:gap-4 lg:grid-cols-3">
+            {proposed.items.map((club) => (
+              <li key={club.id}>
+                <ProposedClubCard club={club} />
+              </li>
+            ))}
+          </ul>
+        </section>
       )}
     </>
   );
