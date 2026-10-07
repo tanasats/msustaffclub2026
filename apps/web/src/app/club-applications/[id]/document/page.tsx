@@ -134,18 +134,6 @@ export default async function ApplicationDocumentPage({ params }: { params: Prom
           <li>แผนงานกิจกรรมของชมรมประจำปี</li>
           <li>รายชื่อสมาชิกของชมรม</li>
         </ol>
-        <div className="mt-24 grid grid-cols-[auto_1fr] gap-x-6">
-          <span className="font-bold underline">หมายเหตุ</span>
-          <div>
-            <p>เอกสารการ{action}ชมรม ฉบับสมบูรณ์ ให้สำเนา ๓ ชุด</p>
-            <p>
-              โดย <span className="underline">(เข้าเล่มปกสีเหลือง/สันปกสีเหลือง)</span> ดังนี้
-            </p>
-            <p>- ส่งสำนักงานสโมสรบุคลากร ๑ ชุด (ต้นฉบับ)</p>
-            <p>- ส่งสภาคณาจารย์ ๑ ชุด (สำเนา)</p>
-            <p>- เก็บที่ชมรม/กลุ่ม ๑ ชุด (สำเนา)</p>
-          </div>
-        </div>
       </Page>
 
       {/* 1. แบบขอจัดตั้ง/ต่อทะเบียน */}
