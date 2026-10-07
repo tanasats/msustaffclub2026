@@ -269,7 +269,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
               </div>
               <GeneralInfoForm application={application} categories={categories.items} />
             </Section>
-            <Section title="2. ที่ปรึกษาชมรม (1–2 คน)">
+            <Section title="2. ที่ปรึกษาชมรม (1–5 คน)">
               <AdvisorsEditor application={application} />
             </Section>
             {application.renewal && application.clubId ? (

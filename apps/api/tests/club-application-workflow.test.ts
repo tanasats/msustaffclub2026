@@ -81,7 +81,7 @@ async function scenario(): Promise<Scenario> {
     .patch(`/club-applications/${id}`)
     .set('Cookie', applicant.cookie)
     .set('Origin', WEB_ORIGIN)
-    .send({ categoryId: rows[0]!.id, objectives: ['ส่งเสริมดนตรีไทย'], motto: 'ดนตรีคือชีวิต' });
+    .send({ categoryId: rows[0]!.id, objectives: ['ส่งเสริมดนตรีไทย'], motto: 'ดนตรีคือชีวิต', history: 'ก่อตั้งโดยกลุ่มบุคลากรที่รักดนตรีไทย' });
   await put(applicant, `/club-applications/${id}/advisors`, {
     advisors: [{ userId: advisor1.id }, { email: 'advisor.second@msu.ac.th' }],
   });

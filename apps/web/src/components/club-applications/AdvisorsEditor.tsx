@@ -14,7 +14,8 @@ type AdvisorDraft =
   | { kind: 'internal'; key: string; label: string; email: string; userId: string | null; consent?: string }
   | { kind: 'external'; key: string; externalPersonId: string | null; person: ExternalPerson };
 
-const MAX_ADVISORS = 2;
+// ต้องตรงกับ MAX_ADVISORS ของ API (club-rules.ts)
+const MAX_ADVISORS = 5;
 const EMPTY_PERSON: ExternalPerson = {
   prefixTh: '',
   firstNameTh: '',
@@ -47,7 +48,7 @@ function ExternalPersonFields({ value, onChange }: { value: ExternalPerson; onCh
   );
 }
 
-// ที่ปรึกษา ≤ 2 คน (ต้องมีบุคลากรอย่างน้อย 1 คน): บุคลากรยินยอมผ่านการเข้าสู่ระบบ บุคคลภายนอกแนบใบคำยินยอม
+// ที่ปรึกษา ≤ 5 คน (ต้องมีบุคลากรอย่างน้อย 1 คน): บุคลากรยินยอมผ่านการเข้าสู่ระบบ บุคคลภายนอกแนบใบคำยินยอม
 export function AdvisorsEditor({ application }: { application: ApplicationDetail }) {
   const { save, pending, error, saved } = useSave();
   const [advisors, setAdvisors] = useState<AdvisorDraft[]>(
@@ -218,7 +219,7 @@ export function AdvisorsEditor({ application }: { application: ApplicationDetail
         </div>
       )}
 
-      <p className="mt-3 text-xs text-mist">ต้องมีที่ปรึกษาที่เป็นบุคลากรของมหาวิทยาลัยอย่างน้อย 1 คน (รวมไม่เกิน 2 คน)</p>
+      <p className="mt-3 text-xs text-mist">ต้องมีที่ปรึกษาที่เป็นบุคลากรของมหาวิทยาลัยอย่างน้อย 1 คน (รวมไม่เกิน 5 คน)</p>
       <SaveBar pending={pending} error={error} saved={saved} label="บันทึกที่ปรึกษา" />
     </form>
   );

@@ -668,6 +668,10 @@ export async function collectSubmissionIssues(applicationId: string, db: Queryab
   if (detail.objectives.filter((objective) => objective.trim()).length === 0) {
     add('OBJECTIVES_REQUIRED', 'กรุณาระบุวัตถุประสงค์อย่างน้อย 1 ข้อ');
   }
+  // คำขอจัดตั้งต้องมีประวัติชมรม (คำขอต่อทะเบียนใช้ประวัติเดิมของชมรม จึงไม่บังคับ)
+  if (detail.type === 'establish' && !detail.history?.trim()) {
+    add('HISTORY_REQUIRED', 'กรุณากรอกประวัติชมรม');
+  }
   if (!detail.regulationText?.trim()) {
     add('REGULATION_REQUIRED', 'กรุณากรอกระเบียบข้อบังคับของชมรม');
   }

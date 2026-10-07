@@ -27,7 +27,7 @@
 | # | เอกสาร | ข้อมูลที่ต้องเก็บ |
 |---|---|---|
 | 1 | แบบขอจัดตั้งชมรม (หน้า 3) | ชื่อชมรม, ผู้ยื่น (ประธานชมรม) + สังกัด, วันที่ยื่น, ลายเซ็นประธาน + ที่ปรึกษา 2 คน, เรียน นายกสโมสรบุคลากร |
-| 2 | บันทึกเสนอชื่อที่ปรึกษา (หน้า 4) | ที่ปรึกษา ≤ 2 คน (ชื่อ, สังกัด), ช่วงวาระตามปีงบประมาณ |
+| 2 | บันทึกเสนอชื่อที่ปรึกษา (หน้า 4) | ที่ปรึกษา ≤ 5 คน (ชื่อ, สังกัด), ช่วงวาระตามปีงบประมาณ (ปรับจาก 2 คน 2569-10) |
 | – | คำยินยอมของที่ปรึกษา (หน้า 5) | การยินยอมของที่ปรึกษาแต่ละคน + วันที่ |
 | 3 | ประวัติชมรม (ถ้ามี) (หน้า 6) | ข้อความยาว |
 | 4 | ข้อมูลผู้ประสานงาน (หน้า 7–8) | กรรมการทุกคน: ชื่อ, ตำแหน่ง, สถานที่ทำงาน, เบอร์โทร |
@@ -93,7 +93,7 @@
 | `assistant_treasurer` | ผู้ช่วยเหรัญญิก | กรรมการ | ไม่จำกัด |
 | `public_relations` | ประชาสัมพันธ์ | กรรมการ | ไม่จำกัด |
 | `committee_member` | กรรมการ (ตั้งชื่อตำแหน่งเองได้ เช่น "ฝ่ายสวัสดิการ") | กรรมการ | ไม่จำกัด |
-| `advisor` | ที่ปรึกษาชมรม | ที่ปรึกษา | ≤ 2 คน |
+| `advisor` | ที่ปรึกษาชมรม | ที่ปรึกษา | ≤ 5 คน |
 | `member` | สมาชิก | สมาชิก | — (กรรมการทุกคนเป็นสมาชิกด้วย) |
 
 ### 3.3 สิทธิ์ระดับชมรม และตำแหน่งที่ได้ (ค่าตั้งต้น)
@@ -137,7 +137,8 @@ stateDiagram-v2
 
 **เงื่อนไขก่อนยื่น (ตรวจที่ API):**
 - มีชื่อชมรม (ไม่ซ้ำกับชมรมที่ยังดำเนินการอยู่), ประเภท, วัตถุประสงค์อย่างน้อย 1 ข้อ, ระเบียบ
-- มีประธาน 1 คน (ถ้าไม่ใช่ผู้ยื่นต้อง **ตอบรับแล้ว**), ที่ปรึกษา 1–2 คน **ยินยอมครบทุกคน**
+- มีประธาน 1 คน (ถ้าไม่ใช่ผู้ยื่นต้อง **ตอบรับแล้ว**), ที่ปรึกษา 1–5 คน **ยินยอมครบทุกคน**
+- คำขอจัดตั้งต้องมี **ประวัติชมรม** (`HISTORY_REQUIRED`; คำขอต่อทะเบียนไม่บังคับ)
 - ผู้ยื่นต้องร่วมก่อตั้ง: เป็นกรรมการ หรือสมาชิกตั้งต้น (ไม่ได้เป็นกรรมการ → ระบบใส่เป็นสมาชิกตั้งต้นให้อัตโนมัติ)
 - สมาชิกตั้งต้น **≥ 5 คน (นับรวมกรรมการ)** ทุกคนเป็นผู้ใช้ที่เคย login และบัญชียังใช้งานได้
 
@@ -206,7 +207,7 @@ stateDiagram-v2
 | ตาราง | คอลัมน์หลัก |
 |---|---|
 | `club_applications` | `type` (establish/renewal), `club_id` NULL, `fiscal_year` int, `status`, `applicant_user_id`, `name_th`, `category_id`, `category_detail`, `history`, `motto`, `logo_meaning`, `objectives text[]`, `office_location`, `contact_phone`, `contact_email`, `regulation_text`, `submitted_at`, `reviewed_by`, `reviewed_at`, `decided_by`, `decided_at`, `decision_note`, `deleted_at` |
-| `club_application_advisors` | `application_id`, `email` (ตัวพิมพ์เล็ก), `user_id` NULL (เติมเมื่อจับคู่ได้), `sort_order` 1–2, `consent_status` (pending/accepted/declined), `responded_at` — UNIQUE (`application_id`, `email`) |
+| `club_application_advisors` | `application_id`, `email` (ตัวพิมพ์เล็ก), `user_id` NULL (เติมเมื่อจับคู่ได้), `sort_order` 1–5, `consent_status` (pending/accepted/declined), `responded_at` — UNIQUE (`application_id`, `email`) |
 | `club_application_committee` | `application_id`, `user_id`, `position_id`, `position_title` (ชื่อตำแหน่งที่แสดง), `sort_order`, `work_location`, `contact_phone`, `bio` |
 | `club_application_members` | PK (`application_id`, `user_id`) |
 | `club_application_activities` | `application_id`, `activity_date`, `activity_time`, `title`, `note` |

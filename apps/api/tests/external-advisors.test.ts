@@ -66,7 +66,7 @@ async function draftWithoutAdvisors(applicant: Actor): Promise<string> {
   const { body } = await send('post', applicant, '/club-applications', { nameTh: 'ชมรมฟุตบอลบุคลากร' });
   const id = body.id as string;
   const { rows } = await pool.query<{ id: string }>("SELECT id FROM club_categories WHERE code = 'health_sports'");
-  await send('patch', applicant, `/club-applications/${id}`, { categoryId: rows[0]!.id, objectives: ['ส่งเสริมการออกกำลังกาย'] });
+  await send('patch', applicant, `/club-applications/${id}`, { categoryId: rows[0]!.id, objectives: ['ส่งเสริมการออกกำลังกาย'], history: 'รวมกลุ่มบุคลากรที่ชอบออกกำลังกาย' });
   const secretary = await createTestUser();
   const members = await Promise.all([createTestUser(), createTestUser(), createTestUser()]);
   await send('put', applicant, `/club-applications/${id}/committee`, {

@@ -5,7 +5,7 @@ import { classifyAccount } from './account-type.js';
 
 // สมาชิกตั้งต้นขั้นต่ำตอนยื่นคำขอ (นับรวมกรรมการ)
 export const MIN_INITIAL_MEMBERS = 5;
-export const MAX_ADVISORS = 2;
+export const MAX_ADVISORS = 5;
 export const MAX_OBJECTIVES = 20;
 
 // ตำแหน่งประธาน: ชมรมต้องมีประธาน 1 คนเสมอ (ผู้ยื่นคำขอเป็นประธาน, เปลี่ยนได้ด้วยการโอนตำแหน่งเท่านั้น)
