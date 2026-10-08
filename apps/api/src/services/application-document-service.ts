@@ -41,6 +41,8 @@ export async function getApplicationDocument(auth: AuthContext, applicationId: s
     isApplicant: boolean;
     consentStatus: 'pending' | 'accepted' | 'declined' | null;
     respondedAt: Date | null;
+    // ตอบรับด้วยใบลงนามที่แนบ (ไม่ใช่กดในระบบ)
+    hasConsentFile: boolean;
   }[];
   let members: { name: string; orgUnitName: string | null }[];
   if (detail.type === 'renewal' && detail.clubId) {
@@ -57,6 +59,7 @@ export async function getApplicationDocument(auth: AuthContext, applicationId: s
       isApplicant: c.userId === detail.applicantUserId,
       consentStatus: null,
       respondedAt: null,
+      hasConsentFile: false,
     }));
     members = clubMembers.items.map((m) => ({ name: m.formalName, orgUnitName: m.orgUnitName }));
   } else {
@@ -72,6 +75,7 @@ export async function getApplicationDocument(auth: AuthContext, applicationId: s
       isApplicant: c.userId === detail.applicantUserId,
       consentStatus: c.consentStatus,
       respondedAt: c.respondedAt,
+      hasConsentFile: c.consentFileId !== null,
     }));
     const committeeIds = new Set(appCommittee.map((c) => c.userId));
     members = [
@@ -109,6 +113,8 @@ export async function getApplicationDocument(auth: AuthContext, applicationId: s
       kind: a.external ? ('external' as const) : ('internal' as const),
       consentStatus: a.consentStatus,
       respondedAt: a.respondedAt,
+      // ยินยอมด้วยใบลงนามที่แนบ (บุคคลภายนอก/บุคลากรที่ไม่สะดวกเข้าระบบ)
+      hasConsentFile: a.consentFileId !== null,
     })),
     committee,
     members,

@@ -20,7 +20,8 @@ import {
   resetAdvisorConsents,
   resetCommitteeConsents,
   updateApplicationStatus,
-  verifyExternalAdvisorConsent,
+  verifyAdvisorConsentFile,
+  verifyPresidentConsentFile,
   type AdvisorRequestItem,
   type ApplicationType,
   type PresidentNominationItem,
@@ -268,10 +269,14 @@ export async function reviewApplication(
     const app = await lockAsOfficer(client, auth, applicationId, PERMISSIONS.CLUB_APPLICATION_REVIEW);
     assertStatus(app, ['submitted']);
     if (decision === 'pass') {
-      // ต้องตรวจใบคำยินยอมของที่ปรึกษาภายนอกครบทุกคนก่อน
-      const advisors = await listAdvisorRows(applicationId, client);
-      if (advisors.some((a) => a.externalPersonId && !a.consentVerifiedAt)) {
-        throw new AppError(422, 'EXTERNAL_CONSENT_NOT_VERIFIED', 'กรุณาตรวจและยืนยันใบคำยินยอมของที่ปรึกษาภายนอกให้ครบก่อน');
+      // ต้องตรวจเอกสารที่แนบแทนการตอบรับในระบบให้ครบก่อน:
+      // ใบคำยินยอมของที่ปรึกษาภายนอก + ที่ปรึกษาบุคลากรที่แนบเอกสาร + ใบตอบรับของผู้ถูกเสนอเป็นประธาน
+      const [advisors, committee] = await Promise.all([listAdvisorRows(applicationId, client), listCommitteeDetails(applicationId, client)]);
+      if (
+        advisors.some((a) => (a.externalPersonId || a.consentFileId) && !a.consentVerifiedAt) ||
+        committee.some((c) => c.consentFileId && !c.consentVerifiedAt)
+      ) {
+        throw new AppError(422, 'EXTERNAL_CONSENT_NOT_VERIFIED', 'กรุณาตรวจและยืนยันเอกสารคำยินยอม/ใบตอบรับที่แนบมาให้ครบก่อน');
       }
       await markReviewed(applicationId, auth.user.id, client);
       const eventId = await transition(client, app, auth.user.id, 'reviewed', note);
@@ -285,15 +290,26 @@ export async function reviewApplication(
 }
 
 /**
- * เจ้าหน้าที่ยืนยันว่าตรวจใบคำยินยอมของที่ปรึกษาภายนอก (ลำดับที่ sortOrder) แล้วถูกต้อง
+ * เจ้าหน้าที่ยืนยันว่าตรวจใบคำยินยอมที่แนบของที่ปรึกษา (ลำดับที่ sortOrder — ภายนอกหรือบุคลากร) แล้วถูกต้อง
  * ทำได้เฉพาะคำขอที่ยื่นแล้ว (submitted) ถ้าเอกสารไม่ถูกต้องให้ส่งกลับแก้ไขแทน
  */
 export async function verifyAdvisorConsent(auth: AuthContext, applicationId: string, sortOrder: number): Promise<void> {
   await withTransaction(async (client) => {
     const app = await lockAsOfficer(client, auth, applicationId, PERMISSIONS.CLUB_APPLICATION_REVIEW);
     assertStatus(app, ['submitted']);
-    if (!(await verifyExternalAdvisorConsent(applicationId, sortOrder, auth.user.id, client))) {
-      throw new AppError(404, 'ADVISOR_NOT_FOUND', 'ไม่พบที่ปรึกษาภายนอกที่แนบใบคำยินยอมลำดับนี้');
+    if (!(await verifyAdvisorConsentFile(applicationId, sortOrder, auth.user.id, client))) {
+      throw new AppError(404, 'ADVISOR_NOT_FOUND', 'ไม่พบที่ปรึกษาที่แนบใบคำยินยอมลำดับนี้');
+    }
+  });
+}
+
+// เจ้าหน้าที่ยืนยันใบตอบรับที่ลงนามแล้วของผู้ถูกเสนอเป็นประธาน (คำขอที่ยื่นแล้ว)
+export async function verifyPresidentConsent(auth: AuthContext, applicationId: string): Promise<void> {
+  await withTransaction(async (client) => {
+    const app = await lockAsOfficer(client, auth, applicationId, PERMISSIONS.CLUB_APPLICATION_REVIEW);
+    assertStatus(app, ['submitted']);
+    if (!(await verifyPresidentConsentFile(applicationId, PRESIDENT_POSITION_CODE, auth.user.id, client))) {
+      throw new AppError(404, 'PRESIDENT_CONSENT_NOT_FOUND', 'ไม่พบใบตอบรับของประธานที่แนบไว้');
     }
   });
 }

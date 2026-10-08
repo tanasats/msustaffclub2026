@@ -144,7 +144,7 @@ describe('ที่ปรึกษาที่เป็นบุคคลภา�
     expect(advisors[1]).toMatchObject({ external: { id: externalId, position: 'ที่ปรึกษาสมาคม' }, consentFile: { id: fileId } });
   });
 
-  it('แนบไฟล์ที่ไม่ใช่ของผู้ยื่น / ยังอัปโหลดไม่เสร็จ / แนบให้ที่ปรึกษาภายใน → ปฏิเสธ', async () => {
+  it('แนบไฟล์ที่ไม่ใช่ของผู้ยื่น / ยังอัปโหลดไม่เสร็จ / ที่ปรึกษาลำดับที่ไม่มี → ปฏิเสธ', async () => {
     const applicant = await actor();
     const other = await actor();
     const internal = await actor();
@@ -162,7 +162,8 @@ describe('ที่ปรึกษาที่เป็นบุคคลภา�
       (await send('put', applicant, `/club-applications/${id}/advisors/2/consent-file`, { fileId: pending.body.fileId })).body.error.code,
     ).toBe('INVALID_CONSENT_FILE');
     const mine = await uploadConsent(applicant);
-    expect((await send('put', applicant, `/club-applications/${id}/advisors/1/consent-file`, { fileId: mine })).status).toBe(404);
+    // ที่ปรึกษาลำดับที่ไม่มีอยู่ → 404 (ที่ปรึกษาภายในแนบใบคำยินยอมได้แล้ว — สำหรับผู้ไม่สะดวกเข้าระบบ)
+    expect((await send('put', applicant, `/club-applications/${id}/advisors/5/consent-file`, { fileId: mine })).status).toBe(404);
   });
 
   it('flow เต็ม: ภายในยินยอมผ่าน login + ภายนอกแนบเอกสาร → เจ้าหน้าที่ต้องยืนยันเอกสารก่อนตรวจผ่าน → อนุมัติแล้วบันทึกที่ปรึกษาภายนอกในชมรม', async () => {
@@ -217,5 +218,72 @@ describe('ที่ปรึกษาที่เป็นบุคคลภา�
         [id],
       ),
     ).rejects.toThrow(/club_application_advisors_kind_check/);
+  });
+});
+
+describe('ผู้ที่ไม่สะดวกเข้าระบบ: ตอบรับด้วยใบลงนามที่แนบ (บุคลากรภายใน)', () => {
+  it('ที่ปรึกษาบุคลากร: แนบใบคำยินยอม → ยินยอมแล้ว ไม่ถูกล้างตอนส่งขอการตอบรับ ยื่นได้ แต่เจ้าหน้าที่ต้องยืนยันเอกสารก่อนตรวจผ่าน', async () => {
+    const applicant = await actor();
+    const senior = await actor();
+    const reviewer = await actor(['user', 'staff', await roleWith('club_application:review')]);
+    const id = await draftWithoutAdvisors(applicant);
+    await send('put', applicant, `/club-applications/${id}/advisors`, { advisors: [{ userId: senior.id }] });
+
+    const fileId = await uploadConsent(applicant);
+    expect((await send('put', applicant, `/club-applications/${id}/advisors/1/consent-file`, { fileId })).status).toBe(204);
+    expect((await send('post', applicant, `/club-applications/${id}/request-consent`)).status).toBe(204);
+    const detail = (await get(applicant, `/club-applications/${id}`)).body;
+    expect(detail.advisors[0]).toMatchObject({ kind: 'internal', consentStatus: 'accepted', consentFile: { id: fileId } });
+    // ที่ปรึกษาไม่ต้องกดเอง (กดซ้ำก็ไม่มีอะไรรอตอบ)
+    expect((await send('post', senior, `/club-applications/${id}/advisor-response`, { decision: 'accept' })).status).toBe(409);
+
+    expect((await send('post', applicant, `/club-applications/${id}/submit`)).status).toBe(204);
+    expect((await send('post', reviewer, `/club-applications/${id}/review`, { decision: 'pass' })).body.error.code).toBe('EXTERNAL_CONSENT_NOT_VERIFIED');
+    expect((await send('post', reviewer, `/club-applications/${id}/advisors/1/verify-consent`)).status).toBe(204);
+    expect((await send('post', reviewer, `/club-applications/${id}/review`, { decision: 'pass' })).status).toBe(204);
+    // ผู้ตรวจดาวน์โหลดไฟล์แนบได้
+    expect((await get(reviewer, `/files/${fileId}/download-url`)).status).toBe(200);
+    const doc = (await get(applicant, `/club-applications/${id}/document`)).body;
+    expect(doc.advisors[0]).toMatchObject({ kind: 'internal', hasConsentFile: true });
+  });
+
+  it('ผู้ถูกเสนอเป็นประธาน: แนบใบตอบรับ → ตอบรับแล้ว (ไม่ต้อง login) คงอยู่หลังบันทึกกรรมการใหม่ และเจ้าหน้าที่ต้องยืนยันเอกสาร', async () => {
+    const applicant = await actor();
+    const nominee = await actor();
+    const advisor = await actor();
+    const reviewer = await actor(['user', 'staff', await roleWith('club_application:review')]);
+    const id = await draftWithoutAdvisors(applicant);
+    const { rows: secretary } = await pool.query(
+      `SELECT m.user_id FROM club_application_committee m JOIN club_positions p ON p.id = m.position_id WHERE m.application_id = $1 AND p.code = 'secretary'`,
+      [id],
+    );
+    const committee = { committee: [{ userId: nominee.id, positionCode: 'president' }, { userId: secretary[0].user_id, positionCode: 'secretary' }] };
+    await send('put', applicant, `/club-applications/${id}/committee`, committee);
+    await send('put', applicant, `/club-applications/${id}/advisors`, { advisors: [{ userId: advisor.id }] });
+
+    const fileId = await uploadConsent(applicant);
+    expect((await send('put', applicant, `/club-applications/${id}/president-consent-file`, { fileId })).status).toBe(204);
+    // บันทึกรายชื่อกรรมการซ้ำ (แถวสร้างใหม่) ใบตอบรับยังอยู่
+    await send('put', applicant, `/club-applications/${id}/committee`, committee);
+    await send('post', applicant, `/club-applications/${id}/request-consent`);
+    let president = (await get(applicant, `/club-applications/${id}`)).body.committee[0];
+    expect(president).toMatchObject({ user: { id: nominee.id }, consentStatus: 'accepted', consentFile: { id: fileId }, consentVerified: null });
+
+    await send('post', advisor, `/club-applications/${id}/advisor-response`, { decision: 'accept' });
+    expect((await send('post', applicant, `/club-applications/${id}/submit`)).status).toBe(204);
+    expect((await send('post', reviewer, `/club-applications/${id}/review`, { decision: 'pass' })).body.error.code).toBe('EXTERNAL_CONSENT_NOT_VERIFIED');
+    expect((await send('post', reviewer, `/club-applications/${id}/president-consent/verify`)).status).toBe(204);
+    president = (await get(applicant, `/club-applications/${id}`)).body.committee[0];
+    expect(president.consentVerified).toMatchObject({ at: expect.any(String) });
+    expect((await send('post', reviewer, `/club-applications/${id}/review`, { decision: 'pass' })).status).toBe(204);
+    expect((await get(applicant, `/club-applications/${id}/document`)).body.committee[0]).toMatchObject({ hasConsentFile: true });
+  });
+
+  it('ผู้ยื่นเป็นประธานเอง → แนบใบตอบรับไม่ได้ (404); ไม่ใช่เจ้าหน้าที่ยืนยันเอกสารไม่ได้', async () => {
+    const applicant = await actor();
+    const id = await draftWithoutAdvisors(applicant);
+    const fileId = await uploadConsent(applicant);
+    expect((await send('put', applicant, `/club-applications/${id}/president-consent-file`, { fileId })).body.error.code).toBe('PRESIDENT_NOMINEE_NOT_FOUND');
+    expect((await send('post', applicant, `/club-applications/${id}/president-consent/verify`)).status).toBe(403);
   });
 });

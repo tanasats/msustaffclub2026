@@ -73,7 +73,9 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
         apiGetJson<{ issues: ValidationIssue[] }>(`${base}/validation`),
       ])
     : [null, null, null];
-  const externalAdvisors = application.advisors.filter((a) => a.kind === 'external');
+  // เอกสารที่เจ้าหน้าที่ต้องตรวจ: ใบคำยินยอมของที่ปรึกษาภายนอก/บุคลากรที่แนบเอกสาร และใบตอบรับของผู้ถูกเสนอเป็นประธาน
+  const documentAdvisors = application.advisors.filter((a) => a.kind === 'external' || a.consentFile);
+  const presidentDocument = application.committee.find((c) => c.position.code === 'president' && c.consentFile) ?? null;
   const allAdvisorsAccepted =
     application.advisors.length > 0 && application.advisors.every((a) => a.consentStatus === 'accepted');
   const presidentAccepted = !nominatedPresident || nominatedPresident.consentStatus === 'accepted';
@@ -154,13 +156,17 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
                   ประธาน: {nominatedPresident.user.name ?? nominatedPresident.user.email} —{' '}
                   <span className={nominatedPresident.consentStatus === 'accepted' ? 'text-matcha-700' : 'text-kin'}>
                     {PRESIDENT_CONSENT_LABELS[nominatedPresident.consentStatus!]}
+                    {nominatedPresident.consentFile && ' (แนบใบตอบรับ)'}
                   </span>
                 </li>
               )}
               {application.advisors.map((a) => (
                 <li key={a.sortOrder}>
                   ที่ปรึกษา: {advisorDisplayName(a)} —{' '}
-                  <span className={a.consentStatus === 'accepted' ? 'text-matcha-700' : 'text-kin'}>{CONSENT_LABELS[a.consentStatus]}</span>
+                  <span className={a.consentStatus === 'accepted' ? 'text-matcha-700' : 'text-kin'}>
+                    {CONSENT_LABELS[a.consentStatus]}
+                    {a.consentFile && ' (แนบใบคำยินยอม)'}
+                  </span>
                 </li>
               ))}
             </ul>
@@ -218,21 +224,37 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
 
         {canReview && (
           <Section title="ตรวจคำขอ (ขั้นที่ 1 — เจ้าหน้าที่สโมสร)">
-            {externalAdvisors.length > 0 && (
+            {(documentAdvisors.length > 0 || presidentDocument) && (
               <div className="mb-4 grid gap-2">
-                <p className="text-sm text-stone">ตรวจใบคำยินยอมของที่ปรึกษาภายนอกให้ครบก่อนกด &quot;ตรวจผ่าน&quot; (ถ้าเอกสารไม่ถูกต้อง ให้ส่งกลับแก้ไข)</p>
-                {externalAdvisors.map((adv) => (
+                <p className="text-sm text-stone">
+                  ตรวจเอกสารที่แนบแทนการตอบรับในระบบให้ครบก่อนกด &quot;ตรวจผ่าน&quot; (ถ้าเอกสารไม่ถูกต้อง ให้ส่งกลับแก้ไข)
+                </p>
+                {presidentDocument && presidentDocument.consentFile && (
+                  <div className="flex flex-col gap-2 rounded-xl border border-ink/[0.08] bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
+                    <div className="text-sm">
+                      <p className="font-medium">ใบตอบรับเป็นประธาน: {presidentDocument.user.name ?? presidentDocument.user.email}</p>
+                      <p className="text-xs text-stone">{presidentDocument.user.orgUnitName}</p>
+                      <FileLink fileId={presidentDocument.consentFile.id} label="เปิดใบตอบรับ" />
+                    </div>
+                    {presidentDocument.consentVerified ? (
+                      <span className="text-sm text-matcha-700">✓ ยืนยันเอกสารแล้ว</span>
+                    ) : (
+                      <ActionButton path={`${base}/president-consent/verify`} label="ยืนยันเอกสารถูกต้อง" tone="neutral" />
+                    )}
+                  </div>
+                )}
+                {documentAdvisors.map((adv) => (
                   <div key={adv.sortOrder} className="flex flex-col gap-2 rounded-xl border border-ink/[0.08] bg-white p-3 sm:flex-row sm:items-center sm:justify-between">
                     <div className="text-sm">
                       <p className="font-medium">{advisorDisplayName(adv)}</p>
-                      <p className="text-xs text-stone">{adv.external?.organization}</p>
-                      {adv.consentFile && <FileLink fileId={adv.consentFile.id} label="เปิดใบคำยินยอม" />}
+                      <p className="text-xs text-stone">{adv.kind === 'external' ? adv.external?.organization : 'บุคลากร มมส. (แนบใบคำยินยอมแทนการยินยอมในระบบ)'}</p>
+                      {adv.consentFile ? <FileLink fileId={adv.consentFile.id} label="เปิดใบคำยินยอม" /> : <p className="text-xs text-kin">ยังไม่ได้แนบใบคำยินยอม</p>}
                     </div>
                     {adv.consentVerified ? (
                       <span className="text-sm text-matcha-700">✓ ยืนยันเอกสารแล้ว</span>
-                    ) : (
+                    ) : adv.consentFile ? (
                       <ActionButton path={`${base}/advisors/${adv.sortOrder}/verify-consent`} label="ยืนยันเอกสารถูกต้อง" tone="neutral" />
-                    )}
+                    ) : null}
                   </div>
                 ))}
               </div>

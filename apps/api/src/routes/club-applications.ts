@@ -9,6 +9,7 @@ import {
   getApplicationDetail,
   listMyApplications,
   attachExternalAdvisorConsent,
+  attachPresidentConsent,
   replaceActivities,
   replaceAdvisors,
   replaceCommittee,
@@ -31,6 +32,7 @@ import {
   reviewApplication,
   submitApplication,
   verifyAdvisorConsent,
+  verifyPresidentConsent,
   withdrawToDraft,
 } from '../services/club-application-workflow-service.js';
 import { AppError } from '../errors.js';
@@ -222,7 +224,14 @@ clubApplicationsRouter.put('/club-applications/:id/advisors', requireCreate, asy
   res.status(204).end();
 });
 
-// ผู้ยื่น: แนบใบคำยินยอมของที่ปรึกษาภายนอก (ไฟล์ที่อัปโหลดผ่าน /files/uploads แล้ว)
+// ผู้ยื่น: แนบใบตอบรับที่ลงนามแล้วของผู้ถูกเสนอเป็นประธานที่ไม่สะดวกเข้าระบบ
+clubApplicationsRouter.put('/club-applications/:id/president-consent-file', requireCreate, async (req, res) => {
+  const { fileId } = consentFileSchema.parse(req.body);
+  await attachPresidentConsent(getRequiredAuth(req), idOf(req.params.id), fileId);
+  res.status(204).end();
+});
+
+// ผู้ยื่น: แนบใบคำยินยอมของที่ปรึกษา — บุคคลภายนอก หรือบุคลากรที่ไม่สะดวกเข้าระบบ (ไฟล์ที่อัปโหลดผ่าน /files/uploads แล้ว)
 clubApplicationsRouter.put('/club-applications/:id/advisors/:order/consent-file', requireCreate, async (req, res) => {
   const { fileId } = consentFileSchema.parse(req.body);
   await attachExternalAdvisorConsent(getRequiredAuth(req), idOf(req.params.id), advisorOrderOf(req.params.order), fileId);
@@ -316,7 +325,13 @@ clubApplicationsRouter.post('/club-applications/:id/decision', requireAuth, asyn
   res.json(await decideApplication(getRequiredAuth(req), idOf(req.params.id), decision, note ?? null));
 });
 
-// ต้องมี club_application:review (ตรวจใน service): ยืนยันว่าตรวจใบคำยินยอมของที่ปรึกษาภายนอกแล้ว
+// ต้องมี club_application:review (ตรวจใน service): ยืนยันใบตอบรับที่แนบของผู้ถูกเสนอเป็นประธาน
+clubApplicationsRouter.post('/club-applications/:id/president-consent/verify', requireAuth, async (req, res) => {
+  await verifyPresidentConsent(getRequiredAuth(req), idOf(req.params.id));
+  res.status(204).end();
+});
+
+// ต้องมี club_application:review (ตรวจใน service): ยืนยันว่าตรวจใบคำยินยอมของที่ปรึกษา (ภายนอกหรือบุคลากรที่แนบเอกสาร) แล้ว
 clubApplicationsRouter.post('/club-applications/:id/advisors/:order/verify-consent', requireAuth, async (req, res) => {
   await verifyAdvisorConsent(getRequiredAuth(req), idOf(req.params.id), advisorOrderOf(req.params.order));
   res.status(204).end();

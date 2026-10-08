@@ -19,7 +19,8 @@ import {
   lockApplication,
   replaceActivityRows,
   replaceAdvisorRows,
-  setExternalAdvisorConsentFile,
+  setAdvisorConsentFile,
+  setPresidentConsentFile,
   findApplicationIdByConsentFile,
   replaceCommitteeRows,
   replaceMemberRows,
@@ -322,9 +323,17 @@ export async function replaceAdvisors(auth: AuthContext, applicationId: string, 
   });
 }
 
+// ไฟล์ต้องเป็นเอกสารคำยินยอมที่ผู้ยื่นอัปโหลดเองและอัปโหลดสำเร็จแล้ว (ใช้ purpose advisor_consent ร่วมกับใบตอบรับของประธาน)
+async function assertConsentFile(auth: AuthContext, fileId: string, client: DbClient): Promise<void> {
+  const file = await findFile(fileId, client);
+  if (!file || file.uploadedBy !== auth.user.id || file.purpose !== 'advisor_consent' || file.status !== 'uploaded') {
+    throw new AppError(422, 'INVALID_CONSENT_FILE', 'ไฟล์ใบคำยินยอมไม่ถูกต้อง หรือยังอัปโหลดไม่สำเร็จ');
+  }
+}
+
 /**
- * แนบใบคำยินยอมที่ลงนามแล้วให้ที่ปรึกษาภายนอก (ลำดับที่ sortOrder)
- * ไฟล์ต้องเป็นใบคำยินยอมที่ผู้ยื่นอัปโหลดเองและอัปโหลดสำเร็จแล้ว
+ * แนบใบคำยินยอมที่ลงนามแล้วให้ที่ปรึกษา (ลำดับที่ sortOrder) — บุคคลภายนอก หรือบุคลากรที่ไม่สะดวกเข้าระบบ
+ * แนบแล้วถือว่ายินยอม (ไม่ต้องกดในระบบ) เจ้าหน้าที่ต้องยืนยันเอกสารก่อนตรวจผ่าน
  */
 export async function attachExternalAdvisorConsent(
   auth: AuthContext,
@@ -334,12 +343,24 @@ export async function attachExternalAdvisorConsent(
 ): Promise<void> {
   await withTransaction(async (client) => {
     await lockForEdit(client, auth, applicationId);
-    const file = await findFile(fileId, client);
-    if (!file || file.uploadedBy !== auth.user.id || file.purpose !== 'advisor_consent' || file.status !== 'uploaded') {
-      throw new AppError(422, 'INVALID_CONSENT_FILE', 'ไฟล์ใบคำยินยอมไม่ถูกต้อง หรือยังอัปโหลดไม่สำเร็จ');
+    await assertConsentFile(auth, fileId, client);
+    if (!(await setAdvisorConsentFile(applicationId, sortOrder, fileId, client))) {
+      throw new AppError(404, 'ADVISOR_NOT_FOUND', 'ไม่พบที่ปรึกษาลำดับนี้');
     }
-    if (!(await setExternalAdvisorConsentFile(applicationId, sortOrder, fileId, client))) {
-      throw new AppError(404, 'ADVISOR_NOT_FOUND', 'ไม่พบที่ปรึกษาภายนอกลำดับนี้');
+  });
+}
+
+/**
+ * แนบใบตอบรับที่ลงนามแล้วของผู้ถูกเสนอเป็นประธานที่ไม่สะดวกเข้าระบบ (ประธานที่ไม่ใช่ผู้ยื่น)
+ * แนบแล้วถือว่าตอบรับ เจ้าหน้าที่ต้องยืนยันเอกสารก่อนตรวจผ่าน
+ */
+export async function attachPresidentConsent(auth: AuthContext, applicationId: string, fileId: string): Promise<void> {
+  await withTransaction(async (client) => {
+    const app = await lockForEdit(client, auth, applicationId);
+    assertEstablish(app);
+    await assertConsentFile(auth, fileId, client);
+    if (!(await setPresidentConsentFile(applicationId, app.applicantUserId, PRESIDENT_POSITION_CODE, { fileId }, client))) {
+      throw new AppError(404, 'PRESIDENT_NOMINEE_NOT_FOUND', 'คำขอนี้ไม่มีผู้ถูกเสนอเป็นประธาน (ผู้ยื่นเป็นประธานเองไม่ต้องแนบใบตอบรับ)');
     }
   });
 }
@@ -405,6 +426,10 @@ export async function replaceCommittee(auth: AuthContext, applicationId: string,
     }
 
     await loadEligibleUsers(userIds, client);
+    // ใบตอบรับที่แนบของประธานเดิม — คืนให้หลังบันทึกใหม่ถ้ายังเป็นประธานคนเดิม (แถวถูกสร้างใหม่ทั้งหมด)
+    const previousPresident = (await listCommitteeDetails(applicationId, client)).find(
+      (c) => c.positionCode === PRESIDENT_POSITION_CODE && c.consentFileId,
+    );
     await replaceCommitteeRows(
       applicationId,
       inputs.map((input, index) => {
@@ -421,6 +446,20 @@ export async function replaceCommittee(auth: AuthContext, applicationId: string,
       }),
       client,
     );
+    if (previousPresident && presidents[0]!.userId === previousPresident.userId) {
+      await setPresidentConsentFile(
+        applicationId,
+        app.applicantUserId,
+        PRESIDENT_POSITION_CODE,
+        {
+          fileId: previousPresident.consentFileId!,
+          respondedAt: previousPresident.respondedAt ?? undefined,
+          verifiedBy: previousPresident.consentVerifiedBy,
+          verifiedAt: previousPresident.consentVerifiedAt,
+        },
+        client,
+      );
+    }
     // ผู้ยื่นที่ไม่ได้เป็นกรรมการ ต้องเป็นสมาชิกตั้งต้นของชมรม
     if (!userIds.includes(app.applicantUserId)) {
       await ensureMemberRow(applicationId, app.applicantUserId, client);
@@ -610,6 +649,9 @@ export async function getApplicationDetail(auth: AuthContext, applicationId: str
       bio: c.bio,
       consentStatus: c.consentStatus,
       respondedAt: c.respondedAt,
+      // ใบตอบรับที่ลงนามแล้ว (ผู้ถูกเสนอเป็นประธานที่ไม่สะดวกเข้าระบบ)
+      consentFile: c.consentFileId ? { id: c.consentFileId, originalName: c.consentFileName } : null,
+      consentVerified: c.consentVerifiedAt ? { at: c.consentVerifiedAt, byName: c.consentVerifiedByName } : null,
     })),
     members: members.map((m) => ({ id: m.userId, name: m.userName, email: m.userEmail, orgUnitName: m.orgUnitName })),
     activities,

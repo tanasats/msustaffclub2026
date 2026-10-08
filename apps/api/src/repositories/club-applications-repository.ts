@@ -197,7 +197,8 @@ export async function replaceAdvisorRows(applicationId: string, rows: AdvisorRow
  * แนบใบคำยินยอมให้ที่ปรึกษาภายนอก → ถือว่ายินยอมแล้ว (รอเจ้าหน้าที่ตรวจเอกสาร จึงล้างผลการตรวจเดิม)
  * คืน true ถ้าพบแถวที่ปรึกษาภายนอกลำดับนี้
  */
-export async function setExternalAdvisorConsentFile(
+// แนบใบคำยินยอมที่ลงนามแล้ว (บุคคลภายนอก หรือบุคลากรที่ไม่สะดวกเข้าระบบ) = ยินยอมแล้ว รอเจ้าหน้าที่ยืนยันเอกสาร
+export async function setAdvisorConsentFile(
   applicationId: string,
   sortOrder: number,
   fileId: string,
@@ -207,14 +208,14 @@ export async function setExternalAdvisorConsentFile(
     `UPDATE club_application_advisors
         SET consent_file_id = $3, consent_status = 'accepted', responded_at = now(),
             consent_verified_by = NULL, consent_verified_at = NULL
-      WHERE application_id = $1 AND sort_order = $2 AND external_person_id IS NOT NULL`,
+      WHERE application_id = $1 AND sort_order = $2`,
     [applicationId, sortOrder, fileId],
   );
   return (result.rowCount ?? 0) > 0;
 }
 
 // เจ้าหน้าที่ยืนยันว่าตรวจเอกสารคำยินยอมแล้ว (ต้องมีไฟล์แนบก่อน)
-export async function verifyExternalAdvisorConsent(
+export async function verifyAdvisorConsentFile(
   applicationId: string,
   sortOrder: number,
   verifierId: string,
@@ -223,8 +224,7 @@ export async function verifyExternalAdvisorConsent(
   const result = await db.query(
     `UPDATE club_application_advisors
         SET consent_verified_by = $3, consent_verified_at = now()
-      WHERE application_id = $1 AND sort_order = $2
-        AND external_person_id IS NOT NULL AND consent_file_id IS NOT NULL`,
+      WHERE application_id = $1 AND sort_order = $2 AND consent_file_id IS NOT NULL`,
     [applicationId, sortOrder, verifierId],
   );
   return (result.rowCount ?? 0) > 0;
@@ -234,9 +234,9 @@ export async function verifyExternalAdvisorConsent(
 // ไม่กรองคำขอที่ลบแล้ว — ผู้เรียกตรวจสิทธิ์ดูคำขอเอง (คำขอที่ลบเห็นเฉพาะผู้มีสิทธิ์ดูคำขอที่ลบ)
 export async function findApplicationIdByConsentFile(fileId: string, db: Queryable = pool): Promise<string | null> {
   const result = await db.query<{ applicationId: string }>(
-    `SELECT a.application_id AS "applicationId"
-       FROM club_application_advisors a
-      WHERE a.consent_file_id = $1
+    `SELECT a.application_id AS "applicationId" FROM club_application_advisors a WHERE a.consent_file_id = $1
+     UNION ALL
+     SELECT m.application_id FROM club_application_committee m WHERE m.consent_file_id = $1
       LIMIT 1`,
     [fileId],
   );
@@ -464,6 +464,12 @@ export interface CommitteeDetailRow {
   respondedAt: Date | null;
   // ชื่อพร้อมคำนำหน้าสำหรับเอกสารพิมพ์
   userFormalName: string;
+  // ใบตอบรับที่ลงนามแล้ว (ผู้ถูกเสนอเป็นประธานที่ไม่สะดวกเข้าระบบ)
+  consentFileId: string | null;
+  consentFileName: string | null;
+  consentVerifiedBy: string | null;
+  consentVerifiedAt: Date | null;
+  consentVerifiedByName: string | null;
 }
 
 export async function listCommitteeDetails(applicationId: string, db: Queryable = pool): Promise<CommitteeDetailRow[]> {
@@ -474,8 +480,13 @@ export async function listCommitteeDetails(applicationId: string, db: Queryable 
             p.id AS "positionId", p.code AS "positionCode", p.name_th AS "positionNameTh",
             m.position_title AS "positionTitle", m.sort_order AS "sortOrder",
             m.work_location AS "workLocation", m.contact_phone AS "contactPhone", m.bio,
-            m.consent_status AS "consentStatus", m.responded_at AS "respondedAt"
+            m.consent_status AS "consentStatus", m.responded_at AS "respondedAt",
+            m.consent_file_id AS "consentFileId", cf.original_name AS "consentFileName",
+            m.consent_verified_by AS "consentVerifiedBy", m.consent_verified_at AS "consentVerifiedAt",
+            cv.name AS "consentVerifiedByName"
        FROM club_application_committee m
+       LEFT JOIN files cf ON cf.id = m.consent_file_id
+       LEFT JOIN users cv ON cv.id = m.consent_verified_by
        JOIN users u ON u.id = m.user_id
        JOIN club_positions p ON p.id = m.position_id
        LEFT JOIN staff_profiles sp ON sp.user_id = u.id
@@ -629,12 +640,12 @@ export async function isClubNameTaken(name: string, excludeClubId: string | null
 // ---------- ขั้นตอนอนุมัติ ----------
 
 // ล้างผลการยินยอมของที่ปรึกษาที่เป็นบุคลากรกลับเป็น pending (ใช้ตอนขอความยินยอมรอบใหม่)
-// ที่ปรึกษาภายนอกยินยอมด้วยเอกสารแนบ จึงไม่ถูกล้าง
+// ผู้ที่ยินยอมด้วยเอกสารแนบ (บุคคลภายนอก/บุคลากรที่ไม่สะดวกเข้าระบบ) ไม่ถูกล้าง
 export async function resetAdvisorConsents(applicationId: string, db: Queryable): Promise<void> {
   await db.query(
     `UPDATE club_application_advisors
         SET consent_status = 'pending', responded_at = NULL
-      WHERE application_id = $1 AND external_person_id IS NULL`,
+      WHERE application_id = $1 AND external_person_id IS NULL AND consent_file_id IS NULL`,
     [applicationId],
   );
 }
@@ -677,9 +688,50 @@ export async function resetCommitteeConsents(
         SET consent_status = CASE WHEN p.code = $3 AND m.user_id <> $2 THEN 'pending' END,
             responded_at = NULL
        FROM club_positions p
-      WHERE p.id = m.position_id AND m.application_id = $1`,
+      WHERE p.id = m.position_id AND m.application_id = $1
+        -- ผู้ที่ตอบรับด้วยเอกสารแนบไม่ถูกล้าง
+        AND m.consent_file_id IS NULL`,
     [applicationId, applicantUserId, presidentPositionCode],
   );
+}
+
+/**
+ * แนบใบตอบรับที่ลงนามแล้วของผู้ถูกเสนอเป็นประธาน (ประธานที่ไม่ใช่ผู้ยื่น) = ตอบรับแล้ว รอเจ้าหน้าที่ยืนยันเอกสาร
+ * restore: ใช้คืนเอกสาร/ผลการยืนยันเดิมหลังบันทึกรายชื่อกรรมการใหม่ (แถวถูกสร้างใหม่ทั้งหมด)
+ */
+export async function setPresidentConsentFile(
+  applicationId: string,
+  applicantUserId: string,
+  presidentPositionCode: string,
+  consent: { fileId: string; respondedAt?: Date; verifiedBy?: string | null; verifiedAt?: Date | null },
+  db: Queryable,
+): Promise<boolean> {
+  const result = await db.query(
+    `UPDATE club_application_committee m
+        SET consent_file_id = $4, consent_status = 'accepted', responded_at = COALESCE($5, now()),
+            consent_verified_by = $6, consent_verified_at = $7
+       FROM club_positions p
+      WHERE p.id = m.position_id AND p.code = $3 AND m.application_id = $1 AND m.user_id <> $2`,
+    [applicationId, applicantUserId, presidentPositionCode, consent.fileId, consent.respondedAt ?? null, consent.verifiedBy ?? null, consent.verifiedAt ?? null],
+  );
+  return (result.rowCount ?? 0) > 0;
+}
+
+// เจ้าหน้าที่ยืนยันใบตอบรับของประธาน (ต้องมีไฟล์แนบ)
+export async function verifyPresidentConsentFile(
+  applicationId: string,
+  presidentPositionCode: string,
+  verifierId: string,
+  db: Queryable,
+): Promise<boolean> {
+  const result = await db.query(
+    `UPDATE club_application_committee m
+        SET consent_verified_by = $3, consent_verified_at = now()
+       FROM club_positions p
+      WHERE p.id = m.position_id AND p.code = $2 AND m.application_id = $1 AND m.consent_file_id IS NOT NULL`,
+    [applicationId, presidentPositionCode, verifierId],
+  );
+  return (result.rowCount ?? 0) > 0;
 }
 
 // บันทึกการตอบของผู้ถูกเสนอเป็นประธาน คืน true ถ้าพบแถวที่ยังรอตอบ

@@ -1,13 +1,38 @@
 import Link from 'next/link';
 import { AccountStatusForm } from '@/components/admin/AccountStatusForm';
+import { ProvisionUserForm, type ProvisionValues } from '@/components/admin/ProvisionUserForm';
 import { GrantRoleForm } from '@/components/admin/GrantRoleForm';
 import { RevokeRoleButton } from '@/components/admin/RevokeRoleButton';
 import { RoleBadge } from '@/components/RoleBadge';
 import { PageHeader } from '@/components/ui/PageHeader';
-import { apiGetJson } from '@/lib/api-server';
-import type { AccountOverview, AdminRole, AdminUserOverview } from '@/lib/admin-types';
+import { apiFetch, apiGetJson } from '@/lib/api-server';
+import { ACCOUNT_EVENT_LABELS, type AccountOverview, type AdminRole, type AdminUserOverview } from '@/lib/admin-types';
 import { getCurrentUser } from '@/lib/auth';
 import { formatDateTime } from '@/lib/format';
+
+// ข้อมูลที่กรอกของบัญชีที่ยังไม่ผูก (null = ผูกแล้ว/ไม่ใช่บัญชีที่เพิ่มล่วงหน้า — API ตอบ 404)
+async function loadProvisioned(userId: string): Promise<{ values: ProvisionValues; orgUnits: { id: string; code: string; nameTh: string }[] } | null> {
+  const res = await apiFetch(`/provisioned-users/${encodeURIComponent(userId)}`);
+  if (res.status === 404) return null;
+  if (!res.ok) throw new Error(`โหลดข้อมูลบัญชีไม่สำเร็จ (${res.status})`);
+  const p = (await res.json()) as Record<string, string | null>;
+  const orgUnits = await apiGetJson<{ items: { id: string; code: string; nameTh: string }[] }>('/provisioning/org-units');
+  const v = (key: string) => p[key] ?? '';
+  return {
+    orgUnits: orgUnits.items,
+    values: {
+      email: v('email'),
+      prefixNameTh: v('prefixNameTh'),
+      firstNameTh: v('firstNameTh'),
+      lastNameTh: v('lastNameTh'),
+      prefixNameEn: v('prefixNameEn'),
+      firstNameEn: v('firstNameEn'),
+      lastNameEn: v('lastNameEn'),
+      orgUnitId: v('orgUnitId'),
+      positionNameTh: v('positionNameTh'),
+    },
+  };
+}
 
 export default async function AdminUserDetailPage({ params }: { params: Promise<{ userId: string }> }) {
   const { userId } = await params;
@@ -20,6 +45,9 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
   // ปิด/เปิดบัญชี: permission user_account:deactivate (ไม่ผูก role → super_admin) — เมนูเพื่อ UX เท่านั้น API ตรวจซ้ำ
   const canManageAccount = Boolean(current && (current.roles.includes('super_admin') || current.permissions.includes('user_account:deactivate')));
   const account = canManageAccount ? await apiGetJson<AccountOverview>(`/user-accounts/${encodeURIComponent(userId)}`) : null;
+  // บัญชีที่เพิ่มล่วงหน้าและยังไม่ผูก: แก้ข้อมูลได้ (permission user_account:create) — บัญชีที่ผูกแล้ว API ตอบ 404 จึงไม่แสดง
+  const canProvision = Boolean(current && (current.roles.includes('super_admin') || current.permissions.includes('user_account:create')));
+  const provisioned = canProvision ? await loadProvisioned(userId) : null;
   const grantableByCode = new Map(roles.items.map((role) => [role.code, role.grantable]));
   const heldCodes = new Set(overview.roles.map((role) => role.code));
   // แก้ role ของตัวเองไม่ได้ (API ก็ปฏิเสธ) จึงไม่แสดงปุ่มเพื่อไม่ให้สับสน
@@ -36,6 +64,14 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
         {!user.isActive && <p className="mt-2 text-sm font-medium text-beni">บัญชีนี้ถูกปิดการใช้งาน</p>}
         {isSelf && <p className="mt-2 text-sm text-kin">นี่คือบัญชีของคุณ — แก้ไข role ของตนเองไม่ได้</p>}
       </section>
+
+      {provisioned && (
+        <section className="mt-3 bento p-5 sm:mt-4 sm:p-6">
+          <h2 className="font-serif text-lg font-medium">ข้อมูลบุคลากร (เพิ่มล่วงหน้า ยังไม่เคยเข้าระบบ)</h2>
+          <p className="mt-1 mb-4 text-sm text-stone">แก้ไขได้จนกว่าเจ้าตัวจะเข้าสู่ระบบ หลังจากนั้นข้อมูลจะเป็นไปตาม ERP</p>
+          <ProvisionUserForm orgUnits={provisioned.orgUnits} userId={user.id} initial={provisioned.values} />
+        </section>
+      )}
 
       <section className="mt-3 bento p-5 sm:mt-4 sm:p-6">
         <h2 className="font-serif text-lg font-medium">role ปัจจุบัน</h2>
@@ -120,7 +156,7 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
             <ul className="mt-4 divide-y divide-ink/[0.06] border-t border-ink/[0.08] text-sm">
               {account.history.map((h, i) => (
                 <li key={i} className="py-2">
-                  <span className={h.action === 'deactivated' ? 'text-beni' : 'text-matcha-700'}>{h.action === 'deactivated' ? 'ปิดบัญชี' : 'เปิดบัญชีคืน'}</span> — {h.reason}
+                  <span className={h.action === 'deactivated' ? 'text-beni' : 'text-matcha-700'}>{ACCOUNT_EVENT_LABELS[h.action]}</span> — {h.reason}
                   <p className="text-xs text-mist">
                     {formatDateTime(h.createdAt)} โดย {h.actorName ?? 'ระบบ'}
                     {h.action === 'deactivated' &&

@@ -9,8 +9,24 @@ import { apiSend } from '@/lib/api-client';
 const ACCEPT = 'application/pdf,image/jpeg,image/png';
 const MAX_BYTES = 10 * 1024 * 1024;
 
-// แนบใบคำยินยอมที่ลงนามแล้วของที่ปรึกษาภายนอก (PDF/JPG/PNG ไม่เกิน 10 MB)
-export function ConsentUpload({ applicationId, sortOrder, hasFile }: { applicationId: string; sortOrder: number; hasFile: boolean }) {
+// แนบเอกสารคำยินยอม/ใบตอบรับที่ลงนามแล้ว (PDF/JPG/PNG ไม่เกิน 10 MB)
+// ค่าตั้งต้น = ใบคำยินยอมของที่ปรึกษาลำดับ sortOrder, kind=president = ใบตอบรับของผู้ถูกเสนอเป็นประธาน
+export function ConsentUpload({
+  applicationId,
+  sortOrder = 0,
+  hasFile,
+  kind = 'advisor',
+}: {
+  applicationId: string;
+  sortOrder?: number;
+  hasFile: boolean;
+  kind?: 'advisor' | 'president';
+}) {
+  const attachPath =
+    kind === 'president'
+      ? `/club-applications/${applicationId}/president-consent-file`
+      : `/club-applications/${applicationId}/advisors/${sortOrder}/consent-file`;
+  const noun = kind === 'president' ? 'ใบตอบรับ' : 'ใบคำยินยอม';
   const router = useRouter();
   const inputId = useId();
   const [status, setStatus] = useState<'idle' | 'uploading' | 'error'>('idle');
@@ -37,7 +53,7 @@ export function ConsentUpload({ applicationId, sortOrder, hasFile }: { applicati
       setMessage(uploaded.message);
       return;
     }
-    const attached = await apiSend('PUT', `/club-applications/${applicationId}/advisors/${sortOrder}/consent-file`, {
+    const attached = await apiSend('PUT', attachPath, {
       fileId: uploaded.fileId,
     });
     if (!attached.ok) {
@@ -53,9 +69,9 @@ export function ConsentUpload({ applicationId, sortOrder, hasFile }: { applicati
     <div className="flex flex-wrap items-center gap-2">
       <label htmlFor={inputId} className={`btn btn-secondary !min-h-10 cursor-pointer text-sm ${status === 'uploading' ? 'pointer-events-none opacity-60' : ''}`}>
         <Icon name="plus" className="size-4" />
-        {status === 'uploading' ? 'กำลังอัปโหลด...' : hasFile ? 'เปลี่ยนไฟล์คำยินยอม' : 'แนบใบคำยินยอมที่ลงนามแล้ว'}
+        {status === 'uploading' ? 'กำลังอัปโหลด...' : hasFile ? `เปลี่ยนไฟล์${noun}` : `แนบ${noun}ที่ลงนามแล้ว`}
       </label>
-      <input id={inputId} type="file" accept={ACCEPT} onChange={handleChange} className="sr-only" data-testid={`consent-input-${sortOrder}`} />
+      <input id={inputId} type="file" accept={ACCEPT} onChange={handleChange} className="sr-only" data-testid={kind === 'president' ? 'consent-input-president' : `consent-input-${sortOrder}`} />
       <span className="text-xs text-mist">PDF / JPG / PNG ไม่เกิน 10 MB</span>
       {status === 'error' && (
         <span role="alert" className="w-full text-sm text-beni">

@@ -40,6 +40,10 @@ export async function bootstrapSuperAdmin(rawEmail: string): Promise<BootstrapSu
     if (!user.isActive) {
       throw new AppError(409, 'USER_INACTIVE', 'บัญชีผู้ใช้นี้ถูกปิดการใช้งาน');
     }
+    // บัญชีที่ผู้ดูแลเพิ่มล่วงหน้าแต่เจ้าตัวยังไม่เคย login ใช้ไม่ได้ (ต้องยืนยันตัวตนด้วย Google ก่อน)
+    if (!user.googleSub) {
+      throw new AppError(404, 'USER_NOT_FOUND', 'ผู้ใช้ email นี้ยังไม่เคยเข้าสู่ระบบด้วย Google ให้เข้าสู่ระบบ 1 ครั้งก่อนรัน seed');
+    }
 
     if (await userHasRole(user.id, role.id, client)) {
       return { status: 'already_super_admin', userId: user.id };

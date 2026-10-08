@@ -80,7 +80,7 @@ export default async function ApplicationDocumentPage({ params }: { params: Prom
   const consentPages = Array.from({ length: Math.ceil(advisors.length / 2) }, (_, i) => advisors.slice(i * 2, i * 2 + 2));
   const consentNote = (a: ApplicationDocument['advisors'][number] | null) =>
     a && a.consentStatus === 'accepted'
-      ? a.kind === 'internal' && a.respondedAt
+      ? !a.hasConsentFile && a.respondedAt
         ? `(ยินยอมผ่านระบบเมื่อ ${thaiLongDate(a.respondedAt)})`
         : '(แนบใบคำยินยอมที่ลงนามแล้ว)'
       : null;
@@ -88,7 +88,13 @@ export default async function ApplicationDocumentPage({ params }: { params: Prom
   // คำขอจัดตั้ง: ผู้ขอในแบบฟอร์ม ("ข้าพเจ้า") คือประธานชมรม ซึ่งอาจไม่ใช่ผู้จัดทำคำขอในระบบ
   const requester = !renewal && president ? { name: president.name, orgUnitName: president.orgUnitName } : d.applicant;
   const presidentNote =
-    president?.consentStatus === 'accepted' && president.respondedAt ? `(ตอบรับผ่านระบบเมื่อ ${thaiLongDate(president.respondedAt)})` : null;
+    president?.consentStatus === 'accepted'
+      ? president.hasConsentFile
+        ? '(แนบใบตอบรับที่ลงนามแล้ว)'
+        : president.respondedAt
+          ? `(ตอบรับผ่านระบบเมื่อ ${thaiLongDate(president.respondedAt)})`
+          : null
+      : null;
   const preparedBy = !renewal && president && !president.isApplicant ? d.applicant : null;
 
   return (

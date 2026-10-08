@@ -15,6 +15,7 @@ import {
 } from '../repositories/sessions-repository.js';
 import { insertUserRole } from '../repositories/user-roles-repository.js';
 import { upsertUserOnLogin } from '../repositories/users-repository.js';
+import { insertAccountEvent } from '../repositories/user-accounts-repository.js';
 import type { AuthContext } from './authorization.js';
 import { classifyAccount } from './account-type.js';
 import { erpHr, type ErpStaffInfo } from './erp-hr-client.js';
@@ -167,6 +168,12 @@ export async function completeGoogleLogin(input: CompleteLoginInput): Promise<Lo
       throw new LoginError('account_disabled', 'บัญชีถูกปิดการใช้งาน');
     }
     const userId = result.userId;
+    if (result.status === 'linked') {
+      await insertAccountEvent(
+        { userId, actorUserId: userId, action: 'linked', reason: 'เข้าสู่ระบบครั้งแรก ผูกกับบัญชีที่ผู้ดูแลระบบเพิ่มไว้', effects: {} },
+        client,
+      );
+    }
 
     // ตรวจทุกครั้งที่ login: ผู้ใช้ใหม่ได้ role ครบ ผู้ใช้เดิมที่ยังไม่มี role ประเภทบัญชีก็ได้เพิ่ม
     await ensureSystemRole(userId, SYSTEM_ROLES.USER, FIRST_LOGIN_REASON, client);
