@@ -6,6 +6,7 @@ import { ActivitiesEditor } from '@/components/club-applications/ActivitiesEdito
 import { AdvisorsEditor } from '@/components/club-applications/AdvisorsEditor';
 import { ApplicationSummary } from '@/components/club-applications/ApplicationSummary';
 import { CommitteeEditor } from '@/components/club-applications/CommitteeEditor';
+import { ConsentUpload } from '@/components/club-applications/ConsentUpload';
 import { DeleteApplicationButton } from '@/components/club-applications/DeleteApplicationButton';
 import { EventTimeline } from '@/components/club-applications/EventTimeline';
 import { GeneralInfoForm } from '@/components/club-applications/GeneralInfoForm';
@@ -148,25 +149,47 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
             <p className="text-sm text-stone">
               แจ้งที่ปรึกษาให้เข้าสู่ระบบด้วยอีเมลที่ระบุไว้ แล้วเปิดเมนู &quot;งานที่ปรึกษาชมรม&quot;
               {nominatedPresident && ' และแจ้งผู้ที่คุณเสนอเป็นประธานให้ตอบรับในเมนู "คำขอจัดตั้ง/ต่อทะเบียน"'}
-              {' '}เมื่อตอบรับครบทุกคนจึงยื่นต่อสโมสรได้ (ระหว่างนี้แก้ไขคำขอไม่ได้ ต้องดึงกลับเป็นร่างก่อน)
+              {' '}— ผู้ที่ไม่สะดวกเข้าระบบ ให้พิมพ์ใบคำยินยอม/ใบตอบรับรายคนไปให้ลงนาม แล้วแนบไฟล์กลับที่รายชื่อด้านล่าง
+              เมื่อตอบรับครบทุกคนจึงยื่นต่อสโมสรได้ (ระหว่างนี้แก้ไขคำขอไม่ได้ ต้องดึงกลับเป็นร่างก่อน)
             </p>
-            <ul className="mt-3 grid gap-1 text-sm">
+            <ul className="mt-3 grid gap-2 text-sm">
               {nominatedPresident && (
-                <li>
+                <li className="rounded-xl border border-ink/[0.08] bg-white p-3">
                   ประธาน: {nominatedPresident.user.name ?? nominatedPresident.user.email} —{' '}
                   <span className={nominatedPresident.consentStatus === 'accepted' ? 'text-matcha-700' : 'text-kin'}>
                     {PRESIDENT_CONSENT_LABELS[nominatedPresident.consentStatus!]}
                     {nominatedPresident.consentFile && ' (แนบใบตอบรับ)'}
                   </span>
+                  {nominatedPresident.consentFile && (
+                    <span className="ml-2">
+                      <FileLink fileId={nominatedPresident.consentFile.id} label="เปิดใบตอบรับ" />
+                    </span>
+                  )}
+                  {/* ยังไม่ตอบ หรือตอบด้วยเอกสาร: พิมพ์ใบตอบรับ / แนบ (หรือเปลี่ยน) ไฟล์ที่ลงนามแล้ว */}
+                  {(nominatedPresident.consentStatus === 'pending' || nominatedPresident.consentFile) && (
+                    <div className="mt-2">
+                      <ConsentUpload applicationId={application.id} kind="president" hasFile={Boolean(nominatedPresident.consentFile)} />
+                    </div>
+                  )}
                 </li>
               )}
               {application.advisors.map((a) => (
-                <li key={a.sortOrder}>
+                <li key={a.sortOrder} className="rounded-xl border border-ink/[0.08] bg-white p-3">
                   ที่ปรึกษา: {advisorDisplayName(a)} —{' '}
                   <span className={a.consentStatus === 'accepted' ? 'text-matcha-700' : 'text-kin'}>
                     {CONSENT_LABELS[a.consentStatus]}
                     {a.consentFile && ' (แนบใบคำยินยอม)'}
                   </span>
+                  {a.consentFile && (
+                    <span className="ml-2">
+                      <FileLink fileId={a.consentFile.id} label="เปิดใบคำยินยอม" />
+                    </span>
+                  )}
+                  {(a.consentStatus === 'pending' || a.consentFile) && (
+                    <div className="mt-2">
+                      <ConsentUpload applicationId={application.id} sortOrder={a.sortOrder} hasFile={Boolean(a.consentFile)} />
+                    </div>
+                  )}
                 </li>
               ))}
             </ul>

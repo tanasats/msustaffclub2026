@@ -287,3 +287,82 @@ describe('ผู้ที่ไม่สะดวกเข้าระบบ: �
     expect((await send('post', applicant, `/club-applications/${id}/president-consent/verify`)).status).toBe(403);
   });
 });
+
+describe('แนบใบคำยินยอม/ใบตอบรับระหว่างรอการตอบรับ (ผู้ที่ไม่สะดวกเข้าระบบอีกครั้ง)', () => {
+  async function eventNotes(id: string): Promise<string[]> {
+    const { rows } = await pool.query<{ note: string }>(
+      `SELECT note FROM club_application_events
+        WHERE application_id = $1 AND from_status = 'awaiting_consent' AND to_status = 'awaiting_consent' AND note IS NOT NULL
+        ORDER BY created_at`,
+      [id],
+    );
+    return rows.map((r) => r.note);
+  }
+
+  it('ที่ปรึกษาที่ยังไม่ตอบ: แนบใบคำยินยอมแทนได้ + บันทึกประวัติ; ผู้ที่ยินยอมผ่านระบบแล้วแนบไม่ได้; ยื่นต่อสโมสรได้', async () => {
+    const applicant = await actor();
+    const online = await actor();
+    const offline = await actor();
+    const id = await draftWithoutAdvisors(applicant);
+    await send('put', applicant, `/club-applications/${id}/advisors`, { advisors: [{ userId: online.id }, { userId: offline.id }] });
+    expect((await send('post', applicant, `/club-applications/${id}/request-consent`)).status).toBe(204);
+    expect((await send('post', online, `/club-applications/${id}/advisor-response`, { decision: 'accept' })).status).toBe(204);
+
+    const fileId = await uploadConsent(applicant);
+    // ยินยอมผ่านระบบแล้ว → ไม่ต้องแนบ
+    expect((await send('put', applicant, `/club-applications/${id}/advisors/1/consent-file`, { fileId })).body.error.code).toBe('CONSENT_ALREADY_GIVEN');
+    expect((await send('put', applicant, `/club-applications/${id}/advisors/2/consent-file`, { fileId })).status).toBe(204);
+
+    const detail = (await get(applicant, `/club-applications/${id}`)).body;
+    expect(detail.status).toBe('awaiting_consent');
+    expect(detail.advisors[1]).toMatchObject({ consentStatus: 'accepted', consentFile: { id: fileId } });
+    expect(await eventNotes(id)).toEqual(['แนบใบคำยินยอมที่ลงนามแล้วของที่ปรึกษาลำดับที่ 2']);
+    // ตอบด้วยเอกสารแล้ว → กดในระบบซ้ำไม่ได้, เปลี่ยนไฟล์ได้
+    expect((await send('post', offline, `/club-applications/${id}/advisor-response`, { decision: 'accept' })).status).toBe(409);
+    const newFileId = await uploadConsent(applicant);
+    expect((await send('put', applicant, `/club-applications/${id}/advisors/2/consent-file`, { fileId: newFileId })).status).toBe(204);
+
+    expect((await send('post', applicant, `/club-applications/${id}/submit`)).status).toBe(204);
+  });
+
+  it('ผู้ถูกเสนอเป็นประธานที่ยังไม่ตอบ: แนบใบตอบรับแทนได้ระหว่างรอการตอบรับ', async () => {
+    const applicant = await actor();
+    const nominee = await actor();
+    const advisor = await actor();
+    const id = await draftWithoutAdvisors(applicant);
+    const { rows: secretary } = await pool.query(
+      `SELECT m.user_id FROM club_application_committee m JOIN club_positions p ON p.id = m.position_id WHERE m.application_id = $1 AND p.code = 'secretary'`,
+      [id],
+    );
+    await send('put', applicant, `/club-applications/${id}/committee`, {
+      committee: [{ userId: nominee.id, positionCode: 'president' }, { userId: secretary[0].user_id, positionCode: 'secretary' }],
+    });
+    await send('put', applicant, `/club-applications/${id}/advisors`, { advisors: [{ userId: advisor.id }] });
+    expect((await send('post', applicant, `/club-applications/${id}/request-consent`)).status).toBe(204);
+
+    const fileId = await uploadConsent(applicant);
+    expect((await send('put', applicant, `/club-applications/${id}/president-consent-file`, { fileId })).status).toBe(204);
+    expect((await get(applicant, `/club-applications/${id}`)).body.committee[0]).toMatchObject({ consentStatus: 'accepted', consentFile: { id: fileId } });
+    expect(await eventNotes(id)).toEqual(['แนบใบตอบรับที่ลงนามแล้วของผู้ถูกเสนอเป็นประธาน']);
+    expect((await send('post', nominee, `/club-applications/${id}/president-response`, { decision: 'accept' })).status).toBe(409);
+  });
+
+  it('ยื่นต่อสโมสรแล้วแนบไม่ได้ และผู้อื่นที่ไม่ใช่ผู้ยื่นแนบไม่ได้; เอกสารสำหรับพิมพ์มีลำดับที่ปรึกษาสำหรับใบคำยินยอมรายคน', async () => {
+    const applicant = await actor();
+    const advisor = await actor();
+    const id = await draftWithoutAdvisors(applicant);
+    await send('put', applicant, `/club-applications/${id}/advisors`, { advisors: [{ userId: advisor.id }] });
+    await send('post', applicant, `/club-applications/${id}/request-consent`);
+
+    const othersFile = await uploadConsent(advisor);
+    expect((await send('put', advisor, `/club-applications/${id}/advisors/1/consent-file`, { fileId: othersFile })).status).toBe(404);
+
+    await send('post', advisor, `/club-applications/${id}/advisor-response`, { decision: 'accept' });
+    await send('post', applicant, `/club-applications/${id}/submit`);
+    const fileId = await uploadConsent(applicant);
+    expect((await send('put', applicant, `/club-applications/${id}/advisors/1/consent-file`, { fileId })).body.error.code).toBe('APPLICATION_NOT_EDITABLE');
+
+    const doc = (await get(applicant, `/club-applications/${id}/document`)).body;
+    expect(doc.advisors[0]).toMatchObject({ sortOrder: 1 });
+  });
+});
