@@ -42,10 +42,10 @@ export function UserPicker({ excludeIds, onSelect, placeholder = 'ค้นห�
         className="w-full field"
       />
       {query.trim().length >= 2 && (
-        <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-ink/[0.08] bg-white bg-white shadow">
+        <ul className="absolute z-10 mt-1 max-h-60 w-full overflow-auto rounded-xl border border-ink/[0.08] bg-white shadow">
           {searching && <li className="p-2 text-sm text-mist">กำลังค้นหา...</li>}
           {!searching && visible.length === 0 && (
-            <li className="p-2 text-sm text-mist">ไม่พบ (ผู้ใช้ต้องเคยเข้าสู่ระบบแล้ว)</li>
+            <li className="p-2 text-sm text-mist">ไม่พบ (ผู้ใช้ต้องเคยเข้าสู่ระบบ หรือให้ผู้ดูแลระบบเพิ่มผู้ใช้ล่วงหน้า)</li>
           )}
           {visible.map((user) => (
             <li key={user.id}>
@@ -62,6 +62,7 @@ export function UserPicker({ excludeIds, onSelect, placeholder = 'ค้นห�
                 <span className="block text-xs text-mist">
                   {user.email}
                   {user.orgUnitName ? ` · ${user.orgUnitName}` : ''}
+                  {user.hasLoggedIn === false && ' · ยังไม่เคยเข้าระบบ'}
                 </span>
               </button>
             </li>

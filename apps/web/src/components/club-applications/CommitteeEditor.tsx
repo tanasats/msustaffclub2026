@@ -1,7 +1,10 @@
 'use client';
 
 import { useState } from 'react';
+import { FileLink } from '@/components/files/FileLink';
+import { Badge } from '@/components/ui/Badge';
 import { PRESIDENT_CONSENT_LABELS, type ApplicationDetail, type ClubPosition, type ConsentStatus } from '@/lib/club-application-types';
+import { ConsentUpload } from './ConsentUpload';
 import { SaveBar } from './SaveBar';
 import { UserPicker } from './UserPicker';
 import { useSave } from './useSave';
@@ -38,6 +41,8 @@ export function CommitteeEditor({ application, positions }: { application: Appli
     })),
   );
   const applicantId = application.applicant.id;
+  // ประธานที่บันทึกไว้แล้ว (ไม่ใช่ผู้ยื่น) — แนบใบตอบรับได้เมื่อบันทึกรายชื่อกรรมการแล้วเท่านั้น
+  const savedNominee = application.committee.find((c) => c.position.code === PRESIDENT && c.user.id !== applicantId) ?? null;
   const presidentCount = rows.filter((row) => row.positionCode === PRESIDENT).length;
   const applicantInCommittee = rows.some((row) => row.userId === applicantId);
   const update = (index: number, patch: Partial<Row>) =>
@@ -71,11 +76,34 @@ export function CommitteeEditor({ application, positions }: { application: Appli
                     {row.label}
                     {row.userId === applicantId && <span className="ml-1 font-normal text-stone">(คุณ)</span>}
                   </p>
-                  {isNominee && (
+                  {isNominee && !savedNominee?.consentFile && (
                     <p className="mt-0.5 text-xs text-kin">
                       {row.consentStatus ? `${PRESIDENT_CONSENT_LABELS[row.consentStatus]} · ` : ''}
                       ต้องตอบรับในระบบก่อนยื่นคำขอ (ระบบแจ้งเมื่อกด &quot;ส่งขอการตอบรับ&quot;)
                     </p>
+                  )}
+                  {/* ผู้ถูกเสนอเป็นประธานที่ไม่สะดวกเข้าระบบ: แนบใบตอบรับที่ลงนามแล้ว (บันทึกรายชื่อกรรมการก่อน) */}
+                  {isNominee && savedNominee?.user.id === row.userId && (
+                    savedNominee.consentFile ? (
+                      <div className="mt-2 grid gap-2 rounded-lg bg-cream p-3">
+                        <p className="flex flex-wrap items-center gap-2 text-sm">
+                          <Badge tone="matcha">ตอบรับด้วยใบตอบรับที่แนบ</Badge>
+                          <FileLink fileId={savedNominee.consentFile.id} label={savedNominee.consentFile.originalName ?? 'ใบตอบรับ'} />
+                        </p>
+                        <ConsentUpload applicationId={application.id} kind="president" hasFile />
+                      </div>
+                    ) : (
+                      <details className="mt-2 text-sm">
+                        <summary className="cursor-pointer text-matcha-700 underline">ไม่สะดวกเข้าระบบ? แนบใบตอบรับที่ลงนามแล้วแทน</summary>
+                        <div className="mt-2 grid gap-2 rounded-lg bg-cream p-3">
+                          <p className="text-xs text-stone">
+                            ให้ผู้ถูกเสนอลงนามในแบบขอจัดตั้งชมรม (ช่องประธาน) หรือหนังสือตอบรับ แล้วแนบไฟล์ — ถือว่าตอบรับโดยไม่ต้องเข้าระบบ
+                            และเจ้าหน้าที่สโมสรจะตรวจเอกสารก่อนอนุมัติ
+                          </p>
+                          <ConsentUpload applicationId={application.id} kind="president" hasFile={false} />
+                        </div>
+                      </details>
+                    )
                   )}
                 </div>
                 <button type="button" onClick={() => setRows((prev) => prev.filter((_, i) => i !== index))} className="text-sm text-beni underline">

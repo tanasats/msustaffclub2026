@@ -126,6 +126,29 @@ export function AdvisorsEditor({ application }: { application: ApplicationDetail
                       {!advisor.userId ? ' · ยังไม่เคยเข้าสู่ระบบ' : ''}
                     </p>
                   )}
+                  {/* บุคลากรที่ไม่สะดวกเข้าระบบ: แนบใบคำยินยอมที่ลงนามแล้วแทนการกดยินยอม (เจ้าหน้าที่ยืนยันเอกสารตอนตรวจ) */}
+                  {advisor.kind === 'internal' && stored && !stored.external && (
+                    stored.consentFile ? (
+                      <div className="mt-2 grid gap-2 rounded-lg bg-cream p-3">
+                        <p className="flex flex-wrap items-center gap-2 text-sm">
+                          <Badge tone="matcha">ยินยอมด้วยใบคำยินยอมที่แนบ</Badge>
+                          <FileLink fileId={stored.consentFile.id} label={stored.consentFile.originalName ?? 'ใบคำยินยอม'} />
+                        </p>
+                        <ConsentUpload applicationId={application.id} sortOrder={stored.sortOrder} hasFile />
+                      </div>
+                    ) : (
+                      <details className="mt-2 text-sm">
+                        <summary className="cursor-pointer text-matcha-700 underline">ไม่สะดวกเข้าระบบ? แนบใบคำยินยอมที่ลงนามแล้วแทน</summary>
+                        <div className="mt-2 grid gap-2 rounded-lg bg-cream p-3">
+                          <p className="text-xs text-stone">
+                            ใช้แบบฟอร์ม &quot;คำยินยอมจากที่ปรึกษา&quot; ในเอกสารสำหรับพิมพ์ ให้ที่ปรึกษาลงนาม แล้วแนบไฟล์ — ถือว่ายินยอมโดยไม่ต้องเข้าระบบ
+                            และเจ้าหน้าที่สโมสรจะตรวจเอกสารก่อนอนุมัติ
+                          </p>
+                          <ConsentUpload applicationId={application.id} sortOrder={stored.sortOrder} hasFile={false} />
+                        </div>
+                      </details>
+                    )
+                  )}
                 </div>
                 <button type="button" onClick={() => setAdvisors((prev) => prev.filter((a) => a.key !== advisor.key))} className="shrink-0 text-beni underline">
                   ลบ

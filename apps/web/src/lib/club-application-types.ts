@@ -31,6 +31,8 @@ export interface PersonRef {
   name: string | null;
   email: string;
   orgUnitName: string | null;
+  // false = เพิ่มล่วงหน้าโดยผู้ดูแล ยังไม่เคยเข้าระบบ (มีเฉพาะผลค้นหาบุคลากร)
+  hasLoggedIn?: boolean;
 }
 
 export interface ExternalPerson {

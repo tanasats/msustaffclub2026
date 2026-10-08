@@ -19,6 +19,8 @@ export interface AdminUserListItem {
   isActive: boolean;
   lastLoginAt: string | null;
   roles: string[];
+  // false = เพิ่มล่วงหน้าโดยผู้ดูแล เจ้าตัวยังไม่เคยเข้าระบบ
+  hasLoggedIn: boolean;
 }
 
 export interface AdminUserPage {
@@ -56,5 +58,15 @@ export interface AccountOverview {
     committee: { id: string; clubId: string; clubName: string; positionTitle: string; isPresident: boolean }[];
     advisorships: { id: string; clubId: string; clubName: string }[];
   };
-  history: { action: 'deactivated' | 'reactivated'; reason: string; effects: Record<string, number>; actorName: string | null; createdAt: string }[];
+  history: { action: AccountEventAction; reason: string; effects: Record<string, number>; actorName: string | null; createdAt: string }[];
 }
+
+export type AccountEventAction = 'deactivated' | 'reactivated' | 'created' | 'updated' | 'linked';
+
+export const ACCOUNT_EVENT_LABELS: Record<AccountEventAction, string> = {
+  deactivated: 'ปิดบัญชี',
+  reactivated: 'เปิดบัญชีคืน',
+  created: 'เพิ่มผู้ใช้ล่วงหน้า',
+  updated: 'แก้ไขข้อมูลบุคลากร',
+  linked: 'ผูกบัญชี Google (เข้าระบบครั้งแรก)',
+};

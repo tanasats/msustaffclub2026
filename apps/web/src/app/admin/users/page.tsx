@@ -3,6 +3,7 @@ import { EmptyState } from '@/components/ui/EmptyState';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { RoleBadge } from '@/components/RoleBadge';
 import { apiGetJson } from '@/lib/api-server';
+import { getCurrentUser } from '@/lib/auth';
 import type { AdminRole, AdminUserPage } from '@/lib/admin-types';
 import { formatDateTime } from '@/lib/format';
 
@@ -20,12 +21,26 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
     apiGetJson<{ items: AdminRole[] }>('/admin/roles'),
   ]);
   const roleByCode = new Map(roles.items.map((role) => [role.code, role]));
+  const current = await getCurrentUser();
+  // ปุ่มเพิ่มผู้ใช้: permission user_account:create (ไม่ผูก role → super_admin) — API ตรวจซ้ำ
+  const canProvision = Boolean(current && (current.roles.includes('super_admin') || current.permissions.includes('user_account:create')));
   const totalPages = Math.max(1, Math.ceil(data.total / PAGE_SIZE));
   const pageLink = (target: number) => `/admin/users?${new URLSearchParams({ ...(q ? { q } : {}), page: String(target) })}`;
 
   return (
     <>
-      <PageHeader eyebrow="Administration" title="จัดการสิทธิ์ผู้ใช้" description="ค้นหาผู้ใช้เพื่อให้หรือถอน role ทุกการเปลี่ยนแปลงถูกบันทึกพร้อมเหตุผล" />
+      <PageHeader
+        eyebrow="Administration"
+        title="จัดการสิทธิ์ผู้ใช้"
+        description="ค้นหาผู้ใช้เพื่อให้หรือถอน role ทุกการเปลี่ยนแปลงถูกบันทึกพร้อมเหตุผล"
+        actions={
+          canProvision ? (
+            <Link href="/admin/users/new" className="btn btn-primary !min-h-10 text-sm">
+              เพิ่มผู้ใช้
+            </Link>
+          ) : undefined
+        }
+      />
       <form className="flex flex-col gap-2 sm:flex-row" action="/admin/users">
         <input
           type="search"
@@ -55,9 +70,10 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
                   <p className="font-medium">
                     {user.name ?? user.email}
                     {!user.isActive && <span className="ml-2 text-xs text-beni">(ปิดการใช้งาน)</span>}
+                    {!user.hasLoggedIn && <span className="ml-2 text-xs text-kin">(เพิ่มล่วงหน้า ยังไม่เคยเข้าระบบ)</span>}
                   </p>
                   <p className="text-sm text-stone">{user.email}</p>
-                  <p className="text-xs text-mist">เข้าสู่ระบบล่าสุด {formatDateTime(user.lastLoginAt)}</p>
+                  <p className="text-xs text-mist">เข้าสู่ระบบล่าสุด {user.hasLoggedIn ? formatDateTime(user.lastLoginAt) : '—'}</p>
                 </div>
                 <div className="flex flex-wrap gap-1 sm:justify-end">
                   {user.roles.map((code) => (
