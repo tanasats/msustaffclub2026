@@ -184,6 +184,7 @@ export interface ApplicationDocument {
   contactEmail: string | null;
   regulationText: string | null;
   advisors: {
+    sortOrder: number;
     name: string;
     orgUnitName: string | null;
     kind: 'internal' | 'external';

@@ -106,6 +106,8 @@ export async function getApplicationDocument(auth: AuthContext, applicationId: s
     contactEmail: detail.contactEmail,
     regulationText: detail.regulationText,
     advisors: advisors.map((a) => ({
+      // ใช้อ้างอิงใบคำยินยอมรายคน (/club-applications/:id/consent-form/advisor-:sortOrder)
+      sortOrder: a.sortOrder,
       name: a.external
         ? `${a.external.prefixTh ?? ''}${a.external.firstNameTh} ${a.external.lastNameTh}`
         : (a.userFormalName ?? a.email ?? ''),

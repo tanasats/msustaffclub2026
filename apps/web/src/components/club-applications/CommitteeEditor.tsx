@@ -97,7 +97,7 @@ export function CommitteeEditor({ application, positions }: { application: Appli
                         <summary className="cursor-pointer text-matcha-700 underline">ไม่สะดวกเข้าระบบ? แนบใบตอบรับที่ลงนามแล้วแทน</summary>
                         <div className="mt-2 grid gap-2 rounded-lg bg-cream p-3">
                           <p className="text-xs text-stone">
-                            ให้ผู้ถูกเสนอลงนามในแบบขอจัดตั้งชมรม (ช่องประธาน) หรือหนังสือตอบรับ แล้วแนบไฟล์ — ถือว่าตอบรับโดยไม่ต้องเข้าระบบ
+                            กด &quot;พิมพ์ใบตอบรับ&quot; ให้ผู้ถูกเสนอลงนาม แล้วแนบไฟล์ที่ลงนามแล้ว — ถือว่าตอบรับโดยไม่ต้องเข้าระบบ
                             และเจ้าหน้าที่สโมสรจะตรวจเอกสารก่อนอนุมัติ
                           </p>
                           <ConsentUpload applicationId={application.id} kind="president" hasFile={false} />

@@ -141,7 +141,7 @@ export function AdvisorsEditor({ application }: { application: ApplicationDetail
                         <summary className="cursor-pointer text-matcha-700 underline">ไม่สะดวกเข้าระบบ? แนบใบคำยินยอมที่ลงนามแล้วแทน</summary>
                         <div className="mt-2 grid gap-2 rounded-lg bg-cream p-3">
                           <p className="text-xs text-stone">
-                            ใช้แบบฟอร์ม &quot;คำยินยอมจากที่ปรึกษา&quot; ในเอกสารสำหรับพิมพ์ ให้ที่ปรึกษาลงนาม แล้วแนบไฟล์ — ถือว่ายินยอมโดยไม่ต้องเข้าระบบ
+                            กด &quot;พิมพ์ใบคำยินยอม&quot; ให้ที่ปรึกษาลงนาม แล้วแนบไฟล์ที่ลงนามแล้ว — ถือว่ายินยอมโดยไม่ต้องเข้าระบบ
                             และเจ้าหน้าที่สโมสรจะตรวจเอกสารก่อนอนุมัติ
                           </p>
                           <ConsentUpload applicationId={application.id} sortOrder={stored.sortOrder} hasFile={false} />
@@ -166,7 +166,7 @@ export function AdvisorsEditor({ application }: { application: ApplicationDetail
                           <FileLink fileId={stored.consentFile.id} label={stored.consentFile.originalName ?? 'ใบคำยินยอม'} />
                         </p>
                       ) : (
-                        <p className="mb-2 text-sm text-kin">ยังไม่ได้แนบใบคำยินยอม (แบบฟอร์มคำยินยอมจากที่ปรึกษา ที่ลงนามแล้ว)</p>
+                        <p className="mb-2 text-sm text-kin">ยังไม่ได้แนบใบคำยินยอม — กด &quot;พิมพ์ใบคำยินยอม&quot; ให้ที่ปรึกษาลงนาม แล้วแนบไฟล์</p>
                       )}
                       <ConsentUpload applicationId={application.id} sortOrder={stored.sortOrder} hasFile={Boolean(stored.consentFile)} />
                     </div>

@@ -32,6 +32,8 @@ export function isAllowedEmailDomain(email: string): boolean {
 
 // สถานะคำขอที่ผู้ยื่นแก้ไขได้
 export const EDITABLE_APPLICATION_STATUSES = ['draft', 'returned'] as const;
+// สถานะคำขอที่ผู้ยื่นแนบใบคำยินยอม/ใบตอบรับที่ลงนามแล้วได้ (รอการตอบรับ = แทนการกดในระบบของผู้ที่ยังไม่ตอบ)
+export const CONSENT_ATTACHABLE_STATUSES = ['draft', 'returned', 'awaiting_consent'] as const;
 // สถานะคำขอที่ผู้ยื่นยกเลิกได้ (ยื่นแล้วยกเลิกเองไม่ได้ ต้องให้สโมสรส่งกลับก่อน)
 export const CANCELLABLE_APPLICATION_STATUSES = ['draft', 'returned', 'awaiting_consent'] as const;
 

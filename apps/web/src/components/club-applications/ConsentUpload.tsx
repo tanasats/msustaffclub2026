@@ -1,5 +1,6 @@
 'use client';
 
+import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useId, useState } from 'react';
 import { uploadFile } from '@/components/files/uploadFile';
@@ -9,7 +10,7 @@ import { apiSend } from '@/lib/api-client';
 const ACCEPT = 'application/pdf,image/jpeg,image/png';
 const MAX_BYTES = 10 * 1024 * 1024;
 
-// แนบเอกสารคำยินยอม/ใบตอบรับที่ลงนามแล้ว (PDF/JPG/PNG ไม่เกิน 10 MB)
+// พิมพ์ใบคำยินยอม/ใบตอบรับรายคนให้ลงนาม แล้วแนบไฟล์ที่ลงนามแล้วกลับเข้าระบบ (PDF/JPG/PNG ไม่เกิน 10 MB)
 // ค่าตั้งต้น = ใบคำยินยอมของที่ปรึกษาลำดับ sortOrder, kind=president = ใบตอบรับของผู้ถูกเสนอเป็นประธาน
 export function ConsentUpload({
   applicationId,
@@ -27,6 +28,7 @@ export function ConsentUpload({
       ? `/club-applications/${applicationId}/president-consent-file`
       : `/club-applications/${applicationId}/advisors/${sortOrder}/consent-file`;
   const noun = kind === 'president' ? 'ใบตอบรับ' : 'ใบคำยินยอม';
+  const printHref = `/club-applications/${applicationId}/consent-form/${kind === 'president' ? 'president' : `advisor-${sortOrder}`}`;
   const router = useRouter();
   const inputId = useId();
   const [status, setStatus] = useState<'idle' | 'uploading' | 'error'>('idle');
@@ -67,6 +69,10 @@ export function ConsentUpload({
 
   return (
     <div className="flex flex-wrap items-center gap-2">
+      <Link href={printHref} target="_blank" className="btn btn-secondary !min-h-10 text-sm">
+        <Icon name="scroll" className="size-4" />
+        พิมพ์{noun}
+      </Link>
       <label htmlFor={inputId} className={`btn btn-secondary !min-h-10 cursor-pointer text-sm ${status === 'uploading' ? 'pointer-events-none opacity-60' : ''}`}>
         <Icon name="plus" className="size-4" />
         {status === 'uploading' ? 'กำลังอัปโหลด...' : hasFile ? `เปลี่ยนไฟล์${noun}` : `แนบ${noun}ที่ลงนามแล้ว`}

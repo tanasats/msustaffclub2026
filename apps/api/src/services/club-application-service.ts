@@ -52,6 +52,7 @@ import { findActiveUserIdsByEmail, findUserSummariesByIds, type UserSummary } fr
 import { hasPermission, type AuthContext } from './authorization.js';
 import {
   clubFullName,
+  CONSENT_ATTACHABLE_STATUSES,
   CANCELLABLE_APPLICATION_STATUSES,
   EDITABLE_APPLICATION_STATUSES,
   fillRegulationTemplate,
@@ -332,8 +333,30 @@ async function assertConsentFile(auth: AuthContext, fileId: string, client: DbCl
 }
 
 /**
+ * ล็อกคำขอเพื่อแนบใบคำยินยอม/ใบตอบรับ: ต้องเป็นผู้ยื่น และคำขออยู่ในสถานะร่าง/ส่งกลับแก้ไข/รอการตอบรับ
+ */
+async function lockForConsentAttach(client: DbClient, auth: AuthContext, applicationId: string): Promise<ApplicationBase> {
+  const app = await lockApplication(applicationId, client);
+  if (!app || app.applicantUserId !== auth.user.id) {
+    throw notFound();
+  }
+  if (!(CONSENT_ATTACHABLE_STATUSES as readonly string[]).includes(app.status)) {
+    throw new AppError(409, 'APPLICATION_NOT_EDITABLE', 'คำขอนี้อยู่ในสถานะที่แนบเอกสารไม่ได้');
+  }
+  return app;
+}
+
+// ผู้ที่ยินยอม/ตอบรับผ่านระบบแล้ว ไม่ต้องแนบเอกสาร (แนบได้เมื่อยังไม่ตอบ หรือเปลี่ยนไฟล์ที่แนบไว้)
+function assertConsentAttachable(consent: { consentStatus: string | null; consentFileId: string | null }): void {
+  if (consent.consentStatus === 'accepted' && !consent.consentFileId) {
+    throw new AppError(409, 'CONSENT_ALREADY_GIVEN', 'ผู้นี้ตอบรับผ่านระบบแล้ว ไม่ต้องแนบเอกสาร');
+  }
+}
+
+/**
  * แนบใบคำยินยอมที่ลงนามแล้วให้ที่ปรึกษา (ลำดับที่ sortOrder) — บุคคลภายนอก หรือบุคลากรที่ไม่สะดวกเข้าระบบ
  * แนบแล้วถือว่ายินยอม (ไม่ต้องกดในระบบ) เจ้าหน้าที่ต้องยืนยันเอกสารก่อนตรวจผ่าน
+ * ระหว่างรอการตอบรับ แนบได้เฉพาะผู้ที่ยังไม่ตอบในระบบ และบันทึกประวัติคำขอไว้เป็นหลักฐาน
  */
 export async function attachExternalAdvisorConsent(
   auth: AuthContext,
@@ -342,10 +365,25 @@ export async function attachExternalAdvisorConsent(
   fileId: string,
 ): Promise<void> {
   await withTransaction(async (client) => {
-    await lockForEdit(client, auth, applicationId);
+    const app = await lockForConsentAttach(client, auth, applicationId);
     await assertConsentFile(auth, fileId, client);
-    if (!(await setAdvisorConsentFile(applicationId, sortOrder, fileId, client))) {
+    const advisor = (await listAdvisorRows(applicationId, client)).find((a) => a.sortOrder === sortOrder);
+    if (!advisor) {
       throw new AppError(404, 'ADVISOR_NOT_FOUND', 'ไม่พบที่ปรึกษาลำดับนี้');
+    }
+    if (app.status === 'awaiting_consent') assertConsentAttachable(advisor);
+    await setAdvisorConsentFile(applicationId, sortOrder, fileId, client);
+    if (app.status === 'awaiting_consent') {
+      await insertApplicationEvent(
+        {
+          applicationId,
+          actorUserId: auth.user.id,
+          fromStatus: app.status,
+          toStatus: app.status,
+          note: `แนบใบคำยินยอมที่ลงนามแล้วของที่ปรึกษาลำดับที่ ${sortOrder}`,
+        },
+        client,
+      );
     }
   });
 }
@@ -356,11 +394,28 @@ export async function attachExternalAdvisorConsent(
  */
 export async function attachPresidentConsent(auth: AuthContext, applicationId: string, fileId: string): Promise<void> {
   await withTransaction(async (client) => {
-    const app = await lockForEdit(client, auth, applicationId);
+    const app = await lockForConsentAttach(client, auth, applicationId);
     assertEstablish(app);
     await assertConsentFile(auth, fileId, client);
-    if (!(await setPresidentConsentFile(applicationId, app.applicantUserId, PRESIDENT_POSITION_CODE, { fileId }, client))) {
+    const nominee = (await listCommitteeDetails(applicationId, client)).find(
+      (c) => c.positionCode === PRESIDENT_POSITION_CODE && c.userId !== app.applicantUserId,
+    );
+    if (!nominee) {
       throw new AppError(404, 'PRESIDENT_NOMINEE_NOT_FOUND', 'คำขอนี้ไม่มีผู้ถูกเสนอเป็นประธาน (ผู้ยื่นเป็นประธานเองไม่ต้องแนบใบตอบรับ)');
+    }
+    if (app.status === 'awaiting_consent') assertConsentAttachable(nominee);
+    await setPresidentConsentFile(applicationId, app.applicantUserId, PRESIDENT_POSITION_CODE, { fileId }, client);
+    if (app.status === 'awaiting_consent') {
+      await insertApplicationEvent(
+        {
+          applicationId,
+          actorUserId: auth.user.id,
+          fromStatus: app.status,
+          toStatus: app.status,
+          note: 'แนบใบตอบรับที่ลงนามแล้วของผู้ถูกเสนอเป็นประธาน',
+        },
+        client,
+      );
     }
   });
 }
