@@ -62,8 +62,8 @@ async function roleWith(permission: string) {
 }
 
 // คำขอที่ครบทุกอย่าง ยกเว้นที่ปรึกษา (ประธาน + เลขาฯ + สมาชิก 3 = 5 คน)
-async function draftWithoutAdvisors(applicant: Actor): Promise<string> {
-  const { body } = await send('post', applicant, '/club-applications', { nameTh: 'ชมรมฟุตบอลบุคลากร' });
+async function draftWithoutAdvisors(applicant: Actor, nameTh = 'ชมรมฟุตบอลบุคลากร'): Promise<string> {
+  const { body } = await send('post', applicant, '/club-applications', { nameTh });
   const id = body.id as string;
   const { rows } = await pool.query<{ id: string }>("SELECT id FROM club_categories WHERE code = 'health_sports'");
   await send('patch', applicant, `/club-applications/${id}`, { categoryId: rows[0]!.id, objectives: ['ส่งเสริมการออกกำลังกาย'], history: 'รวมกลุ่มบุคลากรที่ชอบออกกำลังกาย' });
@@ -285,5 +285,34 @@ describe('ผู้ที่ไม่สะดวกเข้าระบบ: �
     const fileId = await uploadConsent(applicant);
     expect((await send('put', applicant, `/club-applications/${id}/president-consent-file`, { fileId })).body.error.code).toBe('PRESIDENT_NOMINEE_NOT_FOUND');
     expect((await send('post', applicant, `/club-applications/${id}/president-consent/verify`)).status).toBe(403);
+  });
+});
+
+describe('ที่ปรึกษา 1 คนเป็นที่ปรึกษาได้หลายชมรม', () => {
+  it('บุคลากรคนเดียวยินยอมเป็นที่ปรึกษา 2 คำขอ (ผู้ยื่นต่างกัน) → อนุมัติทั้งคู่ → เป็นที่ปรึกษาของทั้ง 2 ชมรม', async () => {
+    const advisor = await actor();
+    const officer = await actor(['user', 'staff', await roleWith('club_application:review')]);
+    const president = await actor(['user', 'staff', await roleWith('club_application:approve')]);
+    const clubIds: string[] = [];
+    for (const nameTh of ['ชมรมฟุตบอลบุคลากร', 'ชมรมดนตรีไทยบุคลากร']) {
+      const applicant = await actor();
+      const id = await draftWithoutAdvisors(applicant, nameTh);
+      expect((await send('put', applicant, `/club-applications/${id}/advisors`, { advisors: [{ userId: advisor.id }] })).status).toBe(204);
+      expect((await send('post', applicant, `/club-applications/${id}/request-consent`)).status).toBe(204);
+      expect((await send('post', advisor, `/club-applications/${id}/advisor-response`, { decision: 'accept' })).status).toBe(204);
+      expect((await send('post', applicant, `/club-applications/${id}/submit`)).status).toBe(204);
+      expect((await send('post', officer, `/club-applications/${id}/review`, { decision: 'pass' })).status).toBe(204);
+      const decision = await send('post', president, `/club-applications/${id}/decision`, { decision: 'approve' });
+      expect(decision.body.status).toBe('approved');
+      clubIds.push(decision.body.clubId);
+    }
+
+    const { rows } = await pool.query(
+      'SELECT club_id FROM club_advisors WHERE user_id = $1 AND ended_on IS NULL ORDER BY club_id',
+      [advisor.id],
+    );
+    expect(rows.map((r) => r.club_id)).toEqual([...clubIds].sort());
+    const work = (await get(advisor, '/me/advisor-work')).body;
+    expect(work.clubs).toHaveLength(2);
   });
 });
