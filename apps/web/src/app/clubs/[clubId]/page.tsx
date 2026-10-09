@@ -79,6 +79,13 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
   const person = (m: ClubMember) => ({ userId: m.userId, name: m.name ?? m.email });
   const appointable = (members?.items ?? []).filter((m) => !m.isCommittee && m.userId !== myId).map(person);
   const transferable = (members?.items ?? []).filter((m) => m.userId !== presidentId && m.userId !== myId).map(person);
+  // ผู้ที่ยังไม่เป็นสมาชิก (สมัครได้ / รออนุมัติ / มีคำเชิญ): แสดงกล่องการเป็นสมาชิกบนสุดของหน้าให้เห็นทันที
+  // สมาชิกแล้ว (ปุ่มลาออก) หรือชมรมไม่ได้ดำเนินการอยู่ ยังอยู่ตำแหน่งเดิมคอลัมน์ขวา
+  const membershipFirst =
+    club.status === 'active' &&
+    club.me.membershipStatus !== 'active' &&
+    (current.profile.type === 'staff' || club.me.membershipStatus === 'pending' || Boolean(club.me.invitation));
+  const membershipPanel = <MembershipPanel club={club} eligible={current.profile.type === 'staff'} isPresident={presidentId === myId} />;
 
   return (
     <>
@@ -105,6 +112,8 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
       />
 
       <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-3">
+        {membershipFirst && <div className="lg:col-span-3">{membershipPanel}</div>}
+
         <Bento className="lg:col-span-2">
           {(club.logoFileId || club.logoMeaning || canEditProfile) && (
             <div className="mb-6 flex flex-col gap-4 sm:flex-row sm:items-start">
@@ -189,9 +198,7 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
           </Bento>
         )}
 
-        <div className={requests ? '' : 'lg:col-start-3 lg:row-start-2'}>
-          <MembershipPanel club={club} eligible={current.profile.type === 'staff'} isPresident={presidentId === myId} />
-        </div>
+        {!membershipFirst && <div className={requests ? '' : 'lg:col-start-3 lg:row-start-2'}>{membershipPanel}</div>}
 
         {resignations && resignations.items.length > 0 && (
           <Bento className="lg:col-span-2">
@@ -219,8 +226,8 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
         )}
 
 
-        {/* กรรมการสูง 2 แถว ให้กล่องที่ปรึกษาอยู่คอลัมน์ขวาใต้กล่องสมาชิกภาพ ไม่ตกไปขึ้นแถวใหม่ */}
-        <Bento className="lg:col-span-2 lg:row-span-2">
+        {/* กรรมการสูง 2 แถว ให้กล่องที่ปรึกษาอยู่คอลัมน์ขวาใต้กล่องสมาชิกภาพ ไม่ตกไปขึ้นแถวใหม่ (กล่องสมาชิกภาพอยู่บนสุด → สูงแถวเดียว) */}
+        <Bento className={`lg:col-span-2 ${membershipFirst ? '' : 'lg:row-span-2'}`}>
           <BentoTitle className="mb-3">คณะกรรมการบริหาร</BentoTitle>
           <ul className="grid gap-2 sm:grid-cols-2">
             {club.committee.map((member) => (

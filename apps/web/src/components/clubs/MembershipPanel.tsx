@@ -89,9 +89,14 @@ export function MembershipPanel({ club, eligible, isPresident }: MembershipPanel
             {club.me.rejection.note && <span className="block">เหตุผล: {club.me.rejection.note}</span>}
           </p>
         )}
-        <p className="text-sm text-stone">สมัครแล้วรอคณะกรรมการชมรมอนุมัติ ไม่ต้องแนบเอกสาร (ระบบยืนยันตัวตนจากบัญชีมหาวิทยาลัย)</p>
-        <div className="mt-3">
-          <ActionButton path={base} label="สมัครเป็นสมาชิก" />
+        <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <p className="font-serif text-lg font-medium">สนใจเข้าร่วม{club.nameTh.startsWith('ชมรม') ? club.nameTh : 'ชมรมนี้'}?</p>
+            <p className="mt-1 text-sm text-stone">สมัครแล้วรอคณะกรรมการชมรมอนุมัติ ไม่ต้องแนบเอกสาร (ระบบยืนยันตัวตนจากบัญชีมหาวิทยาลัย)</p>
+          </div>
+          <div className="shrink-0">
+            <ActionButton path={base} label="สมัครเป็นสมาชิก" />
+          </div>
         </div>
       </>
     );
