@@ -8,6 +8,7 @@ import { setNavGroupCollapsed, useCollapsedNavGroups } from '@/lib/nav-group-pre
 import { setSidebarCollapsed, useSidebarCollapsed } from '@/lib/sidebar-preference';
 import { Avatar } from '@/components/ui/Avatar';
 import { Icon, LogoMark } from '@/components/ui/icons';
+import { DeveloperCredit } from '@/components/DeveloperCredit';
 
 export interface ShellUser {
   name: string | null;
@@ -308,6 +309,12 @@ export function AppShell({ user, nav, children }: AppShellProps) {
         aria-label={currentLabel || undefined}
       >
         <div className="mx-auto w-full max-w-6xl px-4 pt-5 sm:px-6 lg:px-8 lg:pt-8 print:max-w-none print:!p-0">{children}</div>
+        {/* เครดิตผู้พัฒนาท้ายทุกหน้า (ไม่พิมพ์ติดไปกับเอกสาร) */}
+        <footer className="mx-auto mt-10 w-full max-w-6xl px-4 sm:px-6 lg:px-8 print:hidden">
+          <div className="border-t border-ink/[0.08] pt-4 pb-2">
+            <DeveloperCredit />
+          </div>
+        </footer>
       </main>
 
       {/* ---------- แถบเมนูล่าง (มือถือ) ---------- */}
