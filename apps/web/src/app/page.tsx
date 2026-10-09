@@ -11,6 +11,7 @@ import { getCurrentUser } from '@/lib/auth';
 import { loadPublicStats } from '@/lib/public-stats';
 import type { ApplicationListItem } from '@/lib/club-application-types';
 import { daysLeftInFiscalYear, fiscalYearOf, greetingOf, thaiLongDate } from '@/lib/thai-date';
+import { LogoWatermark } from '@/components/brand/StaffClubLogo';
 
 // ดึงรายการแบบไม่ทำให้หน้าแรกพังถ้า endpoint ใดขัดข้อง (หน้าแรกเป็นแค่ภาพรวม)
 // รายการบนแดชบอร์ด: โหลดไม่ได้ให้ซ่อนกล่องนั้น (ไม่ทำให้ทั้งหน้าล้ม)
@@ -115,9 +116,7 @@ export default async function HomePage() {
       )}
       {/* ทักทาย */}
       <Bento tone="matcha" className="relative col-span-2 overflow-hidden lg:row-span-2">
-        <svg viewBox="0 0 200 200" aria-hidden="true" className="pointer-events-none absolute -right-10 -bottom-12 size-64 opacity-[0.12]">
-          <path d="M150 48A70 70 0 1 0 168 110" fill="none" stroke="currentColor" strokeWidth="14" strokeLinecap="round" />
-        </svg>
+        <LogoWatermark className="absolute -right-16 -bottom-10 w-96 opacity-[0.12]" />
         <div className="relative flex h-full flex-col justify-between gap-10">
           <div>
             <p className="text-sm text-matcha-200">{greetingOf()}</p>
