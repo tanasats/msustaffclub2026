@@ -1,10 +1,10 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
 import { buttonClass } from '@/components/ui/button';
-import { LogoMark } from '@/components/ui/icons';
 import { getCurrentUser } from '@/lib/auth';
 import { publicEnv } from '@/lib/public-env';
 import { DeveloperCredit } from '@/components/DeveloperCredit';
+import { LogoWatermark, StaffClubLogo } from '@/components/brand/StaffClubLogo';
 
 // ข้อความตามรหัส error ที่ API ส่งกลับมาใน ?error=
 const ERROR_MESSAGES: Record<string, string> = {
@@ -35,11 +35,9 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
 
   return (
     <main className="grid min-h-dvh lg:grid-cols-[1.1fr_1fr]">
-      {/* ภาพฝั่งซ้าย (จอใหญ่): พื้นมัทฉะ + วงเอ็นโซ */}
+      {/* ภาพฝั่งซ้าย (จอใหญ่): พื้นมัทฉะ + ลายสัญลักษณ์สโมสร */}
       <section className="relative hidden overflow-hidden bg-matcha-800 p-12 text-washi lg:flex lg:flex-col lg:justify-between">
-        <svg viewBox="0 0 200 200" aria-hidden="true" className="pointer-events-none absolute -right-24 top-1/2 size-[36rem] -translate-y-1/2 opacity-[0.10]">
-          <path d="M150 48A70 70 0 1 0 168 110" fill="none" stroke="currentColor" strokeWidth="10" strokeLinecap="round" />
-        </svg>
+        <LogoWatermark className="absolute -right-64 -bottom-24 w-[42rem] opacity-[0.10]" />
         <p className="relative text-sm tracking-[0.3em] text-matcha-200">MAHASARAKHAM UNIVERSITY</p>
         <div className="relative max-w-md">
           <h2 className="font-serif text-4xl leading-snug font-medium">พื้นที่ของชมรม<br />และความสัมพันธ์ของบุคลากร</h2>
@@ -53,7 +51,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
       {/* ฟอร์มเข้าสู่ระบบ */}
       <section className="flex items-center justify-center px-5 py-12">
         <div className="w-full max-w-sm">
-          <LogoMark className="size-14" />
+          <StaffClubLogo className="h-32 w-auto text-matcha-800" />
           <p className="mt-8 text-xs font-medium tracking-[0.18em] text-matcha-600 uppercase">Staff Club System</p>
           <h1 className="mt-2 font-serif text-3xl leading-snug font-medium text-ink">ระบบบริหารจัดการชมรมบุคลากร</h1>
           <p className="mt-2 text-stone">มหาวิทยาลัยมหาสารคาม</p>

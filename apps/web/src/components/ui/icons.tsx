@@ -1,3 +1,5 @@
+import { MARK_PATH, MARK_VIEWBOX } from '@/components/brand/staff-club-logo-paths';
+
 // ไอคอนเส้นบาง (stroke 1.5) เขียนเอง ไม่ต้องพึ่งไลบรารีเพิ่ม ขนาดตาม className (ค่าเริ่มต้น 20px)
 type IconProps = { className?: string };
 
@@ -152,20 +154,16 @@ export function Icon({ name, className }: { name: IconName; className?: string }
 }
 
 /**
- * โลโก้: วงเอ็นโซ (円相) แบบพู่กันเปิดปลาย สื่อความเรียบง่ายและความสมบูรณ์ของชุมชน
+ * โลโก้ระบบ: สัญลักษณ์สโมสรบุคลากร มหาวิทยาลัยมหาสารคาม (สีขาว) บนกรอบสีเขียว — ใช้ที่เล็ก เช่น มุมบนซ้าย
+ * โลโก้เต็มพร้อมชื่อสโมสรอยู่ที่ components/brand/StaffClubLogo
  */
 export function LogoMark({ className = 'size-9' }: IconProps) {
   return (
     <svg viewBox="0 0 40 40" aria-hidden="true" className={className}>
-      <rect width="40" height="40" rx="12" className="fill-matcha-800" />
-      <path
-        d="M27.5 12.2A10 10 0 1 0 30 20.5"
-        fill="none"
-        className="stroke-washi"
-        strokeWidth="3.2"
-        strokeLinecap="round"
-      />
-      <circle cx="29.6" cy="16.4" r="1.6" className="fill-matcha-200" />
+      <rect width="40" height="40" rx="10" className="fill-matcha-800" />
+      <svg x="4" y="4" width="32" height="32" viewBox={MARK_VIEWBOX}>
+        <path d={MARK_PATH} fillRule="evenodd" className="fill-washi" />
+      </svg>
     </svg>
   );
 }

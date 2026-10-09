@@ -3,6 +3,7 @@ import { buttonClass } from '@/components/ui/button';
 import { Icon, LogoMark, type IconName } from '@/components/ui/icons';
 import type { PublicStats } from '@/lib/public-types';
 import { DeveloperCredit } from '@/components/DeveloperCredit';
+import { LogoWatermark } from '@/components/brand/StaffClubLogo';
 
 // คำอธิบายประเภทชมรม (ตามรหัสใน club_categories) — ไม่รู้จักรหัส = แสดงเฉพาะชื่อ
 const CATEGORY_HINTS: Record<string, string> = {
@@ -91,9 +92,8 @@ export function Landing({ stats }: { stats: PublicStats | null }) {
       <main>
         {/* ส่วนเปิด */}
         <section className="relative overflow-hidden bg-matcha-800 text-washi">
-          <svg viewBox="0 0 200 200" aria-hidden="true" className="pointer-events-none absolute -top-16 -right-24 size-[28rem] text-matcha-700 sm:size-[36rem]">
-            <path d="M150 48A70 70 0 1 0 168 110" fill="none" stroke="currentColor" strokeWidth="10" strokeLinecap="round" />
-          </svg>
+          {/* ลายพื้นซ่อนบนจอแคบ เพราะจะซ้อนหลังหัวข้อ */}
+          <LogoWatermark className="absolute -top-8 -right-60 hidden w-[46rem] text-matcha-700 sm:block" />
           <div className="relative mx-auto max-w-6xl px-4 py-16 sm:px-6 sm:py-24">
             <p className="text-sm text-matcha-100">สโมสรบุคลากร มหาวิทยาลัยมหาสารคาม</p>
             <h1 className="mt-4 max-w-3xl font-serif text-3xl leading-snug font-medium sm:text-5xl sm:leading-tight">
