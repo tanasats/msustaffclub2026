@@ -1,5 +1,6 @@
 import Link from 'next/link';
 import { redirect } from 'next/navigation';
+import { DeveloperContact } from '@/components/DeveloperCredit';
 import { LogoutButton } from '@/components/LogoutButton';
 import { ProfileDetails } from '@/components/ProfileCard';
 import { FontSizeControl } from '@/components/settings/FontSizeControl';
@@ -92,6 +93,11 @@ export default async function SettingsPage() {
               <Icon name="arrowRight" className="size-4 text-stone" />
             </Link>
           )}
+          <Bento>
+            <BentoLabel className="mb-1">เกี่ยวกับระบบ</BentoLabel>
+            <p className="mb-4 text-sm text-stone">พบปัญหาการใช้งานหรือมีข้อเสนอแนะ ติดต่อผู้พัฒนาได้ที่</p>
+            <DeveloperContact />
+          </Bento>
         </div>
       </div>
     </>

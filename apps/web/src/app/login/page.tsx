@@ -4,6 +4,7 @@ import { buttonClass } from '@/components/ui/button';
 import { LogoMark } from '@/components/ui/icons';
 import { getCurrentUser } from '@/lib/auth';
 import { publicEnv } from '@/lib/public-env';
+import { DeveloperCredit } from '@/components/DeveloperCredit';
 
 // ข้อความตามรหัส error ที่ API ส่งกลับมาใน ?error=
 const ERROR_MESSAGES: Record<string, string> = {
@@ -79,6 +80,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
               ประกาศความเป็นส่วนตัว
             </Link>
           </p>
+          <DeveloperCredit stacked className="mt-10 items-center border-t border-ink/[0.08] pt-4 text-center !text-xs" />
         </div>
       </section>
     </main>

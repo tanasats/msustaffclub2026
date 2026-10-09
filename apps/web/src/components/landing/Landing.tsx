@@ -2,6 +2,7 @@ import Link from 'next/link';
 import { buttonClass } from '@/components/ui/button';
 import { Icon, LogoMark, type IconName } from '@/components/ui/icons';
 import type { PublicStats } from '@/lib/public-types';
+import { DeveloperCredit } from '@/components/DeveloperCredit';
 
 // คำอธิบายประเภทชมรม (ตามรหัสใน club_categories) — ไม่รู้จักรหัส = แสดงเฉพาะชื่อ
 const CATEGORY_HINTS: Record<string, string> = {
@@ -249,6 +250,9 @@ export function Landing({ stats }: { stats: PublicStats | null }) {
             </Link>
             <span>ระบบบริหารจัดการชมรมบุคลากร</span>
           </p>
+        </div>
+        <div className="mx-auto max-w-6xl px-4 pb-6 sm:px-6">
+          <DeveloperCredit className="border-t border-ink/[0.08] pt-4" />
         </div>
       </footer>
     </div>
