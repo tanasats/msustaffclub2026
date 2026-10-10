@@ -15,6 +15,8 @@ export interface ShellUser {
   email: string;
   pictureUrl: string | null;
   subtitle: string;
+  // การแจ้งเตือนในระบบที่ยังไม่อ่าน
+  unreadNotifications: number;
 }
 
 interface AppShellProps {
@@ -39,6 +41,32 @@ function Brand({ collapsed }: { collapsed: boolean }) {
         <span className="leading-tight">
           <span className="block font-serif text-[0.9375rem] font-medium text-ink">ชมรมบุคลากร</span>
           <span className="block text-[0.6875rem] tracking-[0.16em] text-stone">MSU · CLUB</span>
+        </span>
+      )}
+    </Link>
+  );
+}
+
+// กระดิ่งการแจ้งเตือน: ลิงก์ไปหน้าการแจ้งเตือน พร้อมจำนวนที่ยังไม่อ่าน
+function NotificationBell({ count, size, onNavigate }: { count: number; size: 'sm' | 'md'; onNavigate?: () => void }) {
+  const label = count > 0 ? `การแจ้งเตือน (ยังไม่อ่าน ${count} รายการ)` : 'การแจ้งเตือน';
+  return (
+    <Link
+      href="/notifications"
+      onClick={onNavigate}
+      aria-label={label}
+      title={label}
+      className={`relative inline-flex items-center justify-center rounded-lg text-stone transition hover:bg-ink/[0.04] hover:text-ink ${
+        size === 'sm' ? 'size-9' : 'size-11 rounded-xl'
+      }`}
+    >
+      <Icon name="bell" className="size-5" />
+      {count > 0 && (
+        <span
+          aria-hidden="true"
+          className="absolute top-0.5 right-0 inline-flex min-w-5 items-center justify-center rounded-full bg-beni px-1.5 text-[0.6875rem] leading-5 font-semibold text-white tabular-nums"
+        >
+          {count > 99 ? '99+' : count}
         </span>
       )}
     </Link>
@@ -240,15 +268,18 @@ export function AppShell({ user, nav, children }: AppShellProps) {
         {/* หัว (คงที่) / รายการเมนู (เลื่อนได้เมื่อยาวเกินจอ) / ผู้ใช้ (คงที่) */}
         <div className={`flex shrink-0 items-center ${collapsed ? 'flex-col gap-3' : 'justify-between'} px-1 pt-1`}>
           <Brand collapsed={collapsed} />
-          <button
-            type="button"
-            onClick={() => setSidebarCollapsed(!collapsed)}
-            aria-label={collapsed ? 'ขยายเมนู' : 'ย่อเมนู'}
-            title={collapsed ? 'ขยายเมนู' : 'ย่อเมนู'}
-            className="inline-flex size-9 items-center justify-center rounded-lg text-mist transition hover:bg-ink/[0.04] hover:text-ink"
-          >
-            <Icon name={collapsed ? 'expand' : 'collapse'} className="size-[1.125rem]" />
-          </button>
+          <div className={`flex items-center ${collapsed ? 'flex-col gap-1' : 'gap-0.5'}`}>
+            <NotificationBell count={user.unreadNotifications} size="sm" />
+            <button
+              type="button"
+              onClick={() => setSidebarCollapsed(!collapsed)}
+              aria-label={collapsed ? 'ขยายเมนู' : 'ย่อเมนู'}
+              title={collapsed ? 'ขยายเมนู' : 'ย่อเมนู'}
+              className="inline-flex size-9 items-center justify-center rounded-lg text-mist transition hover:bg-ink/[0.04] hover:text-ink"
+            >
+              <Icon name={collapsed ? 'expand' : 'collapse'} className="size-[1.125rem]" />
+            </button>
+          </div>
         </div>
         <NavScroll>
           <NavList nav={nav} active={active} collapsed={collapsed} dense />
@@ -261,20 +292,23 @@ export function AppShell({ user, nav, children }: AppShellProps) {
       {/* ---------- แถบบน (มือถือ/แท็บเล็ต) ---------- */}
       <header className="sticky top-0 z-30 flex items-center justify-between gap-3 border-b border-ink/[0.06] bg-washi px-4 py-2 lg:hidden print:hidden">
         <Brand collapsed={false} />
-        <button
-          type="button"
-          onClick={() => setDrawerOpen(true)}
-          aria-label={hiddenBadge > 0 ? `เปิดเมนู (มีงานค้าง ${hiddenBadge} รายการ)` : 'เปิดเมนู'}
-          aria-expanded={drawerOpen}
-          className="relative inline-flex size-11 items-center justify-center rounded-xl text-ink transition hover:bg-ink/[0.04]"
-        >
-          <Icon name="menu" />
-          {hiddenBadge > 0 && (
-            <span aria-hidden="true" className="absolute top-1 right-0.5 inline-flex min-w-5 items-center justify-center rounded-full bg-beni px-1.5 text-[0.6875rem] leading-5 font-semibold text-white tabular-nums">
-              {hiddenBadge > 99 ? '99+' : hiddenBadge}
-            </span>
-          )}
-        </button>
+        <div className="flex items-center gap-1">
+          <NotificationBell count={user.unreadNotifications} size="md" />
+          <button
+            type="button"
+            onClick={() => setDrawerOpen(true)}
+            aria-label={hiddenBadge > 0 ? `เปิดเมนู (มีงานค้าง ${hiddenBadge} รายการ)` : 'เปิดเมนู'}
+            aria-expanded={drawerOpen}
+            className="relative inline-flex size-11 items-center justify-center rounded-xl text-ink transition hover:bg-ink/[0.04]"
+          >
+            <Icon name="menu" />
+            {hiddenBadge > 0 && (
+              <span aria-hidden="true" className="absolute top-1 right-0.5 inline-flex min-w-5 items-center justify-center rounded-full bg-beni px-1.5 text-[0.6875rem] leading-5 font-semibold text-white tabular-nums">
+                {hiddenBadge > 99 ? '99+' : hiddenBadge}
+              </span>
+            )}
+          </button>
+        </div>
       </header>
 
       {/* ---------- ลิ้นชักเมนู (มือถือ) ---------- */}

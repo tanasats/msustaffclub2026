@@ -3,6 +3,7 @@ import { redirect } from 'next/navigation';
 import { DeveloperContact } from '@/components/DeveloperCredit';
 import { LogoutButton } from '@/components/LogoutButton';
 import { ProfileDetails } from '@/components/ProfileCard';
+import { EmailNotificationPreference } from '@/components/settings/EmailNotificationPreference';
 import { FontSizeControl } from '@/components/settings/FontSizeControl';
 import { SidebarPreference } from '@/components/settings/SidebarPreference';
 import { Avatar } from '@/components/ui/Avatar';
@@ -23,7 +24,7 @@ export default async function SettingsPage() {
 
   return (
     <>
-      <PageHeader eyebrow="Settings" title="การตั้งค่า" description="ข้อมูลบัญชี ขนาดตัวอักษร การแสดงผล และการออกจากระบบ" />
+      <PageHeader eyebrow="Settings" title="การตั้งค่า" description="ข้อมูลบัญชี การแจ้งเตือน ขนาดตัวอักษร การแสดงผล และการออกจากระบบ" />
       <div className="grid grid-cols-1 gap-3 sm:gap-4 lg:grid-cols-3">
         <Bento className="lg:col-span-2">
           <BentoLabel className="mb-4">บัญชีผู้ใช้</BentoLabel>
@@ -75,6 +76,16 @@ export default async function SettingsPage() {
         </Bento>
 
         <div className="grid gap-3 sm:gap-4">
+          <Bento>
+            <BentoLabel className="mb-4">การแจ้งเตือน</BentoLabel>
+            <EmailNotificationPreference initial={current.preferences.emailNotifications} />
+            <div className="mt-3 border-t border-ink/[0.06] pt-3 text-sm">
+              <p className="text-stone">การแจ้งเตือนในระบบแสดงที่กระดิ่งเสมอ ไม่ว่าจะรับอีเมลหรือไม่</p>
+              <Link href="/notifications" className="mt-1 inline-block text-matcha-700 underline underline-offset-4">
+                ดูการแจ้งเตือน
+              </Link>
+            </div>
+          </Bento>
           <Bento>
             <BentoLabel className="mb-4">การแสดงผล</BentoLabel>
             <FontSizeControl initial={current.preferences.fontScale} />

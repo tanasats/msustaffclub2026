@@ -116,6 +116,12 @@ export const icons = {
       <path d="m20 20-4.5-4.5" />
     </Svg>
   ),
+  bell: (p: IconProps) => (
+    <Svg {...p}>
+      <path d="M6 16.5V11a6 6 0 0 1 12 0v5.5l1.5 1.5h-15z" />
+      <path d="M10 20.5a2 2 0 0 0 4 0" />
+    </Svg>
+  ),
   users: (p: IconProps) => (
     <Svg {...p}>
       <circle cx="9" cy="8.5" r="3.25" />
