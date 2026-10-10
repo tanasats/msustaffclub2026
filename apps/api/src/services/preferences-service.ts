@@ -1,12 +1,17 @@
-import { findPreferences, upsertFontScale, type FontScale, type UserPreferences } from '../repositories/preferences-repository.js';
+import { findPreferences, upsertPreferences, type FontScale, type UserPreferences } from '../repositories/preferences-repository.js';
 
 export const FONT_SCALES = ['sm', 'md', 'lg', 'xl'] as const satisfies readonly FontScale[];
-export const DEFAULT_PREFERENCES: UserPreferences = { fontScale: 'md' };
+// ค่าเริ่มต้นของทุกคน: ตัวอักษรปกติ และรับอีเมลแจ้งเตือน
+export const DEFAULT_PREFERENCES: UserPreferences = { fontScale: 'md', emailNotifications: true };
 
 export async function getPreferences(userId: string): Promise<UserPreferences> {
   return (await findPreferences(userId)) ?? DEFAULT_PREFERENCES;
 }
 
-export async function updatePreferences(userId: string, changes: { fontScale: FontScale }): Promise<UserPreferences> {
-  return upsertFontScale(userId, changes.fontScale);
+// แก้เฉพาะค่าที่ส่งมา (ค่าอื่นคงเดิม)
+export async function updatePreferences(
+  userId: string,
+  changes: { fontScale?: FontScale; emailNotifications?: boolean },
+): Promise<UserPreferences> {
+  return upsertPreferences(userId, changes);
 }

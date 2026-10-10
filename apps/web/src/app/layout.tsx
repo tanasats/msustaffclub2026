@@ -56,6 +56,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
         email: current.user.email,
         pictureUrl: current.user.pictureUrl,
         subtitle: subtitleOf(current),
+        unreadNotifications: current.notifications.unread,
       }
     : null;
 

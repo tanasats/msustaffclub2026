@@ -24,6 +24,8 @@ export type FontScale = 'sm' | 'md' | 'lg' | 'xl';
 
 export interface UserPreferences {
   fontScale: FontScale;
+  // รับอีเมลแจ้งเตือนจากระบบ (การแจ้งเตือนในระบบแสดงเสมอ)
+  emailNotifications: boolean;
 }
 
 // ตัวเลขงานที่ปรึกษาชมรม (จาก /auth/me) ใช้ตัดสินการแสดงเมนูและตัวเลขงานค้าง
@@ -50,6 +52,8 @@ export interface CurrentUser {
   nominations: { pendingPresident: number; clubInvitations: number };
   // ประกาศความเป็นส่วนตัว: ยังไม่รับทราบเวอร์ชันปัจจุบัน = แสดงหน้ารับทราบแทนทุกหน้า
   privacy: { currentVersion: string; acknowledged: boolean; acknowledgedEarlier: boolean };
+  // การแจ้งเตือนในระบบที่ยังไม่อ่าน (ตัวเลขบนกระดิ่ง)
+  notifications: { unread: number };
 }
 
 /**

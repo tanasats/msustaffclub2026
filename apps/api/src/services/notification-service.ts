@@ -1,8 +1,10 @@
 import { randomUUID } from 'node:crypto';
 import { config } from '../config/index.js';
 import type { Queryable } from '../db/pool.js';
-import { composeEmail, type EmailContent } from '../mail/templates.js';
+import { composeEmail } from '../mail/templates.js';
 import { insertOutboxEmails } from '../repositories/email-outbox-repository.js';
+import { insertNotifications } from '../repositories/notifications-repository.js';
+import { findEmailOptOutUserIds } from '../repositories/preferences-repository.js';
 import {
   getApplicationNotice,
   getMonthlyReportNotice,
@@ -20,13 +22,23 @@ import { PERMISSIONS } from './permissions.js';
 import { getEmailSettings } from './system-settings-service.js';
 
 /**
- * อีเมลแจ้งเตือน: ทุกฟังก์ชันรับ db ของ transaction ที่เกิดเหตุการณ์ แล้ว "ใส่คิว" (email_outbox) เท่านั้น
- * — เหตุการณ์ rollback อีเมลก็หายไปด้วย, การส่งจริงทำโดย worker ภายหลัง (ส่งไม่ได้ก็ไม่กระทบรายการหลัก)
- * — สวิตช์หลักหรือสวิตช์ของเหตุการณ์ปิด = ไม่ใส่คิว
+ * การแจ้งเตือน: ทุกฟังก์ชันรับ db ของ transaction ที่เกิดเหตุการณ์ แล้วบันทึกใน transaction เดียวกัน
+ * — เหตุการณ์ rollback การแจ้งเตือนก็หายไปด้วย
+ * — ในระบบ (ตาราง notifications): ผู้รับที่มีบัญชีได้รับเสมอ ไม่ขึ้นกับสวิตช์อีเมล
+ * — อีเมล (คิว email_outbox, worker ส่งภายหลัง): สวิตช์หลักหรือสวิตช์ของเหตุการณ์ปิด = ไม่ใส่คิว,
+ *   ผู้รับที่ปิดรับอีเมลในหน้าตั้งค่า (user_preferences.email_notifications = false) = ไม่ใส่คิวให้คนนั้น
  * eventKey: ตัวระบุเหตุการณ์ (เช่น id ของ event log) ใช้ประกอบ dedupe_key กันแจ้งซ้ำ
  */
 
 const link = (path: string) => new URL(path, config.webUrl).toString();
+
+// เนื้อหา 1 เรื่อง ใช้ทำทั้งอีเมลและการแจ้งเตือนในระบบ — actionPath เป็น path ภายในเว็บ (ขึ้นต้นด้วย /)
+interface NoticeContent {
+  subject: string;
+  paragraphs: string[];
+  actionLabel: string;
+  actionPath: string;
+}
 
 function clubLabel(notice: ApplicationNotice): string {
   const name = notice.nameTh.startsWith('ชมรม') ? notice.nameTh : `ชมรม${notice.nameTh}`;
@@ -38,22 +50,44 @@ async function enqueue(
   event: NotificationEvent,
   eventKey: string,
   recipients: Recipient[],
-  render: (recipient: Recipient) => EmailContent,
+  content: NoticeContent,
 ): Promise<void> {
   if (recipients.length === 0) return;
+  const userIds = [...new Set(recipients.flatMap((recipient) => (recipient.userId ? [recipient.userId] : [])))];
+  await insertNotifications(
+    userIds.map((userId) => ({
+      userId,
+      kind: event,
+      dedupeKey: `${event}:${eventKey}:${userId}`,
+      title: content.subject,
+      body: content.paragraphs.join('\n'),
+      linkPath: content.actionPath,
+    })),
+    db,
+  );
+
   const settings = await getEmailSettings(db);
   if (!settings.enabled || !settings.events[event]) return;
+  const optedOut = await findEmailOptOutUserIds(userIds, db);
+  // ผู้รับที่ไม่มีบัญชี (ยังไม่เคยเข้าระบบ) ตั้งค่าเองไม่ได้ จึงได้รับอีเมลตามปกติ
+  const emailRecipients = recipients.filter((recipient) => !recipient.userId || !optedOut.has(recipient.userId));
   await insertOutboxEmails(
-    recipients.map((recipient) => {
-      const content = render(recipient);
+    emailRecipients.map((recipient) => {
+      const email = composeEmail({
+        subject: content.subject,
+        recipientName: recipient.name,
+        paragraphs: content.paragraphs,
+        actionLabel: content.actionLabel,
+        actionUrl: link(content.actionPath),
+      });
       return {
         kind: event,
         dedupeKey: `${event}:${eventKey}:${recipient.email.toLowerCase()}`,
         recipientUserId: recipient.userId,
         recipientEmail: recipient.email,
-        subject: content.subject,
-        bodyText: content.text,
-        bodyHtml: content.html,
+        subject: email.subject,
+        bodyText: email.text,
+        bodyHtml: email.html,
       };
     }),
     db,
@@ -65,18 +99,15 @@ export async function notifyAdvisorsNominated(db: Queryable, applicationId: stri
   const notice = await getApplicationNotice(applicationId, db);
   if (!notice) return;
   const advisors = await listPendingInternalAdvisors(applicationId, db);
-  await enqueue(db, NOTIFICATION_EVENTS.ADVISOR_NOMINATED, eventKey, advisors, (advisor) =>
-    composeEmail({
-      subject: `ขอความยินยอมเป็นที่ปรึกษา — ${clubLabel(notice)}`,
-      recipientName: advisor.name,
-      paragraphs: [
-        `${notice.applicant.name ?? 'ผู้ยื่นคำขอ'} เสนอชื่อคุณเป็นที่ปรึกษาใน${clubLabel(notice)}`,
-        'กรุณาเข้าสู่ระบบด้วยบัญชี @msu.ac.th เพื่ออ่านรายละเอียดของชมรม แล้วตอบยินยอมหรือปฏิเสธ ชมรมจะยื่นคำขอต่อสโมสรได้เมื่อที่ปรึกษายินยอมครบ',
-      ],
-      actionLabel: 'อ่านรายละเอียดและตอบคำขอ',
-      actionUrl: link(`/club-applications/${notice.id}`),
-    }),
-  );
+  await enqueue(db, NOTIFICATION_EVENTS.ADVISOR_NOMINATED, eventKey, advisors, {
+    subject: `ขอความยินยอมเป็นที่ปรึกษา — ${clubLabel(notice)}`,
+    paragraphs: [
+      `${notice.applicant.name ?? 'ผู้ยื่นคำขอ'} เสนอชื่อคุณเป็นที่ปรึกษาใน${clubLabel(notice)}`,
+      'กรุณาเข้าสู่ระบบด้วยบัญชี @msu.ac.th เพื่ออ่านรายละเอียดของชมรม แล้วตอบยินยอมหรือปฏิเสธ ชมรมจะยื่นคำขอต่อสโมสรได้เมื่อที่ปรึกษายินยอมครบ',
+    ],
+    actionLabel: 'อ่านรายละเอียดและตอบคำขอ',
+    actionPath: `/club-applications/${notice.id}`,
+  });
 }
 
 // ที่ปรึกษาตอบ → ผู้ยื่น
@@ -89,17 +120,14 @@ export async function notifyAdvisorResponded(
   const notice = await getApplicationNotice(applicationId, db);
   if (!notice || !notice.applicantActive) return;
   const accepted = decision === 'accept';
-  await enqueue(db, NOTIFICATION_EVENTS.ADVISOR_RESPONDED, randomUUID(), [notice.applicant], (applicant) =>
-    composeEmail({
-      subject: `ที่ปรึกษา${accepted ? 'ยินยอม' : 'ปฏิเสธ'} — ${clubLabel(notice)}`,
-      recipientName: applicant.name,
-      paragraphs: accepted
-        ? [`${advisorName} ยินยอมเป็นที่ปรึกษาใน${clubLabel(notice)}แล้ว`, 'เมื่อที่ปรึกษายินยอมครบทุกคน คุณยื่นคำขอต่อสโมสรบุคลากรได้ทันที']
-        : [`${advisorName} ปฏิเสธการเป็นที่ปรึกษาใน${clubLabel(notice)}`, 'คำขอกลับเป็นฉบับร่าง กรุณาดูเหตุผล แก้ไขรายชื่อที่ปรึกษา แล้วขอความยินยอมใหม่'],
-      actionLabel: 'เปิดคำขอ',
-      actionUrl: link(`/club-applications/${notice.id}`),
-    }),
-  );
+  await enqueue(db, NOTIFICATION_EVENTS.ADVISOR_RESPONDED, randomUUID(), [notice.applicant], {
+    subject: `ที่ปรึกษา${accepted ? 'ยินยอม' : 'ปฏิเสธ'} — ${clubLabel(notice)}`,
+    paragraphs: accepted
+      ? [`${advisorName} ยินยอมเป็นที่ปรึกษาใน${clubLabel(notice)}แล้ว`, 'เมื่อที่ปรึกษายินยอมครบทุกคน คุณยื่นคำขอต่อสโมสรบุคลากรได้ทันที']
+      : [`${advisorName} ปฏิเสธการเป็นที่ปรึกษาใน${clubLabel(notice)}`, 'คำขอกลับเป็นฉบับร่าง กรุณาดูเหตุผล แก้ไขรายชื่อที่ปรึกษา แล้วขอความยินยอมใหม่'],
+    actionLabel: 'เปิดคำขอ',
+    actionPath: `/club-applications/${notice.id}`,
+  });
 }
 
 // ผู้ยื่นขอความยินยอม → ผู้ถูกเสนอเป็นประธานที่ยังไม่ตอบ
@@ -107,18 +135,15 @@ export async function notifyPresidentNominated(db: Queryable, applicationId: str
   const notice = await getApplicationNotice(applicationId, db);
   if (!notice) return;
   const nominees = await listPendingCommitteeNominees(applicationId, db);
-  await enqueue(db, NOTIFICATION_EVENTS.PRESIDENT_NOMINATED, eventKey, nominees, (nominee) =>
-    composeEmail({
-      subject: `ขอการตอบรับเป็นประธานชมรม — ${clubLabel(notice)}`,
-      recipientName: nominee.name,
-      paragraphs: [
-        `${notice.applicant.name ?? 'ผู้ยื่นคำขอ'} เสนอชื่อคุณเป็นประธานใน${clubLabel(notice)}`,
-        'กรุณาเข้าสู่ระบบเพื่ออ่านรายละเอียดของชมรม แล้วตอบรับหรือปฏิเสธ ในแบบคำขอจะระบุคุณเป็นผู้ขอจัดตั้งในฐานะประธานชมรม และชมรมจะยื่นคำขอต่อสโมสรได้เมื่อคุณตอบรับแล้ว',
-      ],
-      actionLabel: 'อ่านรายละเอียดและตอบรับ',
-      actionUrl: link(`/club-applications/${notice.id}`),
-    }),
-  );
+  await enqueue(db, NOTIFICATION_EVENTS.PRESIDENT_NOMINATED, eventKey, nominees, {
+    subject: `ขอการตอบรับเป็นประธานชมรม — ${clubLabel(notice)}`,
+    paragraphs: [
+      `${notice.applicant.name ?? 'ผู้ยื่นคำขอ'} เสนอชื่อคุณเป็นประธานใน${clubLabel(notice)}`,
+      'กรุณาเข้าสู่ระบบเพื่ออ่านรายละเอียดของชมรม แล้วตอบรับหรือปฏิเสธ ในแบบคำขอจะระบุคุณเป็นผู้ขอจัดตั้งในฐานะประธานชมรม และชมรมจะยื่นคำขอต่อสโมสรได้เมื่อคุณตอบรับแล้ว',
+    ],
+    actionLabel: 'อ่านรายละเอียดและตอบรับ',
+    actionPath: `/club-applications/${notice.id}`,
+  });
 }
 
 // ผู้ถูกเสนอเป็นประธานตอบ → ผู้ยื่น
@@ -132,17 +157,14 @@ export async function notifyPresidentResponded(
   const notice = await getApplicationNotice(applicationId, db);
   if (!notice || !notice.applicantActive) return;
   const accepted = decision === 'accept';
-  await enqueue(db, NOTIFICATION_EVENTS.PRESIDENT_RESPONDED, eventKey, [notice.applicant], (applicant) =>
-    composeEmail({
-      subject: `ผู้ถูกเสนอเป็นประธาน${accepted ? 'ตอบรับ' : 'ปฏิเสธ'} — ${clubLabel(notice)}`,
-      recipientName: applicant.name,
-      paragraphs: accepted
-        ? [`${presidentName} ตอบรับเป็นประธานใน${clubLabel(notice)}แล้ว`, 'เมื่อที่ปรึกษายินยอมครบทุกคน คุณยื่นคำขอต่อสโมสรบุคลากรได้ทันที']
-        : [`${presidentName} ปฏิเสธการเป็นประธานใน${clubLabel(notice)}`, 'คำขอกลับเป็นฉบับร่าง กรุณาดูเหตุผล เลือกประธานใหม่ แล้วส่งขอการตอบรับอีกครั้ง'],
-      actionLabel: 'เปิดคำขอ',
-      actionUrl: link(`/club-applications/${notice.id}`),
-    }),
-  );
+  await enqueue(db, NOTIFICATION_EVENTS.PRESIDENT_RESPONDED, eventKey, [notice.applicant], {
+    subject: `ผู้ถูกเสนอเป็นประธาน${accepted ? 'ตอบรับ' : 'ปฏิเสธ'} — ${clubLabel(notice)}`,
+    paragraphs: accepted
+      ? [`${presidentName} ตอบรับเป็นประธานใน${clubLabel(notice)}แล้ว`, 'เมื่อที่ปรึกษายินยอมครบทุกคน คุณยื่นคำขอต่อสโมสรบุคลากรได้ทันที']
+      : [`${presidentName} ปฏิเสธการเป็นประธานใน${clubLabel(notice)}`, 'คำขอกลับเป็นฉบับร่าง กรุณาดูเหตุผล เลือกประธานใหม่ แล้วส่งขอการตอบรับอีกครั้ง'],
+    actionLabel: 'เปิดคำขอ',
+    actionPath: `/club-applications/${notice.id}`,
+  });
 }
 
 const RESULT_TEXT = {
@@ -162,15 +184,12 @@ export async function notifyApplicationResult(
   const notice = await getApplicationNotice(applicationId, db);
   if (!notice || !notice.applicantActive) return;
   const text = RESULT_TEXT[result];
-  await enqueue(db, NOTIFICATION_EVENTS.APPLICATION_RESULT, eventKey, [notice.applicant], (applicant) =>
-    composeEmail({
-      subject: `${clubLabel(notice)} ${text.title}`,
-      recipientName: applicant.name,
-      paragraphs: [`${clubLabel(notice)}ของคุณ${text.title}`, text.next, ...(note ? [`เหตุผล/หมายเหตุ: ${note}`] : [])],
-      actionLabel: 'เปิดคำขอ',
-      actionUrl: link(`/club-applications/${notice.id}`),
-    }),
-  );
+  await enqueue(db, NOTIFICATION_EVENTS.APPLICATION_RESULT, eventKey, [notice.applicant], {
+    subject: `${clubLabel(notice)} ${text.title}`,
+    paragraphs: [`${clubLabel(notice)}ของคุณ${text.title}`, text.next, ...(note ? [`เหตุผล/หมายเหตุ: ${note}`] : [])],
+    actionLabel: 'เปิดคำขอ',
+    actionPath: `/club-applications/${notice.id}`,
+  });
 }
 
 // คำขอเข้าคิว → ผู้ตรวจ (submitted) หรือผู้อนุมัติ (reviewed)
@@ -186,15 +205,12 @@ export async function notifyApplicationQueue(
   const permission = stage === 'submitted' ? PERMISSIONS.CLUB_APPLICATION_REVIEW : PERMISSIONS.CLUB_APPLICATION_APPROVE;
   const officers = await listUsersWithPermission(permission, actorUserId, db);
   const waiting = stage === 'submitted' ? 'รอตรวจ' : 'ตรวจผ่านแล้ว รออนุมัติ';
-  await enqueue(db, NOTIFICATION_EVENTS.APPLICATION_QUEUE, eventKey, officers, (officer) =>
-    composeEmail({
-      subject: `${clubLabel(notice)} ${waiting}`,
-      recipientName: officer.name,
-      paragraphs: [`${clubLabel(notice)} (ผู้ยื่น: ${notice.applicant.name ?? notice.applicant.email}) ${waiting}`],
-      actionLabel: 'เปิดกล่องงาน',
-      actionUrl: link(`/club-applications/${notice.id}`),
-    }),
-  );
+  await enqueue(db, NOTIFICATION_EVENTS.APPLICATION_QUEUE, eventKey, officers, {
+    subject: `${clubLabel(notice)} ${waiting}`,
+    paragraphs: [`${clubLabel(notice)} (ผู้ยื่น: ${notice.applicant.name ?? notice.applicant.email}) ${waiting}`],
+    actionLabel: 'เปิดกล่องงาน',
+    actionPath: `/club-applications/${notice.id}`,
+  });
 }
 
 const thaiMonth = (date: string) =>
@@ -205,39 +221,33 @@ export async function notifyMonthlyReportSubmitted(db: Queryable, reportId: stri
   const report = await getMonthlyReportNotice(reportId, db);
   if (!report) return;
   const advisors = await listCurrentAdvisorUsers(report.clubId, db);
-  await enqueue(db, NOTIFICATION_EVENTS.MONTHLY_REPORT_SUBMITTED, reportId, advisors, (advisor) =>
-    composeEmail({
-      subject: `${report.clubName} ส่งรายงานประจำเดือน${thaiMonth(report.reportMonth)}`,
-      recipientName: advisor.name,
-      paragraphs: [
-        `${report.clubName} ส่งรายงานผลการดำเนินงานประจำเดือน${thaiMonth(report.reportMonth)} ให้คุณในฐานะที่ปรึกษาชมรม`,
-        'กรุณาเข้าระบบเพื่ออ่านรายงานและกดรับทราบ (ใส่ความเห็นได้)',
-      ],
-      actionLabel: 'อ่านรายงาน',
-      actionUrl: link(`/monthly-reports/${report.id}`),
-    }),
-  );
+  await enqueue(db, NOTIFICATION_EVENTS.MONTHLY_REPORT_SUBMITTED, reportId, advisors, {
+    subject: `${report.clubName} ส่งรายงานประจำเดือน${thaiMonth(report.reportMonth)}`,
+    paragraphs: [
+      `${report.clubName} ส่งรายงานผลการดำเนินงานประจำเดือน${thaiMonth(report.reportMonth)} ให้คุณในฐานะที่ปรึกษาชมรม`,
+      'กรุณาเข้าระบบเพื่ออ่านรายงานและกดรับทราบ (ใส่ความเห็นได้)',
+    ],
+    actionLabel: 'อ่านรายงาน',
+    actionPath: `/monthly-reports/${report.id}`,
+  });
 }
 
 // ---------- สมาชิกภาพชมรม ----------
 
 const MEMBER_APPROVE = 'club_member:approve';
-const clubLink = (clubId: string) => link(`/clubs/${clubId}`);
+const clubPath = (clubId: string) => `/clubs/${clubId}`;
 
 // ผู้สมัครใหม่ → กรรมการที่อนุมัติสมาชิกได้
 export async function notifyMembershipApplied(db: Queryable, membershipId: string, eventKey: string): Promise<void> {
   const notice = await getMembershipNotice(membershipId, db);
   if (!notice) return;
   const approvers = await listClubPermissionHolders(notice.clubId, MEMBER_APPROVE, notice.member.userId, db);
-  await enqueue(db, NOTIFICATION_EVENTS.MEMBERSHIP_APPLIED, eventKey, approvers, (approver) =>
-    composeEmail({
-      subject: `มีผู้สมัครเป็นสมาชิก${notice.clubName}`,
-      recipientName: approver.name,
-      paragraphs: [`${notice.member.name ?? 'บุคลากร'} สมัครเป็นสมาชิก${notice.clubName}`, 'กรุณาพิจารณาอนุมัติหรือไม่อนุมัติ (ไม่อนุมัติต้องระบุเหตุผล)'],
-      actionLabel: 'พิจารณาใบสมัคร',
-      actionUrl: clubLink(notice.clubId),
-    }),
-  );
+  await enqueue(db, NOTIFICATION_EVENTS.MEMBERSHIP_APPLIED, eventKey, approvers, {
+    subject: `มีผู้สมัครเป็นสมาชิก${notice.clubName}`,
+    paragraphs: [`${notice.member.name ?? 'บุคลากร'} สมัครเป็นสมาชิก${notice.clubName}`, 'กรุณาพิจารณาอนุมัติหรือไม่อนุมัติ (ไม่อนุมัติต้องระบุเหตุผล)'],
+    actionLabel: 'พิจารณาใบสมัคร',
+    actionPath: clubPath(notice.clubId),
+  });
 }
 
 // ผลใบสมัคร → ผู้สมัคร
@@ -251,32 +261,26 @@ export async function notifyMembershipDecided(
   const notice = await getMembershipNotice(membershipId, db);
   if (!notice || !notice.memberActive) return;
   const approved = decision === 'approved';
-  await enqueue(db, NOTIFICATION_EVENTS.MEMBERSHIP_DECIDED, eventKey, [notice.member], (member) =>
-    composeEmail({
-      subject: approved ? `คุณเป็นสมาชิก${notice.clubName}แล้ว` : `ใบสมัครสมาชิก${notice.clubName}ไม่ได้รับอนุมัติ`,
-      recipientName: member.name,
-      paragraphs: approved
-        ? [`คณะกรรมการ${notice.clubName}อนุมัติใบสมัครของคุณแล้ว`]
-        : [`ใบสมัครสมาชิก${notice.clubName}ของคุณไม่ได้รับอนุมัติ`, ...(note ? [`เหตุผล: ${note}`] : [])],
-      actionLabel: 'เปิดหน้าชมรม',
-      actionUrl: clubLink(notice.clubId),
-    }),
-  );
+  await enqueue(db, NOTIFICATION_EVENTS.MEMBERSHIP_DECIDED, eventKey, [notice.member], {
+    subject: approved ? `คุณเป็นสมาชิก${notice.clubName}แล้ว` : `ใบสมัครสมาชิก${notice.clubName}ไม่ได้รับอนุมัติ`,
+    paragraphs: approved
+      ? [`คณะกรรมการ${notice.clubName}อนุมัติใบสมัครของคุณแล้ว`]
+      : [`ใบสมัครสมาชิก${notice.clubName}ของคุณไม่ได้รับอนุมัติ`, ...(note ? [`เหตุผล: ${note}`] : [])],
+    actionLabel: 'เปิดหน้าชมรม',
+    actionPath: clubPath(notice.clubId),
+  });
 }
 
 // คำเชิญเข้าชมรม → ผู้ถูกเชิญ
 export async function notifyMembershipInvited(db: Queryable, membershipId: string, inviterName: string, eventKey: string): Promise<void> {
   const notice = await getMembershipNotice(membershipId, db);
   if (!notice || !notice.memberActive) return;
-  await enqueue(db, NOTIFICATION_EVENTS.MEMBERSHIP_INVITED, eventKey, [notice.member], (member) =>
-    composeEmail({
-      subject: `คำเชิญเข้าร่วม${notice.clubName}`,
-      recipientName: member.name,
-      paragraphs: [`${inviterName} เชิญคุณเป็นสมาชิก${notice.clubName}`, 'กรุณาเข้าสู่ระบบเพื่อตอบรับหรือปฏิเสธคำเชิญ (ตอบรับแล้วเป็นสมาชิกทันที)'],
-      actionLabel: 'ดูคำเชิญ',
-      actionUrl: clubLink(notice.clubId),
-    }),
-  );
+  await enqueue(db, NOTIFICATION_EVENTS.MEMBERSHIP_INVITED, eventKey, [notice.member], {
+    subject: `คำเชิญเข้าร่วม${notice.clubName}`,
+    paragraphs: [`${inviterName} เชิญคุณเป็นสมาชิก${notice.clubName}`, 'กรุณาเข้าสู่ระบบเพื่อตอบรับหรือปฏิเสธคำเชิญ (ตอบรับแล้วเป็นสมาชิกทันที)'],
+    actionLabel: 'ดูคำเชิญ',
+    actionPath: clubPath(notice.clubId),
+  });
 }
 
 // สมาชิกยื่นลาออก → กรรมการที่อนุมัติสมาชิกได้
@@ -284,17 +288,14 @@ export async function notifyResignationRequested(db: Queryable, membershipId: st
   const notice = await getMembershipNotice(membershipId, db);
   if (!notice) return;
   const approvers = await listClubPermissionHolders(notice.clubId, MEMBER_APPROVE, notice.member.userId, db);
-  await enqueue(db, NOTIFICATION_EVENTS.RESIGNATION_REQUESTED, eventKey, approvers, (approver) =>
-    composeEmail({
-      subject: `สมาชิกยื่นลาออกจาก${notice.clubName}`,
-      recipientName: approver.name,
-      paragraphs: [
-        `${notice.member.name ?? 'สมาชิก'} ยื่นลาออกจาก${notice.clubName}`,
-        `เหตุผล: ${note}`,
-        'กรุณารับทราบการลาออก หากไม่ดำเนินการ การลาออกจะมีผลอัตโนมัติเมื่อครบ 30 วัน',
-      ],
-      actionLabel: 'เปิดหน้าชมรม',
-      actionUrl: clubLink(notice.clubId),
-    }),
-  );
+  await enqueue(db, NOTIFICATION_EVENTS.RESIGNATION_REQUESTED, eventKey, approvers, {
+    subject: `สมาชิกยื่นลาออกจาก${notice.clubName}`,
+    paragraphs: [
+      `${notice.member.name ?? 'สมาชิก'} ยื่นลาออกจาก${notice.clubName}`,
+      `เหตุผล: ${note}`,
+      'กรุณารับทราบการลาออก หากไม่ดำเนินการ การลาออกจะมีผลอัตโนมัติเมื่อครบ 30 วัน',
+    ],
+    actionLabel: 'เปิดหน้าชมรม',
+    actionPath: clubPath(notice.clubId),
+  });
 }
