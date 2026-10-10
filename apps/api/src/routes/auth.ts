@@ -14,6 +14,7 @@ import {
 import { getPreferences } from '../services/preferences-service.js';
 import { getMyAdvisorSummary } from '../services/advisor-work-service.js';
 import { getMyNominationSummary } from '../services/club-application-workflow-service.js';
+import { getMyUnreadNotificationCount } from '../services/notifications-service.js';
 import { getMyPrivacyStatus } from '../services/privacy-service.js';
 import { getUserProfile } from '../services/profile-service.js';
 
@@ -113,14 +114,26 @@ export function createAuthRouter(): Router {
     // advisor: ตัวเลขงานที่ปรึกษา ใช้ตัดสินว่าจะแสดงเมนู "งานที่ปรึกษาชมรม" หรือไม่ (UX เท่านั้น)
     // nominations: จำนวนคำเสนอชื่อเป็นประธานที่รอตอบ (แบนเนอร์หน้าแรก/ป้ายเมนู)
     // privacy: ต้องรับทราบประกาศความเป็นส่วนตัวเวอร์ชันปัจจุบันก่อนใช้ระบบ (หน้าเว็บแสดงประกาศถ้ายังไม่รับทราบ)
-    const [profile, preferences, advisor, nominations, privacy] = await Promise.all([
+    // notifications: จำนวนการแจ้งเตือนในระบบที่ยังไม่อ่าน (ตัวเลขบนกระดิ่ง)
+    const [profile, preferences, advisor, nominations, privacy, unreadNotifications] = await Promise.all([
       getUserProfile(auth.user.id, auth.user.email),
       getPreferences(auth.user.id),
       getMyAdvisorSummary(auth),
       getMyNominationSummary(auth),
       getMyPrivacyStatus(auth),
+      getMyUnreadNotificationCount(auth),
     ]);
-    res.json({ user: auth.user, roles: auth.roles, permissions: auth.permissions, profile, preferences, advisor, nominations, privacy });
+    res.json({
+      user: auth.user,
+      roles: auth.roles,
+      permissions: auth.permissions,
+      profile,
+      preferences,
+      advisor,
+      nominations,
+      privacy,
+      notifications: { unread: unreadNotifications },
+    });
   });
 
   // public (ไม่บังคับ login): ลบ session ถ้ามี แล้วลบ cookie
