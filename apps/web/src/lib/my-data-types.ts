@@ -6,14 +6,21 @@ export interface MyData {
   account: {
     email: string;
     name: string | null;
+    googleName: string | null;
     pictureUrl: string | null;
+    hasLinkedGoogle: boolean;
+    isActive: boolean;
+    createdByName: string | null;
     createdAt: string;
     lastLoginAt: string | null;
     fontScale: string | null;
+    emailNotifications: boolean;
     roles: { code: string; nameTh: string }[];
   };
   staffProfile: {
-    staffCode: string;
+    // erp = จาก ERP-HR, admin = ผู้ดูแลระบบบันทึกแทน (ไม่มีรหัสบุคลากร)
+    source: 'erp' | 'admin';
+    staffCode: string | null;
     prefixNameTh: string | null;
     firstNameTh: string | null;
     lastNameTh: string | null;
@@ -24,6 +31,10 @@ export interface MyData {
     facultyName: string | null;
     departmentName: string | null;
     programName: string | null;
+    erpFacultyId: string | null;
+    erpDepartmentId: string | null;
+    erpProgramId: string | null;
+    orgUnitName: string | null;
     syncedAt: string;
   } | null;
   studentProfile: { studentCode: string; facultyName: string | null } | null;
@@ -50,4 +61,16 @@ export interface MyData {
   uploadedFiles: { originalName: string; purpose: string; sizeBytes: number; uploadedAt: string | null }[];
   emails: { subject: string; status: string; createdAt: string; sentAt: string | null }[];
   sessions: { active: number; lastSeenAt: string | null };
+  // ประวัติการเข้าสู่ระบบ (เก็บ 180 วัน) ใหม่สุดก่อน
+  loginEvents: { loggedInAt: string; erpResult: ErpResult | null }[];
 }
+
+export type ErpResult = 'ok' | 'not_found' | 'error';
+
+// ผลการดึงข้อมูลบุคลากรจาก ERP ตอนเข้าสู่ระบบ (none = ไม่ได้ดึง เช่น บัญชีนิสิต)
+export const ERP_RESULT_LABELS: Record<ErpResult | 'none', string> = {
+  ok: 'ดึงข้อมูลจาก ERP สำเร็จ',
+  not_found: 'ERP ไม่พบข้อมูลของบัญชีนี้ (เช่น ERP ไม่ได้บันทึกอีเมลนี้)',
+  error: 'เรียก ERP ไม่สำเร็จ (ระบบ ERP ขัดข้อง) — ใช้ข้อมูลเดิม',
+  none: 'ไม่ได้ดึงข้อมูลจาก ERP (บัญชีนิสิต)',
+};

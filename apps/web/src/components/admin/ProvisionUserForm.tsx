@@ -31,15 +31,18 @@ const EMPTY: ProvisionValues = {
 /**
  * เพิ่ม/แก้ข้อมูลบุคลากรที่ยังไม่เคยเข้าระบบ (ผู้ดูแลระบบ) — API ตรวจสิทธิ์ user_account:create และความถูกต้องซ้ำ
  * userId = แก้ไขบัญชีเดิม, ไม่มี = เพิ่มใหม่ (เพิ่มแล้วไปหน้ารายละเอียดผู้ใช้)
+ * mode = manual: บันทึกข้อมูลบุคลากรแทน ERP ให้บัญชีที่เข้าระบบแล้ว (ไม่มีช่องอีเมล — อีเมลเป็นของบัญชี Google)
  */
 export function ProvisionUserForm({
   orgUnits,
   userId,
   initial,
+  mode = 'provision',
 }: {
   orgUnits: { id: string; code: string; nameTh: string }[];
   userId?: string;
   initial?: Partial<ProvisionValues>;
+  mode?: 'provision' | 'manual';
 }) {
   const router = useRouter();
   const [values, setValues] = useState<ProvisionValues>({ ...EMPTY, ...initial });
@@ -54,7 +57,11 @@ export function ProvisionUserForm({
     setPending(true);
     setError(null);
     setSaved(false);
-    const result = await apiSend(userId ? 'PUT' : 'POST', userId ? `/provisioned-users/${userId}` : '/provisioned-users', values);
+    const { email, ...profile } = values;
+    const result =
+      mode === 'manual' && userId
+        ? await apiSend('PUT', `/user-accounts/${userId}/staff-profile`, profile)
+        : await apiSend(userId ? 'PUT' : 'POST', userId ? `/provisioned-users/${userId}` : '/provisioned-users', { email, ...profile });
     setPending(false);
     if (!result.ok) {
       setError(result.errorMessage ?? 'บันทึกไม่สำเร็จ');
@@ -72,11 +79,13 @@ export function ProvisionUserForm({
   const field = 'field';
   return (
     <form onSubmit={handleSubmit} className="grid gap-4">
-      <label className="grid gap-1 text-sm">
-        อีเมล @msu.ac.th *
-        <input type="email" required value={values.email} onChange={set('email')} maxLength={200} className={field} autoComplete="off" />
-        <span className="text-xs text-stone">ใช้ผูกบัญชีอัตโนมัติเมื่อเจ้าตัวเข้าสู่ระบบด้วย Google ครั้งแรก</span>
-      </label>
+      {mode === 'provision' && (
+        <label className="grid gap-1 text-sm">
+          อีเมล @msu.ac.th *
+          <input type="email" required value={values.email} onChange={set('email')} maxLength={200} className={field} autoComplete="off" />
+          <span className="text-xs text-stone">ใช้ผูกบัญชีอัตโนมัติเมื่อเจ้าตัวเข้าสู่ระบบด้วย Google ครั้งแรก</span>
+        </label>
+      )}
       <fieldset className="grid gap-2">
         <legend className="mb-1 text-sm">ชื่อภาษาไทย *</legend>
         <div className="grid gap-2 sm:grid-cols-[minmax(0,10rem)_1fr_1fr]">
