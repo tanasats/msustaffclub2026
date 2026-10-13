@@ -6,6 +6,7 @@ import { startOutboxWorker } from './mail/outbox-worker.js';
 import { mailTransport } from './mail/index.js';
 import { startPeriodicJob } from './jobs/periodic.js';
 import { processDueResignations } from './services/membership-service.js';
+import { purgeOldLoginEvents } from './services/login-history-service.js';
 import { purgeOldNotifications } from './services/notifications-service.js';
 
 // งานสมาชิกตามรอบ (เช่น คำขอลาออกที่ครบกำหนดมีผลอัตโนมัติ) — ไม่ต้องตรงเวลาเป๊ะ จึงทำชั่วโมงละครั้ง
@@ -27,6 +28,8 @@ if (mailTransport.kind === 'gmail') {
 const stopMembershipJob = startPeriodicJob('membership', processDueResignations, MEMBERSHIP_JOB_INTERVAL_MS);
 // ลบการแจ้งเตือนในระบบที่เก่าเกินระยะเก็บ (ชั่วโมงละครั้งพอ)
 const stopNotificationJob = startPeriodicJob('notifications', purgeOldNotifications, MEMBERSHIP_JOB_INTERVAL_MS);
+// ลบประวัติการเข้าระบบที่เก่าเกินระยะเก็บ
+const stopLoginHistoryJob = startPeriodicJob('login-history', purgeOldLoginEvents, MEMBERSHIP_JOB_INTERVAL_MS);
 
 server.on('error', (err) => {
   logger.fatal({ err }, 'เริ่ม HTTP server ไม่สำเร็จ');
@@ -50,7 +53,7 @@ function shutdown(signal: string): void {
   server.close((closeErr) => {
     if (closeErr) logger.error({ err: closeErr }, 'ปิด HTTP server ผิดพลาด');
     // รอ worker ส่งอีเมลรอบปัจจุบันจบก่อนปิด pool
-    Promise.all([stopOutboxWorker(), stopMembershipJob(), stopNotificationJob()])
+    Promise.all([stopOutboxWorker(), stopMembershipJob(), stopNotificationJob(), stopLoginHistoryJob()])
       .then(() => pool.end())
       .then(() => {
         logger.info('ปิดระบบเรียบร้อย');

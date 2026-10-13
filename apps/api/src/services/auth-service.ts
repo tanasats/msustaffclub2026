@@ -16,6 +16,8 @@ import {
 import { insertUserRole } from '../repositories/user-roles-repository.js';
 import { upsertUserOnLogin } from '../repositories/users-repository.js';
 import { insertAccountEvent } from '../repositories/user-accounts-repository.js';
+import { insertLoginEvent } from '../repositories/login-events-repository.js';
+import type { LoginErpResult } from '../repositories/my-data-repository.js';
 import type { AuthContext } from './authorization.js';
 import { classifyAccount } from './account-type.js';
 import { erpHr, type ErpStaffInfo } from './erp-hr-client.js';
@@ -116,16 +118,18 @@ export function erpDisplayName(info: ErpStaffInfo | null): string | null {
   return first && last ? `${first} ${last}` : null;
 }
 
-async function fetchStaffInfoSafely(accessToken: string): Promise<ErpStaffInfo | null> {
+// ผลการดึง ERP บันทึกใน login_events ให้ผู้ดูแลตรวจได้ว่าข้อมูล ERP ขาด/เก่าเพราะอะไร (not_found มักเกิดจาก ERP ไม่มีอีเมลของบุคลากร)
+async function fetchStaffInfoSafely(accessToken: string): Promise<{ info: ErpStaffInfo | null; result: LoginErpResult }> {
   try {
     const info = await erpHr.fetchStaffInfo(accessToken);
     if (!info) {
       logger.warn('ERP-HR: ไม่พบข้อมูลบุคลากรของบัญชีนี้');
+      return { info: null, result: 'not_found' };
     }
-    return info;
+    return { info, result: 'ok' };
   } catch (err) {
     logger.warn({ reason: (err as Error).message }, 'ERP-HR: ดึงข้อมูลบุคลากรไม่สำเร็จ');
-    return null;
+    return { info: null, result: 'error' };
   }
 }
 
@@ -156,7 +160,8 @@ export async function completeGoogleLogin(input: CompleteLoginInput): Promise<Lo
   const account = classifyAccount(email);
 
   // เรียก ERP นอก transaction เพื่อไม่ถือ connection ฐานข้อมูลค้างไว้ระหว่างรอเครือข่าย
-  const staffInfo = account.type === 'staff' ? await fetchStaffInfoSafely(accessToken) : null;
+  const erp = account.type === 'staff' ? await fetchStaffInfoSafely(accessToken) : null;
+  const staffInfo = erp?.info ?? null;
 
   const token = generateToken();
   return withTransaction(async (client) => {
@@ -191,6 +196,8 @@ export async function completeGoogleLogin(input: CompleteLoginInput): Promise<Lo
       }
     }
 
+    // ประวัติการเข้าระบบ (เก็บ 180 วัน) พร้อมผลการดึง ERP ครั้งนี้ (นิสิต = null)
+    await insertLoginEvent(userId, erp?.result ?? null, client);
     await deleteExpiredSessionsForUser(userId, client);
     const session = await insertSession(
       { tokenHash: hashToken(token), userId, ttlDays: config.session.ttlDays },

@@ -5,10 +5,13 @@ import { insertRoleChangeLog } from '../repositories/role-change-logs-repository
 import { findRoleByCode } from '../repositories/roles-repository.js';
 import {
   findProvisionedProfile,
+  findStaffProfileForEdit,
   hasActiveUserWithEmail,
   insertAccountEvent,
   insertProvisionedUser,
+  lockStaffProfileTarget,
   updateProvisionedUser,
+  updateUserDisplayName,
   upsertProvisionedStaffProfile,
   type ProvisionedProfileInput,
 } from '../repositories/user-accounts-repository.js';
@@ -93,4 +96,40 @@ export async function getProvisionedProfile(userId: string) {
 
 export async function getOrgUnitOptions() {
   return { items: await listActiveOrgUnits() };
+}
+
+// ---------- บันทึกข้อมูลบุคลากรแทน ERP (บัญชีที่ ERP ไม่มีข้อมูล เช่น ERP ไม่ได้บันทึกอีเมลของบุคลากร) ----------
+
+export type ManualStaffProfileInput = Omit<ProvisionedProfileInput, 'email'>;
+export const MANUAL_PROFILE_REASON = 'บันทึกข้อมูลบุคลากรแทน ERP (ERP ไม่มีข้อมูลของบัญชีนี้)';
+
+/**
+ * ผู้มีสิทธิ์ user_account:create (ไม่ผูก role → super_admin) บันทึกชื่อ-นามสกุล/หน่วยงานแทน ERP
+ * ได้เฉพาะบัญชีบุคลากรที่ยังไม่มีข้อมูลจาก ERP (ไม่มีข้อมูลบุคลากร หรือข้อมูลที่ผู้ดูแลบันทึกไว้เดิม)
+ * ชื่อแสดงในระบบเปลี่ยนตาม และคงอยู่แม้ login แล้ว ERP ไม่พบข้อมูล; เมื่อ ERP มีข้อมูล login ครั้งถัดไปจะใช้ข้อมูล ERP แทนอัตโนมัติ
+ */
+export async function saveManualStaffProfile(auth: AuthContext, userId: string, input: ManualStaffProfileInput): Promise<void> {
+  await withTransaction(async (client) => {
+    const target = await lockStaffProfileTarget(userId, client);
+    if (!target) throw new AppError(404, 'USER_NOT_FOUND', 'ไม่พบผู้ใช้');
+    if (!isEligibleForClub(target.email)) {
+      throw new AppError(422, 'NOT_STAFF_ACCOUNT', 'บันทึกข้อมูลบุคลากรได้เฉพาะบัญชีบุคลากร');
+    }
+    if (target.source === 'erp') {
+      throw new AppError(409, 'ERP_PROFILE_EXISTS', 'บัญชีนี้มีข้อมูลจาก ERP แล้ว ข้อมูลเป็นไปตาม ERP แก้ไขที่นี่ไม่ได้');
+    }
+    if (!(await isActiveOrgUnit(input.orgUnitId, client))) {
+      throw new AppError(422, 'ORG_UNIT_NOT_FOUND', 'ไม่พบหน่วยงานที่เลือก');
+    }
+    await upsertProvisionedStaffProfile(userId, { ...input, email: target.email }, client);
+    await updateUserDisplayName(userId, `${input.firstNameTh} ${input.lastNameTh}`, client);
+    await insertAccountEvent({ userId, actorUserId: auth.user.id, action: 'updated', reason: MANUAL_PROFILE_REASON, effects: {} }, client);
+  });
+}
+
+// ข้อมูลบุคลากรปัจจุบันสำหรับฟอร์ม + แก้ได้หรือไม่ (มีข้อมูล ERP แล้ว / ไม่ใช่บัญชีบุคลากร = แก้ไม่ได้)
+export async function getManualStaffProfile(userId: string) {
+  const profile = await findStaffProfileForEdit(userId);
+  if (!profile) throw new AppError(404, 'USER_NOT_FOUND', 'ไม่พบผู้ใช้');
+  return { editable: isEligibleForClub(profile.email) && profile.source !== 'erp', profile };
 }
