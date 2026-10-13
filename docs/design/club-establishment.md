@@ -471,3 +471,9 @@ stateDiagram-v2
 - **การแจ้งเตือนในระบบ (กระดิ่ง)**: ตาราง `notifications` สร้างจากเหตุการณ์ชุดเดียวกับอีเมล ใน transaction เดียวกัน (`enqueue` ใน `notification-service.ts` ที่เดียว) ให้ผู้รับที่มีบัญชีเสมอ ไม่ขึ้นกับสวิตช์อีเมลใด ๆ; กันซ้ำด้วย `dedupe_key`; ลิงก์เป็น path ภายในเว็บเท่านั้น (CHECK); เก็บ 180 วันแล้วลบด้วยงานตามรอบ
 - API (ต้อง login เท่านั้น เห็นเฉพาะของตัวเอง): `GET /me/notifications?page&pageSize` (พร้อม `unread`), `POST /me/notifications/:id/read`, `POST /me/notifications/read-all`; `/auth/me` คืน `notifications.unread` สำหรับตัวเลขบนกระดิ่ง
 - หน้าเว็บ: กระดิ่งที่หัวเมนูข้าง (จอใหญ่) และแถบบน (มือถือ) → `/notifications` กดรายการแล้วทำเครื่องหมายอ่านและไปหน้าที่เกี่ยวข้อง
+
+## 20. ผู้ดูแลระบบตรวจข้อมูลผู้ใช้ และบันทึกข้อมูลบุคลากรแทน ERP (ยืนยันแล้ว)
+- permission `user_account:inspect` (ไม่ผูก role → super_admin): `GET /user-accounts/:userId/data` ข้อมูลชุดเดียวกับหน้า "ข้อมูลของฉัน" (`collectUserData` ใน `my-data-service.ts` ใช้ร่วมกัน) — ไม่บันทึกการเปิดดู; ไม่ส่งรหัสบัญชี Google ออกไป
+- หน้า `/admin/users/[userId]`: การ์ด "ข้อมูลบัญชี" (Google / ERP-HR / การใช้งาน) + ลิงก์ `/admin/users/[userId]/data` (component ร่วม `UserDataView`)
+- `login_events`: 1 แถวต่อการ login สำเร็จ + `erp_result` (ok / not_found / error, นิสิต = NULL) แก้ไขไม่ได้ ลบเมื่อเก่ากว่า 180 วัน
+- บันทึกแทน ERP (`user_account:create`): `GET/PUT /user-accounts/:userId/staff-profile` เฉพาะบัญชีบุคลากรที่ยังไม่มีข้อมูล ERP (ไม่มีแถว / `source='admin'`) มีข้อมูล ERP แล้ว → 409 `ERP_PROFILE_EXISTS`; ล็อกแถว users ใน transaction กันชนกับการ login; ชื่อแสดงเปลี่ยนเป็นชื่อไทยที่บันทึก และคงอยู่เมื่อ ERP ยังไม่พบ (กฎเดิมใน `upsertUserOnLogin`) จนกว่า ERP มีข้อมูล
