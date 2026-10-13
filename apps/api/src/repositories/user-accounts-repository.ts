@@ -227,3 +227,52 @@ export async function findProvisionedProfile(userId: string, db: Queryable = poo
   );
   return result.rows[0] ?? null;
 }
+
+export interface StaffProfileTarget {
+  email: string;
+  // ที่มาของข้อมูลบุคลากรปัจจุบัน (null = ยังไม่มีข้อมูลบุคลากรเลย)
+  source: 'erp' | 'admin' | null;
+}
+
+/**
+ * ล็อกแถวผู้ใช้ก่อนบันทึกข้อมูลบุคลากรแทน ERP (FOR UPDATE ที่ users)
+ * — การ login ก็อัปเดตแถว users ก่อนบันทึกข้อมูล ERP จึงต้องรอกัน ไม่ให้ชื่อที่ผู้ดูแลบันทึกทับข้อมูล ERP ที่เพิ่งได้มา
+ * อ่าน source แยกหลังล็อก (FOR UPDATE ใช้กับฝั่ง nullable ของ LEFT JOIN ไม่ได้)
+ */
+export async function lockStaffProfileTarget(userId: string, db: Queryable): Promise<StaffProfileTarget | null> {
+  const user = await db.query<{ email: string }>('SELECT email FROM users WHERE id = $1 FOR UPDATE', [userId]);
+  if (!user.rows[0]) return null;
+  const profile = await db.query<{ source: 'erp' | 'admin' }>('SELECT source FROM staff_profiles WHERE user_id = $1', [userId]);
+  return { email: user.rows[0].email, source: profile.rows[0]?.source ?? null };
+}
+
+// ชื่อแสดงในระบบ = "ชื่อ นามสกุล" ไทย (เหมือนชื่อจาก ERP)
+export async function updateUserDisplayName(userId: string, name: string, db: Queryable): Promise<void> {
+  await db.query('UPDATE users SET name = $2 WHERE id = $1', [userId, name]);
+}
+
+export interface ManualStaffProfile {
+  email: string;
+  source: 'erp' | 'admin' | null;
+  prefixNameTh: string | null;
+  firstNameTh: string | null;
+  lastNameTh: string | null;
+  prefixNameEn: string | null;
+  firstNameEn: string | null;
+  lastNameEn: string | null;
+  orgUnitId: string | null;
+  positionNameTh: string | null;
+}
+
+// ข้อมูลบุคลากรปัจจุบันของผู้ใช้ (ไม่มีแถว = ค่าว่างทั้งหมด, source null) — null = ไม่พบผู้ใช้
+export async function findStaffProfileForEdit(userId: string, db: Queryable = pool): Promise<ManualStaffProfile | null> {
+  const result = await db.query<ManualStaffProfile>(
+    `SELECT u.email, sp.source, sp.prefix_name_th AS "prefixNameTh", sp.first_name_th AS "firstNameTh", sp.last_name_th AS "lastNameTh",
+            sp.prefix_name_en AS "prefixNameEn", sp.first_name_en AS "firstNameEn", sp.last_name_en AS "lastNameEn",
+            sp.org_unit_id AS "orgUnitId", sp.position_name_th AS "positionNameTh"
+       FROM users u LEFT JOIN staff_profiles sp ON sp.user_id = u.id
+      WHERE u.id = $1`,
+    [userId],
+  );
+  return result.rows[0] ?? null;
+}

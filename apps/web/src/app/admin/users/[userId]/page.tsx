@@ -4,11 +4,13 @@ import { ProvisionUserForm, type ProvisionValues } from '@/components/admin/Prov
 import { GrantRoleForm } from '@/components/admin/GrantRoleForm';
 import { RevokeRoleButton } from '@/components/admin/RevokeRoleButton';
 import { RoleBadge } from '@/components/RoleBadge';
+import { Avatar } from '@/components/ui/Avatar';
 import { PageHeader } from '@/components/ui/PageHeader';
 import { apiFetch, apiGetJson } from '@/lib/api-server';
 import { ACCOUNT_EVENT_LABELS, type AccountOverview, type AdminRole, type AdminUserOverview } from '@/lib/admin-types';
 import { getCurrentUser } from '@/lib/auth';
 import { formatDateTime } from '@/lib/format';
+import { ERP_RESULT_LABELS, type MyData } from '@/lib/my-data-types';
 
 // ข้อมูลที่กรอกของบัญชีที่ยังไม่ผูก (null = ผูกแล้ว/ไม่ใช่บัญชีที่เพิ่มล่วงหน้า — API ตอบ 404)
 async function loadProvisioned(userId: string): Promise<{ values: ProvisionValues; orgUnits: { id: string; code: string; nameTh: string }[] } | null> {
@@ -34,6 +36,41 @@ async function loadProvisioned(userId: string): Promise<{ values: ProvisionValue
   };
 }
 
+type OrgUnitOption = { id: string; code: string; nameTh: string };
+
+// ข้อมูลบุคลากรสำหรับฟอร์ม "บันทึกแทน ERP" — แสดงเฉพาะบัญชีบุคลากรที่ยังไม่มีข้อมูลจาก ERP (API บอกด้วย editable)
+async function loadManualProfile(userId: string): Promise<{ values: ProvisionValues; orgUnits: OrgUnitOption[]; hasProfile: boolean } | null> {
+  const data = await apiGetJson<{ editable: boolean; profile: Record<string, string | null> }>(`/user-accounts/${encodeURIComponent(userId)}/staff-profile`);
+  if (!data.editable) return null;
+  const orgUnits = await apiGetJson<{ items: OrgUnitOption[] }>('/provisioning/org-units');
+  const v = (key: string) => data.profile[key] ?? '';
+  return {
+    orgUnits: orgUnits.items,
+    hasProfile: data.profile.source === 'admin',
+    values: {
+      email: v('email'),
+      prefixNameTh: v('prefixNameTh'),
+      firstNameTh: v('firstNameTh'),
+      lastNameTh: v('lastNameTh'),
+      prefixNameEn: v('prefixNameEn'),
+      firstNameEn: v('firstNameEn'),
+      lastNameEn: v('lastNameEn'),
+      orgUnitId: v('orgUnitId'),
+      positionNameTh: v('positionNameTh'),
+    },
+  };
+}
+
+function SummaryRow({ label, value, note }: { label: string; value: React.ReactNode; note?: string }) {
+  return (
+    <div className="py-2.5">
+      <dt className="text-sm text-stone">{label}</dt>
+      <dd className="mt-0.5 text-[0.9375rem] break-words text-ink">{value || '—'}</dd>
+      {note && <dd className="mt-0.5 text-sm text-kin">{note}</dd>}
+    </div>
+  );
+}
+
 export default async function AdminUserDetailPage({ params }: { params: Promise<{ userId: string }> }) {
   const { userId } = await params;
   const [overview, roles, current] = await Promise.all([
@@ -48,6 +85,12 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
   // บัญชีที่เพิ่มล่วงหน้าและยังไม่ผูก: แก้ข้อมูลได้ (permission user_account:create) — บัญชีที่ผูกแล้ว API ตอบ 404 จึงไม่แสดง
   const canProvision = Boolean(current && (current.roles.includes('super_admin') || current.permissions.includes('user_account:create')));
   const provisioned = canProvision ? await loadProvisioned(userId) : null;
+  // บัญชีที่เข้าระบบแล้วแต่ ERP ไม่มีข้อมูล: บันทึกชื่อ/หน่วยงานแทน ERP ได้ (permission เดียวกัน)
+  const manual = canProvision && !provisioned ? await loadManualProfile(userId) : null;
+  // ข้อมูลบัญชีแบบเต็ม (Google, ERP, การเข้าระบบ): permission user_account:inspect (ไม่ผูก role → super_admin)
+  const canInspect = Boolean(current && (current.roles.includes('super_admin') || current.permissions.includes('user_account:inspect')));
+  const data = canInspect ? await apiGetJson<MyData>(`/user-accounts/${encodeURIComponent(userId)}/data`) : null;
+  const lastErp = data?.loginEvents.find((e) => e.erpResult !== null) ?? null;
   const grantableByCode = new Map(roles.items.map((role) => [role.code, role.grantable]));
   const heldCodes = new Set(overview.roles.map((role) => role.code));
   // แก้ role ของตัวเองไม่ได้ (API ก็ปฏิเสธ) จึงไม่แสดงปุ่มเพื่อไม่ให้สับสน
@@ -64,6 +107,77 @@ export default async function AdminUserDetailPage({ params }: { params: Promise<
         {!user.isActive && <p className="mt-2 text-sm font-medium text-beni">บัญชีนี้ถูกปิดการใช้งาน</p>}
         {isSelf && <p className="mt-2 text-sm text-kin">นี่คือบัญชีของคุณ — แก้ไข role ของตนเองไม่ได้</p>}
       </section>
+
+      {data && (
+        <section className="mt-3 bento p-5 sm:mt-4 sm:p-6">
+          <div className="flex flex-wrap items-start justify-between gap-3">
+            <h2 className="font-serif text-lg font-medium">ข้อมูลบัญชี</h2>
+            <Link href={`/admin/users/${user.id}/data`} className="btn btn-secondary !min-h-10 text-sm">
+              ดูข้อมูลทั้งหมด
+            </Link>
+          </div>
+          <div className="mt-2 grid gap-x-8 sm:grid-cols-3">
+            <div>
+              <p className="pb-1 text-xs font-medium tracking-wide text-matcha-700">จาก Google</p>
+              <dl className="divide-y divide-ink/[0.06]">
+                <SummaryRow
+                  label="ชื่อในบัญชี Google"
+                  value={
+                    <span className="flex items-center gap-2">
+                      <Avatar name={data.account.googleName} email={data.account.email} pictureUrl={data.account.pictureUrl} size="sm" />
+                      {data.account.googleName ?? '—'}
+                    </span>
+                  }
+                />
+                <SummaryRow label="บัญชี Google" value={data.account.hasLinkedGoogle ? 'ผูกแล้ว' : 'ยังไม่ผูก (ยังไม่เคยเข้าสู่ระบบ)'} />
+                <SummaryRow label="อีเมล" value={data.account.email} />
+              </dl>
+            </div>
+            <div>
+              <p className="pb-1 text-xs font-medium tracking-wide text-matcha-700">จาก ERP-HR</p>
+              <dl className="divide-y divide-ink/[0.06]">
+                <SummaryRow
+                  label="ข้อมูลบุคลากร"
+                  value={
+                    data.staffProfile
+                      ? `${data.staffProfile.source === 'erp' ? 'จาก ERP' : 'ผู้ดูแลบันทึกแทน ERP'} · ${formatDateTime(data.staffProfile.syncedAt)}`
+                      : data.studentProfile
+                        ? 'บัญชีนิสิต (ไม่ใช้ ERP)'
+                        : 'ยังไม่มีข้อมูล'
+                  }
+                />
+                <SummaryRow label="รหัสบุคลากร" value={data.staffProfile?.staffCode} />
+                <SummaryRow
+                  label="การดึงข้อมูล ERP ครั้งล่าสุด"
+                  value={lastErp ? formatDateTime(lastErp.loggedInAt) : 'ไม่มีบันทึก (180 วันล่าสุด)'}
+                  note={lastErp && lastErp.erpResult !== 'ok' ? ERP_RESULT_LABELS[lastErp.erpResult!] : undefined}
+                />
+              </dl>
+            </div>
+            <div>
+              <p className="pb-1 text-xs font-medium tracking-wide text-matcha-700">การใช้งาน</p>
+              <dl className="divide-y divide-ink/[0.06]">
+                <SummaryRow label="เข้าสู่ระบบล่าสุด" value={formatDateTime(data.account.lastLoginAt)} />
+                <SummaryRow label="เข้าสู่ระบบ 180 วันล่าสุด" value={`${data.loginEvents.length.toLocaleString('th-TH')}${data.loginEvents.length >= 50 ? '+' : ''} ครั้ง`} />
+                <SummaryRow label="อุปกรณ์ที่ยังเข้าสู่ระบบอยู่" value={`${data.sessions.active} อุปกรณ์`} />
+              </dl>
+            </div>
+          </div>
+        </section>
+      )}
+
+      {manual && (
+        <section className="mt-3 bento p-5 sm:mt-4 sm:p-6">
+          <h2 className="font-serif text-lg font-medium">บันทึกข้อมูลบุคลากรแทน ERP</h2>
+          <p className="mt-1 mb-4 text-sm text-stone">
+            {manual.hasProfile
+              ? 'ข้อมูลนี้ผู้ดูแลระบบบันทึกไว้แทน ERP แก้ไขได้จนกว่า ERP จะมีข้อมูล'
+              : 'บัญชีนี้ยังไม่มีข้อมูลจาก ERP (เช่น ERP ไม่ได้บันทึกอีเมลของบุคลากร) จึงแสดงชื่อจาก Google และไม่ทราบหน่วยงาน'}{' '}
+            — ระบบจะใช้ข้อมูลจาก ERP แทนอัตโนมัติเมื่อเจ้าตัวเข้าสู่ระบบและ ERP มีข้อมูลแล้ว
+          </p>
+          <ProvisionUserForm mode="manual" orgUnits={manual.orgUnits} userId={user.id} initial={manual.values} />
+        </section>
+      )}
 
       {provisioned && (
         <section className="mt-3 bento p-5 sm:mt-4 sm:p-6">

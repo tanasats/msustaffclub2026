@@ -11,20 +11,32 @@ const LIMIT = 500;
 export interface MyAccount {
   email: string;
   name: string | null;
+  // ชื่อจากบัญชี Google (ชื่อแสดงในระบบใช้ชื่อจาก ERP)
+  googleName: string | null;
   pictureUrl: string | null;
+  // ผูกกับบัญชี Google แล้ว (เคยเข้าระบบ) — ไม่ส่งรหัสบัญชี Google ออกไป
+  hasLinkedGoogle: boolean;
+  isActive: boolean;
+  // ผู้ดูแลระบบที่เพิ่มบัญชีไว้ล่วงหน้า (null = สร้างเองตอนเข้าระบบครั้งแรก)
+  createdByName: string | null;
   createdAt: Date;
   lastLoginAt: Date | null;
   fontScale: string | null;
+  emailNotifications: boolean;
   roles: { code: string; nameTh: string }[];
 }
 
 export async function getMyAccount(userId: string, db: Queryable = pool): Promise<MyAccount | null> {
   const result = await db.query<MyAccount>(
-    `SELECT u.email, u.name, u.picture_url AS "pictureUrl", u.created_at AS "createdAt", u.last_login_at AS "lastLoginAt",
-            p.font_scale AS "fontScale",
+    `SELECT u.email, u.name, u.google_name AS "googleName", u.picture_url AS "pictureUrl",
+            (u.google_sub IS NOT NULL) AS "hasLinkedGoogle", u.is_active AS "isActive", creator.name AS "createdByName",
+            u.created_at AS "createdAt", u.last_login_at AS "lastLoginAt",
+            p.font_scale AS "fontScale", COALESCE(p.email_notifications, true) AS "emailNotifications",
             COALESCE((SELECT json_agg(json_build_object('code', r.code, 'nameTh', r.name_th) ORDER BY r.code)
                         FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE ur.user_id = u.id), '[]'::json) AS roles
-       FROM users u LEFT JOIN user_preferences p ON p.user_id = u.id
+       FROM users u
+       LEFT JOIN user_preferences p ON p.user_id = u.id
+       LEFT JOIN users creator ON creator.id = u.created_by
       WHERE u.id = $1`,
     [userId],
   );
@@ -32,7 +44,9 @@ export async function getMyAccount(userId: string, db: Queryable = pool): Promis
 }
 
 export interface MyStaffProfile {
-  staffCode: string;
+  // erp = ข้อมูลจาก ERP-HR, admin = ผู้ดูแลระบบบันทึกแทน (ERP ไม่มีข้อมูล / ยังไม่เคยเข้าระบบ) — admin ไม่มีรหัสบุคลากร
+  source: 'erp' | 'admin';
+  staffCode: string | null;
   prefixNameTh: string | null;
   firstNameTh: string | null;
   lastNameTh: string | null;
@@ -43,16 +57,24 @@ export interface MyStaffProfile {
   facultyName: string | null;
   departmentName: string | null;
   programName: string | null;
+  erpFacultyId: string | null;
+  erpDepartmentId: string | null;
+  erpProgramId: string | null;
+  // หน่วยงานในระบบที่จับคู่ได้ (org_units)
+  orgUnitName: string | null;
   syncedAt: Date;
 }
 
 export async function getMyStaffProfile(userId: string, db: Queryable = pool): Promise<MyStaffProfile | null> {
   const result = await db.query<MyStaffProfile>(
-    `SELECT staff_code AS "staffCode", prefix_name_th AS "prefixNameTh", first_name_th AS "firstNameTh", last_name_th AS "lastNameTh",
-            prefix_name_en AS "prefixNameEn", first_name_en AS "firstNameEn", last_name_en AS "lastNameEn",
-            position_name_th AS "positionNameTh", erp_faculty_name AS "facultyName", erp_department_name AS "departmentName",
-            erp_program_name AS "programName", synced_at AS "syncedAt"
-       FROM staff_profiles WHERE user_id = $1`,
+    `SELECT sp.source, sp.staff_code AS "staffCode", sp.prefix_name_th AS "prefixNameTh", sp.first_name_th AS "firstNameTh",
+            sp.last_name_th AS "lastNameTh", sp.prefix_name_en AS "prefixNameEn", sp.first_name_en AS "firstNameEn",
+            sp.last_name_en AS "lastNameEn", sp.position_name_th AS "positionNameTh", sp.erp_faculty_name AS "facultyName",
+            sp.erp_department_name AS "departmentName", sp.erp_program_name AS "programName",
+            sp.erp_faculty_id AS "erpFacultyId", sp.erp_department_id AS "erpDepartmentId", sp.erp_program_id AS "erpProgramId",
+            o.name_th AS "orgUnitName", sp.synced_at AS "syncedAt"
+       FROM staff_profiles sp LEFT JOIN org_units o ON o.id = sp.org_unit_id
+      WHERE sp.user_id = $1`,
     [userId],
   );
   return result.rows[0] ?? null;
@@ -272,4 +294,16 @@ export async function getMySessionSummary(userId: string, db: Queryable = pool) 
     [userId],
   );
   return result.rows[0]!;
+}
+
+export type LoginErpResult = 'ok' | 'not_found' | 'error';
+
+// ประวัติการเข้าระบบ (เก็บ 180 วัน) ใหม่สุดก่อน พร้อมผลการดึงข้อมูลจาก ERP ในครั้งนั้น
+export async function listMyLoginEvents(userId: string, limit: number, db: Queryable = pool) {
+  const result = await db.query<{ loggedInAt: Date; erpResult: LoginErpResult | null }>(
+    `SELECT created_at AS "loggedInAt", erp_result AS "erpResult"
+       FROM login_events WHERE user_id = $1 ORDER BY created_at DESC LIMIT $2`,
+    [userId, limit],
+  );
+  return result.rows;
 }

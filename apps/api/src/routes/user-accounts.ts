@@ -3,10 +3,13 @@ import { z } from 'zod';
 import { getRequiredAuth, requirePermission } from '../middlewares/auth.js';
 import { PERMISSIONS } from '../services/permissions.js';
 import { deactivateAccount, getAccountOverview, reactivateAccount } from '../services/user-account-service.js';
+import { getUserDataForAdmin } from '../services/my-data-service.js';
 import {
   createProvisionedUser,
+  getManualStaffProfile,
   getOrgUnitOptions,
   getProvisionedProfile,
+  saveManualStaffProfile,
   updateProvisionedUserProfile,
 } from '../services/user-provisioning-service.js';
 import { parseIdParam, requiredText } from './validation.js';
@@ -51,6 +54,25 @@ userAccountsRouter.get('/provisioned-users/:userId', requireCreate, async (req, 
 userAccountsRouter.put('/provisioned-users/:userId', requireCreate, async (req, res) => {
   await updateProvisionedUserProfile(getRequiredAuth(req), userIdOf(req.params.userId), provisionSchema.parse(req.body));
   res.status(204).end();
+});
+
+// ---------- บันทึกข้อมูลบุคลากรแทน ERP: ต้องมี user_account:create (บัญชีบุคลากรที่ ERP ไม่มีข้อมูล) ----------
+
+const manualStaffProfileSchema = provisionSchema.omit({ email: true });
+
+userAccountsRouter.get('/user-accounts/:userId/staff-profile', requireCreate, async (req, res) => {
+  res.json(await getManualStaffProfile(userIdOf(req.params.userId)));
+});
+
+userAccountsRouter.put('/user-accounts/:userId/staff-profile', requireCreate, async (req, res) => {
+  await saveManualStaffProfile(getRequiredAuth(req), userIdOf(req.params.userId), manualStaffProfileSchema.parse(req.body));
+  res.status(204).end();
+});
+
+// ---------- ข้อมูลผู้ใช้แบบเต็ม: ต้องมี user_account:inspect (ไม่ผูก role → super_admin) ชุดเดียวกับหน้า "ข้อมูลของฉัน" ----------
+userAccountsRouter.get('/user-accounts/:userId/data', requirePermission(PERMISSIONS.USER_ACCOUNT_INSPECT), async (req, res) => {
+  res.set('Cache-Control', 'no-store');
+  res.json(await getUserDataForAdmin(userIdOf(req.params.userId)));
 });
 
 // ---------- ปิด/เปิดบัญชีผู้ใช้ที่พ้นจากมหาวิทยาลัย: ทุก endpoint ต้องมี user_account:deactivate (ไม่ผูก role → super_admin) ----------
