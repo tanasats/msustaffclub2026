@@ -483,6 +483,7 @@ stateDiagram-v2
 - **ประกาศสโมสร** — permission `staff_announcement:send` ผูกกับ `club_officer`, `club_president` (+ super_admin) หน้า `/staff-announcements`
   - กลุ่มผู้รับ: บุคลากรทุกคน (บัญชีที่มี role staff) / กรรมการชมรมทุกชมรม / สมาชิกชมรมทุกชมรม (เฉพาะชมรมที่ดำเนินการอยู่) / ตามหน่วยงาน (`staff_profiles.org_unit_id`) — เฉพาะบัญชีที่ใช้งานอยู่ ไม่รวมผู้ส่ง
   - API: `GET /staff-announcements/org-units`, `POST /staff-announcements/recipient-count` (นับก่อนส่ง), `POST /staff-announcements`, `GET /staff-announcements?page`
+  - **รายบุคคล** (`audience = individual` + `recipient_user_id`): 1 คนต่อครั้ง ค้นหาได้ทุกบัญชีที่ใช้งานอยู่รวมนิสิต (`GET /staff-announcements/users?q`) ส่งถึงตนเอง/บัญชีที่ปิดไม่ได้ หัวเรื่อง "[สโมสรบุคลากร]" (ไม่ใช่ "[ประกาศสโมสรบุคลากร]")
 - **ข้อความชมรม** — สิทธิ์ชมรม `club_message:send` (กรรมการทุกตำแหน่ง รวมผู้จัดการทีม/โค้ช ไม่รวมที่ปรึกษา; ชมรมที่ไม่ active ไม่มีสิทธิ์) ส่งถึงสมาชิก active ของชมรม หน้า `/clubs/[clubId]/messages`
   - API: `GET /clubs/:clubId/messages`, `GET /clubs/:clubId/messages/recipient-count`, `POST /clubs/:clubId/messages`
 - ส่งผ่าน `enqueue` เดิม: กระดิ่งให้ผู้รับทุกคน + อีเมลตามค่าตั้งของผู้รับและสวิตช์ผู้ดูแล (เหตุการณ์ `staff_announcement`, `club_message` เปิด/ปิดแยกได้ที่ `/admin/email`)

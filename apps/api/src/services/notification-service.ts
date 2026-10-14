@@ -309,15 +309,16 @@ const toParagraphs = (body: string) =>
     .map((line) => line.trim())
     .filter(Boolean);
 
-// ประกาศจากสโมสรบุคลากร → ผู้รับตามกลุ่ม (รายการเต็มอยู่ที่หน้าการแจ้งเตือน)
+// ประกาศจากสโมสรบุคลากร → ผู้รับตามกลุ่ม หรือรายบุคคล (personal) — ข้อความเต็มอยู่ที่หน้าการแจ้งเตือน
 export async function notifyStaffAnnouncement(
   db: Queryable,
   messageId: string,
   recipients: Recipient[],
-  input: { title: string; body: string; senderName: string | null },
+  input: { title: string; body: string; senderName: string | null; personal?: boolean },
 ): Promise<void> {
   await enqueue(db, NOTIFICATION_EVENTS.STAFF_ANNOUNCEMENT, messageId, recipients, {
-    subject: `[ประกาศสโมสรบุคลากร] ${input.title}`,
+    // ข้อความถึงรายบุคคลไม่ใช่ "ประกาศ" จึงใช้หัวเรื่องคนละแบบ
+    subject: `${input.personal ? '[สโมสรบุคลากร]' : '[ประกาศสโมสรบุคลากร]'} ${input.title}`,
     paragraphs: [...toParagraphs(input.body), `— ${input.senderName ?? 'สโมสรบุคลากร'} สโมสรบุคลากร มหาวิทยาลัยมหาสารคาม`],
     actionLabel: 'เปิดระบบ',
     actionPath: '/notifications',

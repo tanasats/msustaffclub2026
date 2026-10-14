@@ -5,6 +5,7 @@ import {
   countClubMessageRecipients,
   countStaffAnnouncementRecipients,
   getAnnouncementOrgUnits,
+  searchAnnouncementRecipients,
   listClubMessages,
   listStaffAnnouncements,
   sendClubMessage,
@@ -16,14 +17,16 @@ import { requiredText } from './validation.js';
 
 export const broadcastsRouter = Router();
 
-const audienceSchema = z
-  .object({
-    audience: z.enum(['all_staff', 'club_committees', 'club_members', 'org_units']),
-    orgUnitIds: z.array(z.uuid()).max(100).default([]),
-  })
-  .strict();
+const audienceFields = {
+  audience: z.enum(['all_staff', 'club_committees', 'club_members', 'org_units', 'individual']),
+  orgUnitIds: z.array(z.uuid()).max(100).default([]),
+  // ผู้รับรายบุคคล 1 คน (audience = individual)
+  recipientUserId: z.uuid().nullable().default(null),
+};
+const audienceSchema = z.object(audienceFields).strict();
 const messageFields = { title: requiredText(200), body: requiredText(3000) };
-const staffAnnouncementSchema = audienceSchema.extend(messageFields).strict();
+const staffAnnouncementSchema = z.object({ ...audienceFields, ...messageFields }).strict();
+const userSearchSchema = z.object({ q: z.string().trim().min(2).max(100) });
 const clubMessageSchema = z.object(messageFields).strict();
 const pageSchema = z.object({ page: z.coerce.number().int().min(1).max(1000).default(1) });
 
@@ -36,6 +39,11 @@ broadcastsRouter.get('/staff-announcements', requireAnnouncer, async (req, res) 
 
 broadcastsRouter.get('/staff-announcements/org-units', requireAnnouncer, async (_req, res) => {
   res.json(await getAnnouncementOrgUnits());
+});
+
+// ค้นหาผู้รับรายบุคคล (ชื่อหรืออีเมล อย่างน้อย 2 ตัวอักษร)
+broadcastsRouter.get('/staff-announcements/users', requireAnnouncer, async (req, res) => {
+  res.json(await searchAnnouncementRecipients(userSearchSchema.parse(req.query).q));
 });
 
 // จำนวนผู้รับก่อนส่ง (POST เพราะรับรายการหน่วยงาน)
