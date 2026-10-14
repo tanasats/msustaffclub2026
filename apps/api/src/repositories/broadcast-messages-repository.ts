@@ -1,7 +1,7 @@
 import { pool, type Queryable } from '../db/pool.js';
 import type { Recipient } from './notification-recipients-repository.js';
 
-export type StaffAudience = 'all_staff' | 'club_committees' | 'club_members' | 'org_units';
+export type StaffAudience = 'all_staff' | 'club_committees' | 'club_members' | 'org_units' | 'individual';
 export type BroadcastKind = 'staff_announcement' | 'club_message';
 
 /**
@@ -45,6 +45,12 @@ export async function listStaffAudience(
   return result.rows;
 }
 
+// ผู้รับรายบุคคล: บัญชีที่ใช้งานอยู่ (ทุกประเภทบัญชี) — null = ไม่พบหรือถูกปิด
+export async function findActiveRecipient(userId: string, db: Queryable = pool): Promise<Recipient | null> {
+  const result = await db.query<Recipient>('SELECT id AS "userId", email, name FROM users WHERE id = $1 AND is_active', [userId]);
+  return result.rows[0] ?? null;
+}
+
 // สมาชิก active ของชมรม (บัญชีที่ใช้งานอยู่ ไม่รวมผู้ส่ง) — กรรมการทุกคนเป็นสมาชิกด้วยจึงได้รับด้วย
 export async function listClubMemberAudience(clubId: string, excludeUserId: string, limit: number, db: Queryable = pool): Promise<Recipient[]> {
   const result = await db.query<Recipient>(
@@ -75,6 +81,8 @@ export interface NewBroadcastMessage {
   clubId: string | null;
   audience: StaffAudience | 'club';
   orgUnitIds: string[] | null;
+  // ผู้รับรายบุคคล (เฉพาะ audience = individual)
+  recipientUserId: string | null;
   title: string;
   body: string;
   recipientCount: number;
@@ -82,9 +90,9 @@ export interface NewBroadcastMessage {
 
 export async function insertBroadcastMessage(input: NewBroadcastMessage, db: Queryable): Promise<string> {
   const result = await db.query<{ id: string }>(
-    `INSERT INTO broadcast_messages (kind, sender_user_id, club_id, audience, org_unit_ids, title, body, recipient_count)
-     VALUES ($1, $2, $3, $4, $5, $6, $7, $8) RETURNING id`,
-    [input.kind, input.senderUserId, input.clubId, input.audience, input.orgUnitIds, input.title, input.body, input.recipientCount],
+    `INSERT INTO broadcast_messages (kind, sender_user_id, club_id, audience, org_unit_ids, recipient_user_id, title, body, recipient_count)
+     VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9) RETURNING id`,
+    [input.kind, input.senderUserId, input.clubId, input.audience, input.orgUnitIds, input.recipientUserId, input.title, input.body, input.recipientCount],
   );
   return result.rows[0]!.id;
 }
@@ -93,6 +101,8 @@ export interface BroadcastMessageItem {
   id: string;
   audience: string;
   orgUnitNames: string[];
+  // ชื่อผู้รับรายบุคคล (audience = individual)
+  recipientName: string | null;
   title: string;
   body: string;
   recipientCount: number;
@@ -112,8 +122,11 @@ export async function listBroadcastMessages(
     db.query<BroadcastMessageItem>(
       `SELECT b.id, b.audience,
               COALESCE((SELECT array_agg(o.name_th ORDER BY o.name_th) FROM org_units o WHERE o.id = ANY(b.org_unit_ids)), '{}') AS "orgUnitNames",
+              COALESCE(r.name, r.email) AS "recipientName",
               b.title, b.body, b.recipient_count AS "recipientCount", s.name AS "senderName", b.created_at AS "createdAt"
-         FROM broadcast_messages b JOIN users s ON s.id = b.sender_user_id
+         FROM broadcast_messages b
+         JOIN users s ON s.id = b.sender_user_id
+         LEFT JOIN users r ON r.id = b.recipient_user_id
         WHERE b.kind = $1 AND ($2::uuid IS NULL OR b.club_id = $2)
         ORDER BY b.created_at DESC, b.id DESC
         LIMIT $3 OFFSET $4`,

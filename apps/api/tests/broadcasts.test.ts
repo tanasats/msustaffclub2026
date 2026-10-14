@@ -200,3 +200,55 @@ describe('ข้อความจากกรรมการชมรมถึ�
     await expect(pool.query('DELETE FROM broadcast_messages')).rejects.toThrow();
   });
 });
+
+describe('ข้อความจากสโมสรถึงรายบุคคล (audience = individual, 1 คนต่อครั้ง)', () => {
+  it('ส่งถึงบุคลากรหรือนิสิต 1 คน: กระดิ่ง + อีเมล หัวเรื่อง [สโมสรบุคลากร]; ประวัติแสดงชื่อผู้รับ', async () => {
+    await enableEmail();
+    const officer = await actor(['user', 'staff', 'club_officer']);
+    const student = await actor(['user', 'student']);
+    await pool.query("UPDATE users SET name = 'นิสิตทดสอบ ตัวอย่าง' WHERE id = $1", [student.id]);
+    const other = await actor();
+
+    expect((await post(officer, '/staff-announcements/recipient-count', { audience: 'individual', recipientUserId: student.id })).body).toEqual({ count: 1 });
+    const res = await post(officer, '/staff-announcements', { audience: 'individual', recipientUserId: student.id, ...MESSAGE });
+    expect(res.status).toBe(201);
+    expect(res.body.recipientCount).toBe(1);
+    expect(await notifiedUsers('staff_announcement')).toEqual([student.id]);
+    expect(await emailedUsers('staff_announcement')).toEqual([student.id]);
+    expect((await get(student, '/me/notifications')).body.items[0].title).toBe('[สโมสรบุคลากร] ประชุมสามัญประจำปี');
+    expect((await get(other, '/me/notifications')).body.items).toEqual([]);
+    expect((await get(officer, '/staff-announcements')).body.items[0]).toMatchObject({ audience: 'individual', recipientName: 'นิสิตทดสอบ ตัวอย่าง', recipientCount: 1 });
+  });
+
+  it('ไม่เลือกผู้รับ / ส่งถึงตนเอง / บัญชีถูกปิด → 422; ค้นหาผู้รับได้ทุกบัญชีที่ใช้งานอยู่ (สิทธิ์เดียวกับประกาศ)', async () => {
+    const officer = await actor(['user', 'staff', 'club_president']);
+    const inactive = await actor(['user', 'staff'], { isActive: false });
+    const staff = await actor();
+    const code = async (body: object) => (await post(officer, '/staff-announcements', { ...MESSAGE, ...body })).body.error.code;
+    expect(await code({ audience: 'individual' })).toBe('RECIPIENT_REQUIRED');
+    expect(await code({ audience: 'individual', recipientUserId: officer.id })).toBe('CANNOT_SEND_TO_SELF');
+    expect(await code({ audience: 'individual', recipientUserId: inactive.id })).toBe('RECIPIENT_NOT_FOUND');
+
+    await pool.query("UPDATE users SET name = 'นิสิตค้นหา' WHERE id = (SELECT id FROM users WHERE id <> $1 AND is_active LIMIT 1)", [officer.id]);
+    const found = (await get(officer, '/staff-announcements/users?q=' + encodeURIComponent('นิสิตค้นหา'))).body.items;
+    expect(found).toHaveLength(1);
+    expect((await get(officer, '/staff-announcements/users?q=a')).status).toBe(400);
+    expect((await get(staff, '/staff-announcements/users?q=' + encodeURIComponent('นิสิต'))).status).toBe(403);
+  });
+
+  it('ฐานข้อมูลบังคับ: รายบุคคลต้องมีผู้รับ และกลุ่มอื่นต้องไม่ระบุผู้รับ', async () => {
+    const officer = await actor(['user', 'staff', 'club_officer']);
+    await expect(
+      pool.query(
+        `INSERT INTO broadcast_messages (kind, sender_user_id, audience, title, body, recipient_count) VALUES ('staff_announcement', $1, 'individual', 'x', 'x', 1)`,
+        [officer.id],
+      ),
+    ).rejects.toThrow(/broadcast_messages_individual_check/);
+    await expect(
+      pool.query(
+        `INSERT INTO broadcast_messages (kind, sender_user_id, audience, recipient_user_id, title, body, recipient_count) VALUES ('staff_announcement', $1, 'all_staff', $1, 'x', 'x', 1)`,
+        [officer.id],
+      ),
+    ).rejects.toThrow(/broadcast_messages_individual_check/);
+  });
+});
