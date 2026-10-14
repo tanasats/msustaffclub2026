@@ -184,8 +184,8 @@ Role และ permission เฉพาะระบบนี้ (**เริ่�
 |---|---|---|---|
 | `student` | นิสิต | false | (ยังไม่ผูก) — `is_system`, ระบบให้อัตโนมัติตอน login |
 | `staff` | บุคลากร | false | `club_application:create` — `is_system`, ระบบให้อัตโนมัติตอน login |
-| `club_officer` | เจ้าหน้าที่สโมสร | true | `club_application:review`, `club_report:review`, `sport:manage` |
-| `club_president` | นายกสโมสร | true | `club_application:approve` |
+| `club_officer` | เจ้าหน้าที่สโมสร | true | `club_application:review`, `club_report:review`, `sport:manage`, `staff_announcement:send` |
+| `club_president` | นายกสโมสร | true | `club_application:approve`, `staff_announcement:send` |
 | `sport_selection_committee` | คณะกรรมการคัดเลือก | true | `sport_selection:manage` (สร้างไว้ก่อน super_admin มอบให้ผู้ใช้ภายหลัง) |
 
 Permission ที่ลงทะเบียนแล้ว (ยังไม่ผูกกับ role ใด → ใช้ได้เฉพาะ `super_admin`):
@@ -200,6 +200,7 @@ Permission ที่ลงทะเบียนแล้ว (ยังไม่�
 | `club:manage_all` | จัดการทุกชมรมและข้อมูลหลักของชมรม และผ่านสิทธิ์ระดับชมรมทุกข้อ |
 | `club_report:review` | รับทราบรายงานประจำปีของทุกชมรม และดูภาพรวมการส่งรายงาน (ผูกกับ `club_officer`) |
 | `sport:manage` | เพิ่ม/แก้ไข/ปิดใช้งานรายการชนิดกีฬา (ผูกกับ `club_officer`) |
+| `staff_announcement:send` | ส่งประกาศจากสโมสรบุคลากรถึงบุคลากร (ทุกคน / กรรมการชมรม / สมาชิกชมรม / ตามหน่วยงาน) (ผูกกับ `club_officer`, `club_president`) |
 | `sport_selection:manage` | เปิดรอบคัดเลือกตัวแทน/พิจารณารางวัลนักกีฬา และบันทึกผลการตัดสิน (ผูกกับ `sport_selection_committee`) |
 | `system_setting:manage` | ตั้งค่าระบบ รวมถึงเปิด/ปิดการส่งอีเมลแจ้งเตือน (ไม่ผูก role → เฉพาะ `super_admin`) |
 | `club_application:manage_deleted` | ดูคำขอที่ผู้ยื่นลบแล้ว และกู้คืนคำขอที่ยกเลิก/ลบแล้วเป็นฉบับร่าง (ไม่ผูก role → เฉพาะ `super_admin`) |
@@ -213,6 +214,7 @@ Permission ที่ลงทะเบียนแล้ว (ยังไม่�
 - ตรวจด้วย `getClubPermissions` / `hasClubPermission(auth, clubId, 'x')` และ middleware `requireClubPermission('x')` เท่านั้น **ห้ามเช็คชื่อตำแหน่งตรง ๆ** (เช่น `position === 'president'`)
 - ข้อยกเว้นทั้งหมดอยู่ใน `getClubPermissions` ที่เดียว: `club:manage_all` (รวม `super_admin`) ได้ทุกสิทธิ์ชมรม, `club:read_all` ได้ `club:view_internal`, ชมรมที่ไม่ active เหลือสิทธิ์อ่านอย่างเดียว
 - ชมรมกีฬา (ระยะที่ 5): สิทธิ์ชมรม `club_sport:manage` (ประธาน รองประธาน เลขาฯ ผู้จัดการทีม/โค้ช) ใช้ได้เฉพาะชมรมประเภท `health_sports`; ไม่เก็บข้อมูลสุขภาพของนักกีฬา (PDPA)
+- ข้อความชมรม: สิทธิ์ชมรม `club_message:send` (กรรมการทุกตำแหน่ง) ส่งข้อความถึงสมาชิก active ของชมรม ผ่านระบบแจ้งเตือน (กระดิ่ง + อีเมลตามค่าตั้งผู้รับ) บันทึกใน `broadcast_messages` (แก้/ลบไม่ได้)
 - ผลงานชมรม: เจ้าของ (สมาชิก active) บันทึกเอง → ผู้มีสิทธิ์ชมรม `club_achievement:manage` รับรอง/ส่งกลับ/ไม่รับรอง (รับรองของตัวเองไม่ได้) ดู `docs/design/club-establishment.md` หัวข้อ 11
 
 หลักการ:

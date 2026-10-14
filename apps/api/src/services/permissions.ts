@@ -14,6 +14,7 @@ export const PERMISSIONS = {
   USER_ACCOUNT_DEACTIVATE: 'user_account:deactivate',
   USER_ACCOUNT_CREATE: 'user_account:create',
   USER_ACCOUNT_INSPECT: 'user_account:inspect',
+  STAFF_ANNOUNCEMENT_SEND: 'staff_announcement:send',
   CLUB_APPLICATION_MANAGE_DELETED: 'club_application:manage_deleted',
   CLUB_MEMBERSHIP_MANAGE_DELETED: 'club_membership:manage_deleted',
 } as const;

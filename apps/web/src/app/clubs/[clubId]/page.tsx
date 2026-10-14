@@ -58,6 +58,8 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
   const expired = club.registeredUntil < bangkokToday();
   const isMember = club.me.membershipStatus === 'active';
   const canManageSports = club.me.permissions.includes('club_sport:manage') && club.status === 'active';
+  // ส่งข้อความถึงสมาชิก: สิทธิ์ชมรม club_message:send (กรรมการทุกตำแหน่ง; ชมรมที่ไม่ active ไม่มีสิทธิ์นี้)
+  const canMessageMembers = club.me.permissions.includes('club_message:send');
   const [members, requests, resignations, positions, history, achievements, achievementQueue, activities, renewal, clubSports, allSports, athletes] = await Promise.all([
     canViewInternal ? apiGetJson<{ items: ClubMember[]; total: number }>(`/clubs/${club.id}/members?pageSize=100`) : null,
     canApproveMembers ? apiGetJson<{ items: MembershipRequest[] }>(`/clubs/${club.id}/membership-requests`) : null,
@@ -410,6 +412,11 @@ export default async function ClubDetailPage({ params }: { params: Promise<{ clu
               <BentoTitle>รายชื่อสมาชิก ({members.total.toLocaleString('th-TH')} คน)</BentoTitle>
               <div className="flex flex-wrap items-center gap-2">
                 <Badge tone="neutral">ข้อมูลภายในชมรม</Badge>
+                {canMessageMembers && (
+                  <Link href={`/clubs/${club.id}/messages`} className="btn btn-secondary !min-h-10 text-sm">
+                    ส่งข้อความถึงสมาชิก
+                  </Link>
+                )}
                 <Link href={`/clubs/${club.id}/members`} className="btn btn-secondary !min-h-10 text-sm">
                   {canApproveMembers ? 'จัดการสมาชิก' : 'รายชื่อทั้งหมด'}
                 </Link>

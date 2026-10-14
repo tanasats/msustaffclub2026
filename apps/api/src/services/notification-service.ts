@@ -299,3 +299,42 @@ export async function notifyResignationRequested(db: Queryable, membershipId: st
     actionPath: clubPath(notice.clubId),
   });
 }
+
+// ---------- ข้อความถึงผู้ใช้หลายคน (ประกาศสโมสร / ข้อความชมรม) ----------
+
+// แยกข้อความเป็นย่อหน้าตามบรรทัด (อีเมล HTML ไม่แสดงการขึ้นบรรทัดภายในย่อหน้า)
+const toParagraphs = (body: string) =>
+  body
+    .split(/\n+/)
+    .map((line) => line.trim())
+    .filter(Boolean);
+
+// ประกาศจากสโมสรบุคลากร → ผู้รับตามกลุ่ม (รายการเต็มอยู่ที่หน้าการแจ้งเตือน)
+export async function notifyStaffAnnouncement(
+  db: Queryable,
+  messageId: string,
+  recipients: Recipient[],
+  input: { title: string; body: string; senderName: string | null },
+): Promise<void> {
+  await enqueue(db, NOTIFICATION_EVENTS.STAFF_ANNOUNCEMENT, messageId, recipients, {
+    subject: `[ประกาศสโมสรบุคลากร] ${input.title}`,
+    paragraphs: [...toParagraphs(input.body), `— ${input.senderName ?? 'สโมสรบุคลากร'} สโมสรบุคลากร มหาวิทยาลัยมหาสารคาม`],
+    actionLabel: 'เปิดระบบ',
+    actionPath: '/notifications',
+  });
+}
+
+// ข้อความจากกรรมการชมรม → สมาชิกชมรม (ลิงก์ไปหน้าชมรม)
+export async function notifyClubMessage(
+  db: Queryable,
+  messageId: string,
+  recipients: Recipient[],
+  input: { clubId: string; clubName: string; title: string; body: string; senderName: string | null },
+): Promise<void> {
+  await enqueue(db, NOTIFICATION_EVENTS.CLUB_MESSAGE, messageId, recipients, {
+    subject: `[${input.clubName}] ${input.title}`,
+    paragraphs: [...toParagraphs(input.body), `— ${input.senderName ?? 'กรรมการชมรม'} กรรมการ${input.clubName}`],
+    actionLabel: 'เปิดหน้าชมรม',
+    actionPath: `/clubs/${input.clubId}`,
+  });
+}

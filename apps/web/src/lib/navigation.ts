@@ -61,6 +61,9 @@ export function buildNavigation(current: CurrentUser): NavItem[] {
   if (has('club_report:review')) {
     items.push({ href: '/reports/overview', label: 'ภาพรวมการส่งรายงาน', shortLabel: 'รายงาน', icon: 'check', group: 'work' });
   }
+  if (has('staff_announcement:send')) {
+    items.push({ href: '/staff-announcements', label: 'ส่งประกาศถึงบุคลากร', shortLabel: 'ส่งประกาศ', icon: 'bell', group: 'work' });
+  }
   if (has('sport_selection:manage')) {
     items.push({ href: '/selections', label: 'การคัดเลือกนักกีฬา', shortLabel: 'คัดเลือก', icon: 'award', group: 'work' });
   }
