@@ -109,6 +109,7 @@
 | `club_report:submit` | ส่งรายงานรายเดือน/ประจำปี, ยื่นต่อทะเบียน | ✅ | – | ✅ | – | – | – | – | – |
 | `club_finance:manage` | งบประมาณชมรม (ระยะหลัง) | ✅ | – | – | ✅ | – | – | – | – |
 | `club_report:acknowledge` | รับทราบรายงานรายเดือน (ข้อ 16) | – | – | – | – | – | – | ✅ | – |
+| `club_message:send` | ส่งข้อความแจ้งเตือนถึงสมาชิกชมรม | ✅ | ✅ | ✅ | ✅ | ✅ | ✅ | – | – |
 
 สิ่งที่ **ทุกคนที่ login** ทำได้โดยไม่ต้องมีสิทธิ์ชมรม: ดูทำเนียบ/หน้าสาธารณะของชมรม, สมัครเป็นสมาชิก
 สิ่งที่ **สมาชิก** ทำได้: ดูหน้าชมรมที่ตนเป็นสมาชิก, ลาออกจากชมรม
@@ -477,3 +478,14 @@ stateDiagram-v2
 - หน้า `/admin/users/[userId]`: การ์ด "ข้อมูลบัญชี" (Google / ERP-HR / การใช้งาน) + ลิงก์ `/admin/users/[userId]/data` (component ร่วม `UserDataView`)
 - `login_events`: 1 แถวต่อการ login สำเร็จ + `erp_result` (ok / not_found / error, นิสิต = NULL) แก้ไขไม่ได้ ลบเมื่อเก่ากว่า 180 วัน
 - บันทึกแทน ERP (`user_account:create`): `GET/PUT /user-accounts/:userId/staff-profile` เฉพาะบัญชีบุคลากรที่ยังไม่มีข้อมูล ERP (ไม่มีแถว / `source='admin'`) มีข้อมูล ERP แล้ว → 409 `ERP_PROFILE_EXISTS`; ล็อกแถว users ใน transaction กันชนกับการ login; ชื่อแสดงเปลี่ยนเป็นชื่อไทยที่บันทึก และคงอยู่เมื่อ ERP ยังไม่พบ (กฎเดิมใน `upsertUserOnLogin`) จนกว่า ERP มีข้อมูล
+
+## 21. ประกาศจากสโมสรบุคลากร และข้อความจากกรรมการชมรม (ยืนยันแล้ว)
+- **ประกาศสโมสร** — permission `staff_announcement:send` ผูกกับ `club_officer`, `club_president` (+ super_admin) หน้า `/staff-announcements`
+  - กลุ่มผู้รับ: บุคลากรทุกคน (บัญชีที่มี role staff) / กรรมการชมรมทุกชมรม / สมาชิกชมรมทุกชมรม (เฉพาะชมรมที่ดำเนินการอยู่) / ตามหน่วยงาน (`staff_profiles.org_unit_id`) — เฉพาะบัญชีที่ใช้งานอยู่ ไม่รวมผู้ส่ง
+  - API: `GET /staff-announcements/org-units`, `POST /staff-announcements/recipient-count` (นับก่อนส่ง), `POST /staff-announcements`, `GET /staff-announcements?page`
+- **ข้อความชมรม** — สิทธิ์ชมรม `club_message:send` (กรรมการทุกตำแหน่ง รวมผู้จัดการทีม/โค้ช ไม่รวมที่ปรึกษา; ชมรมที่ไม่ active ไม่มีสิทธิ์) ส่งถึงสมาชิก active ของชมรม หน้า `/clubs/[clubId]/messages`
+  - API: `GET /clubs/:clubId/messages`, `GET /clubs/:clubId/messages/recipient-count`, `POST /clubs/:clubId/messages`
+- ส่งผ่าน `enqueue` เดิม: กระดิ่งให้ผู้รับทุกคน + อีเมลตามค่าตั้งของผู้รับและสวิตช์ผู้ดูแล (เหตุการณ์ `staff_announcement`, `club_message` เปิด/ปิดแยกได้ที่ `/admin/email`)
+- หัวข้อ ≤ 200 ตัวอักษร ข้อความ ≤ 3,000 ตัวอักษร ผู้รับต่อครั้ง ≤ 20,000 คน; ไม่มีผู้รับ → 422 ไม่บันทึก; ผู้ส่งต้องยืนยันจำนวนผู้รับก่อนส่ง
+- ตาราง `broadcast_messages` (แก้/ลบไม่ได้) เก็บผู้ส่ง กลุ่ม หน่วยงานที่เลือก หัวข้อ ข้อความ จำนวนผู้รับ — ข้อความถึงแต่ละคนอยู่ใน `notifications` (ลบเมื่อ 180 วัน)
+- ข้อควรระวัง: อีเมลจำนวนมากอาจชนโควตา Gmail ต่อวัน (คิวจะทยอยส่งและยกเลิกที่ค้างเกิน 24 ชม.) — กระดิ่งในระบบยังได้รับครบ
