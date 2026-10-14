@@ -66,16 +66,18 @@ describe('ข้อมูลตั้งต้นของชมรม', () => {
     const achievement = 'club_achievement:manage';
     // club_sport:manage + ตำแหน่งผู้จัดการทีม/โค้ช เพิ่มในระยะที่ 5 (ยืนยันแล้ว)
     const sport = 'club_sport:manage';
+    // club_message:send (ส่งข้อความถึงสมาชิก) ผูกกับกรรมการทุกตำแหน่ง (ยืนยันแล้ว)
+    const message = 'club_message:send';
     expect(matrix).toEqual({
-      president: [view, achievement, activity, 'club_committee:manage', 'club_finance:manage', 'club_member:approve', 'club_profile:edit', 'club_report:submit', sport],
-      vice_president: [view, achievement, activity, 'club_member:approve', 'club_profile:edit', sport],
-      secretary: [view, achievement, activity, 'club_member:approve', 'club_profile:edit', 'club_report:submit', sport],
-      assistant_secretary: [view, achievement, activity],
-      treasurer: [view, achievement, activity, 'club_finance:manage'],
-      assistant_treasurer: [view, achievement, activity],
-      public_relations: [view, achievement, activity, 'club_profile:edit'],
-      committee_member: [view, achievement, activity],
-      team_manager: [view, activity, sport],
+      president: [view, achievement, activity, 'club_committee:manage', 'club_finance:manage', 'club_member:approve', message, 'club_profile:edit', 'club_report:submit', sport],
+      vice_president: [view, achievement, activity, 'club_member:approve', message, 'club_profile:edit', sport],
+      secretary: [view, achievement, activity, 'club_member:approve', message, 'club_profile:edit', 'club_report:submit', sport],
+      assistant_secretary: [view, achievement, activity, message],
+      treasurer: [view, achievement, activity, 'club_finance:manage', message],
+      assistant_treasurer: [view, achievement, activity, message],
+      public_relations: [view, achievement, activity, message, 'club_profile:edit'],
+      committee_member: [view, achievement, activity, message],
+      team_manager: [view, activity, message, sport],
       advisor: [view, 'club_report:acknowledge'],
       member: [],
     });
@@ -89,8 +91,8 @@ describe('ข้อมูลตั้งต้นของชมรม', () => {
          FROM roles r WHERE r.code IN ('club_officer', 'club_president') ORDER BY r.code`,
     );
     expect(rows).toEqual([
-      { code: 'club_officer', name_th: 'เจ้าหน้าที่สโมสร', is_system: false, is_privileged: true, permissions: ['club_application:review', 'club_report:review', 'sport:manage'] },
-      { code: 'club_president', name_th: 'นายกสโมสร', is_system: false, is_privileged: true, permissions: ['club_application:approve'] },
+      { code: 'club_officer', name_th: 'เจ้าหน้าที่สโมสร', is_system: false, is_privileged: true, permissions: ['club_application:review', 'club_report:review', 'sport:manage', 'staff_announcement:send'] },
+      { code: 'club_president', name_th: 'นายกสโมสร', is_system: false, is_privileged: true, permissions: ['club_application:approve', 'staff_announcement:send'] },
     ]);
   });
 
@@ -142,6 +144,7 @@ describe('getClubPermissions', () => {
       CLUB_PERMISSIONS.ACHIEVEMENT_MANAGE,
       CLUB_PERMISSIONS.FINANCE_MANAGE,
       CLUB_PERMISSIONS.REPORT_ACKNOWLEDGE,
+      CLUB_PERMISSIONS.MESSAGE_SEND,
     ]);
   });
 

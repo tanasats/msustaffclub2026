@@ -11,6 +11,8 @@ export const NOTIFICATION_EVENTS = {
   MEMBERSHIP_DECIDED: 'membership_decided',
   MEMBERSHIP_INVITED: 'membership_invited',
   RESIGNATION_REQUESTED: 'resignation_requested',
+  STAFF_ANNOUNCEMENT: 'staff_announcement',
+  CLUB_MESSAGE: 'club_message',
 } as const;
 
 export type NotificationEvent = (typeof NOTIFICATION_EVENTS)[keyof typeof NOTIFICATION_EVENTS];
@@ -27,6 +29,8 @@ export const NOTIFICATION_EVENT_INFO: Record<NotificationEvent, { label: string;
   membership_decided: { label: 'ผลการพิจารณาใบสมัครสมาชิก', recipients: 'ผู้สมัคร' },
   membership_invited: { label: 'ได้รับคำเชิญเข้าชมรม', recipients: 'ผู้ถูกเชิญ' },
   resignation_requested: { label: 'สมาชิกยื่นลาออกจากชมรม', recipients: 'กรรมการที่อนุมัติสมาชิกได้' },
+  staff_announcement: { label: 'ประกาศจากสโมสรบุคลากร', recipients: 'บุคลากรตามกลุ่มที่ผู้ส่งเลือก' },
+  club_message: { label: 'ข้อความจากกรรมการชมรม', recipients: 'สมาชิกชมรม' },
 };
 
 export const ALL_NOTIFICATION_EVENTS = Object.values(NOTIFICATION_EVENTS);

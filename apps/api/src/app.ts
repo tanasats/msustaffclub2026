@@ -25,6 +25,7 @@ import { filesRouter } from './routes/files.js';
 import { healthRouter } from './routes/health.js';
 import { meRouter } from './routes/me.js';
 import { publicRouter } from './routes/public.js';
+import { broadcastsRouter } from './routes/broadcasts.js';
 
 // สร้าง Express app โดยไม่ listen เพื่อให้ test เรียกผ่าน supertest ได้
 export function createApp(): express.Express {
@@ -60,6 +61,7 @@ export function createApp(): express.Express {
   app.use(userAccountsRouter);
   app.use(meRouter);
   app.use(filesRouter);
+  app.use(broadcastsRouter);
 
   app.use(notFoundHandler);
   app.use(errorHandler);

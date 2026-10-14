@@ -11,6 +11,7 @@ export const CLUB_PERMISSIONS = {
   FINANCE_MANAGE: 'club_finance:manage',
   REPORT_ACKNOWLEDGE: 'club_report:acknowledge',
   SPORT_MANAGE: 'club_sport:manage',
+  MESSAGE_SEND: 'club_message:send',
 } as const;
 
 export type ClubPermissionCode = (typeof CLUB_PERMISSIONS)[keyof typeof CLUB_PERMISSIONS];
