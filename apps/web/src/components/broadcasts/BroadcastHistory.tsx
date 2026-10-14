@@ -17,7 +17,9 @@ export function BroadcastHistory({ items }: { items: BroadcastItem[] }) {
                   ? 'สมาชิกชมรม'
                   : item.audience === 'org_units'
                     ? item.orgUnitNames.join(', ')
-                    : STAFF_AUDIENCE_LABELS[item.audience]}{' '}
+                    : item.audience === 'individual'
+                      ? (item.recipientName ?? 'รายบุคคล')
+                      : STAFF_AUDIENCE_LABELS[item.audience]}{' '}
                 ({item.recipientCount.toLocaleString('th-TH')} คน)
               </span>
             </summary>

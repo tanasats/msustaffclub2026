@@ -3,7 +3,9 @@
 import { useRouter } from 'next/navigation';
 import { useEffect, useState } from 'react';
 import { apiGetClient, apiSend } from '@/lib/api-client';
+import { UserPicker } from '@/components/club-applications/UserPicker';
 import { STAFF_AUDIENCE_LABELS, type OrgUnitOption, type StaffAudience } from '@/lib/broadcast-types';
+import type { PersonRef } from '@/lib/club-application-types';
 
 const TITLE_MAX = 200;
 const BODY_MAX = 3000;
@@ -17,6 +19,8 @@ export function BroadcastForm({ mode, clubId, orgUnits = [] }: { mode: 'staff' |
   const [audience, setAudience] = useState<StaffAudience>('all_staff');
   const [orgUnitIds, setOrgUnitIds] = useState<string[]>([]);
   const [orgUnitQuery, setOrgUnitQuery] = useState('');
+  // ผู้รับรายบุคคล (1 คนต่อครั้ง)
+  const [recipient, setRecipient] = useState<PersonRef | null>(null);
   const [title, setTitle] = useState('');
   const [body, setBody] = useState('');
   const [count, setCount] = useState<number | null>(null);
@@ -40,7 +44,8 @@ export function BroadcastForm({ mode, clubId, orgUnits = [] }: { mode: 'staff' |
         return;
       }
       if (audience === 'org_units' && orgUnitIds.length === 0) return;
-      const result = await apiSend('POST', '/staff-announcements/recipient-count', { audience, orgUnitIds });
+      if (audience === 'individual' && !recipient) return;
+      const result = await apiSend('POST', '/staff-announcements/recipient-count', { audience, orgUnitIds, recipientUserId: recipient?.id ?? null });
       if (cancelled) return;
       if (result.ok) setCount((result.data as { count: number }).count);
       else setCountError(result.errorMessage ?? 'นับจำนวนผู้รับไม่สำเร็จ');
@@ -49,7 +54,7 @@ export function BroadcastForm({ mode, clubId, orgUnits = [] }: { mode: 'staff' |
     return () => {
       cancelled = true;
     };
-  }, [mode, clubId, audience, orgUnitIds]);
+  }, [mode, clubId, audience, orgUnitIds, recipient]);
 
   const canSubmit = title.trim() !== '' && body.trim() !== '' && count !== null && count > 0 && !pending;
 
@@ -59,7 +64,13 @@ export function BroadcastForm({ mode, clubId, orgUnits = [] }: { mode: 'staff' |
     const result =
       mode === 'club'
         ? await apiSend('POST', `/clubs/${clubId}/messages`, { title, body })
-        : await apiSend('POST', '/staff-announcements', { audience, orgUnitIds: audience === 'org_units' ? orgUnitIds : [], title, body });
+        : await apiSend('POST', '/staff-announcements', {
+            audience,
+            orgUnitIds: audience === 'org_units' ? orgUnitIds : [],
+            recipientUserId: audience === 'individual' ? (recipient?.id ?? null) : null,
+            title,
+            body,
+          });
     setPending(false);
     setConfirming(false);
     if (!result.ok) {
@@ -100,6 +111,27 @@ export function BroadcastForm({ mode, clubId, orgUnits = [] }: { mode: 'staff' |
               </label>
             ))}
           </div>
+          {audience === 'individual' &&
+            (recipient ? (
+              <div className="mt-1 flex flex-wrap items-center justify-between gap-2 rounded-xl border border-matcha-200 bg-matcha-50 px-3 py-2 text-sm">
+                <span>
+                  <span className="font-medium text-ink">{recipient.name ?? recipient.email}</span>
+                  <span className="text-stone"> · {recipient.orgUnitName ?? recipient.email}</span>
+                </span>
+                <button type="button" onClick={() => setRecipient(null)} className="text-beni underline">
+                  เปลี่ยนผู้รับ
+                </button>
+              </div>
+            ) : (
+              <div className="mt-1">
+                <UserPicker
+                  excludeIds={[]}
+                  onSelect={setRecipient}
+                  searchPath="/staff-announcements/users"
+                  placeholder="ค้นหาชื่อหรืออีเมลผู้รับ (บุคลากรหรือนิสิต)"
+                />
+              </div>
+            ))}
           {audience === 'org_units' && (
             <div className="mt-1 grid gap-2">
               <input
@@ -146,6 +178,8 @@ export function BroadcastForm({ mode, clubId, orgUnits = [] }: { mode: 'staff' |
           <span className="text-beni">{countError}</span>
         ) : mode === 'staff' && audience === 'org_units' && orgUnitIds.length === 0 ? (
           'เลือกหน่วยงานอย่างน้อย 1 หน่วยงาน'
+        ) : mode === 'staff' && audience === 'individual' && !recipient ? (
+          'ค้นหาและเลือกผู้รับ 1 คน'
         ) : count === null ? (
           'กำลังนับจำนวนผู้รับ...'
         ) : (

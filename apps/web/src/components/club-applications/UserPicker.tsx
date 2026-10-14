@@ -9,10 +9,12 @@ interface UserPickerProps {
   excludeIds: string[];
   onSelect: (user: PersonRef) => void;
   placeholder?: string;
+  // endpoint ค้นหา (ค่าเริ่มต้น = บุคลากรสำหรับคำขอ; หน้าส่งประกาศใช้ endpoint ที่ค้นได้ทุกบัญชี)
+  searchPath?: string;
 }
 
 // ค้นหาบุคลากรที่เคย login แล้ว (พิมพ์อย่างน้อย 2 ตัวอักษร รอหยุดพิมพ์ 300ms ก่อนค้น)
-export function UserPicker({ excludeIds, onSelect, placeholder = 'ค้นหาชื่อหรืออีเมลบุคลากร' }: UserPickerProps) {
+export function UserPicker({ excludeIds, onSelect, placeholder = 'ค้นหาชื่อหรืออีเมลบุคลากร', searchPath = '/users/search' }: UserPickerProps) {
   const [query, setQuery] = useState('');
   const [results, setResults] = useState<PersonRef[]>([]);
   const [searching, setSearching] = useState(false);
@@ -23,12 +25,12 @@ export function UserPicker({ excludeIds, onSelect, placeholder = 'ค้นห�
     if (q.length < 2) return;
     const timer = setTimeout(async () => {
       setSearching(true);
-      const data = await apiGetClient<{ items: PersonRef[] }>(`/users/search?q=${encodeURIComponent(q)}`);
+      const data = await apiGetClient<{ items: PersonRef[] }>(`${searchPath}?q=${encodeURIComponent(q)}`);
       setResults(data?.items ?? []);
       setSearching(false);
     }, 300);
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, searchPath]);
 
   const visible = results.filter((user) => !excludeIds.includes(user.id));
 
