@@ -26,6 +26,7 @@ import { healthRouter } from './routes/health.js';
 import { meRouter } from './routes/me.js';
 import { publicRouter } from './routes/public.js';
 import { broadcastsRouter } from './routes/broadcasts.js';
+import { permissionAdminRouter } from './routes/permission-admin.js';
 
 // สร้าง Express app โดยไม่ listen เพื่อให้ test เรียกผ่าน supertest ได้
 export function createApp(): express.Express {
@@ -57,6 +58,8 @@ export function createApp(): express.Express {
   app.use(competitionsRouter);
   app.use(selectionsRouter);
   app.use(adminSettingsRouter);
+  // ต้องมาก่อน adminRolesRouter (router นั้นบังคับ user_role:assign กับทุก path /admin)
+  app.use(permissionAdminRouter);
   app.use(adminRolesRouter);
   app.use(userAccountsRouter);
   app.use(meRouter);
