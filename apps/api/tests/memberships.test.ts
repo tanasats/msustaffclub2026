@@ -3,7 +3,7 @@ import { createApp } from '../src/app.js';
 import { pool } from '../src/db/pool.js';
 import { createTestUser, resetDatabase } from './helpers/db.js';
 import { createSessionCookie, grantRole, WEB_ORIGIN } from './helpers/auth.js';
-import { addCommittee, addMembership, createTestClub } from './helpers/clubs.js';
+import { addAdvisor, addCommittee, addMembership, createTestClub } from './helpers/clubs.js';
 import { request } from './helpers/http.js';
 import { processDueResignations } from '../src/services/membership-service.js';
 
@@ -43,7 +43,7 @@ async function eventsOf(membershipId: string) {
   return rows;
 }
 
-// ชมรมที่มีประธาน (อนุมัติสมาชิกได้) และเหรัญญิก (อนุมัติไม่ได้)
+// ชมรมที่มีประธานและเหรัญญิก (กรรมการทุกตำแหน่งอนุมัติสมาชิกได้) และที่ปรึกษา (อนุมัติไม่ได้)
 async function clubWithCommittee() {
   const clubId = await createTestClub();
   const president = await actor();
@@ -52,7 +52,9 @@ async function clubWithCommittee() {
     await addCommittee(clubId, who.id, position);
     await addMembership(clubId, who.id, 'active');
   }
-  return { clubId, president, treasurer };
+  const advisor = await actor();
+  await addAdvisor(clubId, advisor.id);
+  return { clubId, president, treasurer, advisor };
 }
 
 describe('สมัครสมาชิก', () => {
@@ -140,13 +142,14 @@ describe('กรรมการอนุมัติ/ปฏิเสธ', () => 
     expect((await membershipOf(clubId, applicant.id))?.status).toBe('pending');
   });
 
-  it('ตำแหน่งที่ไม่มีสิทธิ์อนุมัติ (เหรัญญิก) → 403 ทั้งดูรายการและอนุมัติ', async () => {
-    const { clubId, treasurer } = await clubWithCommittee();
+  it('ผู้ไม่มีสิทธิ์อนุมัติ (ที่ปรึกษา) → 403 ทั้งดูรายการและอนุมัติ; กรรมการตำแหน่งอื่น (เหรัญญิก) ดูได้', async () => {
+    const { clubId, treasurer, advisor } = await clubWithCommittee();
     const applicant = await actor();
     await post(applicant, `/clubs/${clubId}/membership`);
     const { id } = (await membershipOf(clubId, applicant.id))!;
-    expect((await get(treasurer, `/clubs/${clubId}/membership-requests`)).status).toBe(403);
-    expect((await post(treasurer, `/clubs/${clubId}/memberships/${id}/approve`)).status).toBe(403);
+    expect((await get(advisor, `/clubs/${clubId}/membership-requests`)).status).toBe(403);
+    expect((await post(advisor, `/clubs/${clubId}/memberships/${id}/approve`)).status).toBe(403);
+    expect((await get(treasurer, `/clubs/${clubId}/membership-requests`)).status).toBe(200);
   });
 
   it('ประธานชมรม A อนุมัติใบสมัครของชมรม B ไม่ได้', async () => {
@@ -227,15 +230,17 @@ describe('ลาออก / ให้พ้นสภาพ', () => {
     expect(await processDueResignations()).toBe(0);
   });
 
-  it('รับทราบการลาออก: ต้องมีสิทธิ์ club_member:approve (เหรัญญิก → 403) และรับทราบของตัวเองไม่ได้', async () => {
-    const { clubId, treasurer } = await clubWithCommittee();
+  it('รับทราบการลาออก: ต้องมีสิทธิ์ club_member:approve (ที่ปรึกษา → 403) และรับทราบของตัวเองไม่ได้', async () => {
+    const { clubId, treasurer, advisor } = await clubWithCommittee();
     const member = await actor();
     await addMembership(clubId, member.id, 'active');
     await post(member, `/clubs/${clubId}/membership/leave`, { note: 'ลาออก' });
     const { id } = (await membershipOf(clubId, member.id))!;
-    expect((await get(treasurer, `/clubs/${clubId}/resignation-requests`)).status).toBe(403);
-    expect((await post(treasurer, `/clubs/${clubId}/memberships/${id}/acknowledge-resignation`)).status).toBe(403);
+    expect((await get(advisor, `/clubs/${clubId}/resignation-requests`)).status).toBe(403);
+    expect((await post(advisor, `/clubs/${clubId}/memberships/${id}/acknowledge-resignation`)).status).toBe(403);
     expect((await post(member, `/clubs/${clubId}/memberships/${id}/acknowledge-resignation`)).status).toBe(403);
+    // กรรมการทุกตำแหน่ง (เช่น เหรัญญิก) เห็นคำขอลาออกที่รอรับทราบ
+    expect((await get(treasurer, `/clubs/${clubId}/resignation-requests`)).status).toBe(200);
   });
 
   it('กรรมการลาออกจากชมรมไม่ได้จนกว่าจะพ้นตำแหน่ง', async () => {

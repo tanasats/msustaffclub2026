@@ -3,7 +3,7 @@ import { createApp } from '../src/app.js';
 import { pool } from '../src/db/pool.js';
 import { createTestUser, resetDatabase } from './helpers/db.js';
 import { createSessionCookie, grantRole } from './helpers/auth.js';
-import { addCommittee, addMembership, createTestClub } from './helpers/clubs.js';
+import { addAdvisor, addCommittee, addMembership, createTestClub } from './helpers/clubs.js';
 import { request } from './helpers/http.js';
 
 beforeEach(resetDatabase);
@@ -140,13 +140,12 @@ describe('GET /clubs/:clubId/members/export — ส่งออก CSV (club_mem
     await expect(pool.query('DELETE FROM club_member_exports')).rejects.toThrow();
   });
 
-  it('กรรมการที่ไม่มีสิทธิ์อนุมัติสมาชิก (เหรัญญิก) และสมาชิกทั่วไป → 403 และไม่มีบันทึก', async () => {
+  it('ผู้ไม่มีสิทธิ์อนุมัติสมาชิก (ที่ปรึกษา) และสมาชิกทั่วไป → 403 และไม่มีบันทึก', async () => {
     const s = await setup();
-    const treasurer = await actor('เหรัญญิก ชมรม');
-    await addMembership(s.clubId, treasurer.id, 'active');
-    await addCommittee(s.clubId, treasurer.id, 'treasurer');
-    expect((await get(treasurer, `/clubs/${s.clubId}/members`)).status).toBe(200); // ดูรายชื่อได้
-    expect((await get(treasurer, `/clubs/${s.clubId}/members/export`)).status).toBe(403);
+    const advisor = await actor('ที่ปรึกษา ชมรม');
+    await addAdvisor(s.clubId, advisor.id);
+    expect((await get(advisor, `/clubs/${s.clubId}/members`)).status).toBe(200); // ดูรายชื่อได้
+    expect((await get(advisor, `/clubs/${s.clubId}/members/export`)).status).toBe(403);
     expect((await get(s.runner, `/clubs/${s.clubId}/members/export`)).status).toBe(403);
     expect((await pool.query('SELECT 1 FROM club_member_exports')).rowCount).toBe(0);
   });

@@ -3,7 +3,7 @@ import { createApp } from '../src/app.js';
 import { pool } from '../src/db/pool.js';
 import { createTestUser, resetDatabase } from './helpers/db.js';
 import { createSessionCookie, grantRole, WEB_ORIGIN } from './helpers/auth.js';
-import { addCommittee, addMembership, createTestClub } from './helpers/clubs.js';
+import { addAdvisor, addCommittee, addMembership, createTestClub } from './helpers/clubs.js';
 import { request } from './helpers/http.js';
 
 beforeEach(resetDatabase);
@@ -34,7 +34,10 @@ async function setup() {
   const treasurer = await actor();
   await addMembership(clubId, treasurer.id, 'active');
   await addCommittee(clubId, treasurer.id, 'treasurer');
-  return { clubId, president, treasurer };
+  // ที่ปรึกษา: เห็นข้อมูลภายในแต่ไม่มีสิทธิ์จัดการสมาชิก (กรรมการทุกตำแหน่งมีสิทธิ์แล้ว)
+  const advisor = await actor();
+  await addAdvisor(clubId, advisor.id);
+  return { clubId, president, treasurer, advisor };
 }
 
 const statusOf = async (clubId: string, userId: string) =>
@@ -75,8 +78,8 @@ describe('เชิญเข้าชมรม', () => {
     expect(await statusOf(clubId, other.id)).toMatchObject({ status: 'withdrawn' });
   });
 
-  it('เชิญไม่ได้: ตัวเอง / สมาชิกอยู่แล้ว / เชิญซ้ำ / นิสิต / ไม่มีสิทธิ์ (เหรัญญิก)', async () => {
-    const { clubId, president, treasurer } = await setup();
+  it('เชิญไม่ได้: ตัวเอง / สมาชิกอยู่แล้ว / เชิญซ้ำ / นิสิต / ไม่มีสิทธิ์ (ที่ปรึกษา)', async () => {
+    const { clubId, president, treasurer, advisor } = await setup();
     const invite = (who: Actor, userId: string) => post(who, `/clubs/${clubId}/invitations`, { userId });
     expect((await invite(president, president.id)).body.error.code).toBe('CANNOT_INVITE_SELF');
     expect((await invite(president, treasurer.id)).body.error.code).toBe('ALREADY_RELATED');
@@ -85,7 +88,7 @@ describe('เชิญเข้าชมรม', () => {
     expect((await invite(president, guest.id)).body.error.code).toBe('ALREADY_RELATED');
     const student = await actor('65010999001@msu.ac.th');
     expect((await invite(president, student.id)).body.error.code).toBe('USER_NOT_ELIGIBLE');
-    expect((await invite(treasurer, (await actor()).id)).status).toBe(403);
+    expect((await invite(advisor, (await actor()).id)).status).toBe(403);
   });
 });
 
@@ -112,7 +115,7 @@ describe('สรุปสมาชิก', () => {
 describe('อีเมลแจ้งเตือนเรื่องสมาชิก', () => {
   it('สมัคร → กรรมการที่อนุมัติได้, ผลใบสมัคร → ผู้สมัคร, เชิญ → ผู้ถูกเชิญ, ยื่นลาออก → กรรมการที่อนุมัติได้', async () => {
     await pool.query(`INSERT INTO system_settings (key, value) VALUES ('email.enabled', 'true')`);
-    const { clubId, president, treasurer } = await setup();
+    const { clubId, president, treasurer, advisor } = await setup();
     const applicant = await actor();
     await post(applicant, `/clubs/${clubId}/membership`);
     const { rows } = await pool.query(`SELECT id FROM club_memberships WHERE user_id = $1`, [applicant.id]);
@@ -127,12 +130,12 @@ describe('อีเมลแจ้งเตือนเรื่องสมา�
       "SELECT kind, recipient_email, body_text FROM email_outbox WHERE kind LIKE 'membership_%' OR kind = 'resignation_requested' ORDER BY created_at",
     );
     const who = (kind: string) => mails.filter((m) => m.kind === kind).map((m) => m.recipient_email);
-    // เหรัญญิกไม่มีสิทธิ์อนุมัติสมาชิก จึงไม่ได้รับ
-    expect(who('membership_applied')).toEqual([president.email]);
+    // กรรมการทุกตำแหน่งอนุมัติสมาชิกได้ จึงได้รับ (ที่ปรึกษาไม่ได้รับ)
+    expect(who('membership_applied').sort()).toEqual([president.email, treasurer.email].sort());
     expect(who('membership_decided')).toEqual([applicant.email]);
     expect(mails.find((m) => m.kind === 'membership_decided')!.body_text).toContain('รับเต็มแล้ว');
     expect(who('membership_invited')).toEqual([guest.email]);
-    expect(who('resignation_requested')).toEqual([president.email]);
-    expect(who('membership_applied')).not.toContain(treasurer.email);
+    expect(who('resignation_requested').sort()).toEqual([president.email, treasurer.email].sort());
+    expect(who('membership_applied')).not.toContain(advisor.email);
   });
 });
