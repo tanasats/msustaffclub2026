@@ -35,7 +35,7 @@ function subtitleOf(current: CurrentUser): string {
   const { profile } = current;
   if (profile.type === 'staff' && profile.staff?.orgUnit) return profile.staff.orgUnit.nameTh;
   if (profile.type === 'student' && profile.student?.faculty) return profile.student.faculty.nameTh;
-  const main = ['super_admin', 'club_president', 'club_officer', 'staff', 'student'].find((code) => current.roles.includes(code));
+  const main = ['super_admin', 'club_president', 'club_committee', 'staff', 'student'].find((code) => current.roles.includes(code));
   return main ? ROLE_LABELS[main]! : current.user.email;
 }
 

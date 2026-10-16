@@ -142,7 +142,7 @@ export function AdvisorsEditor({ application }: { application: ApplicationDetail
                         <div className="mt-2 grid gap-2 rounded-lg bg-cream p-3">
                           <p className="text-xs text-stone">
                             กด &quot;พิมพ์ใบคำยินยอม&quot; ให้ที่ปรึกษาลงนาม แล้วแนบไฟล์ที่ลงนามแล้ว — ถือว่ายินยอมโดยไม่ต้องเข้าระบบ
-                            และเจ้าหน้าที่สโมสรจะตรวจเอกสารก่อนอนุมัติ
+                            และกรรมการสโมสรจะตรวจเอกสารก่อนอนุมัติ
                           </p>
                           <ConsentUpload applicationId={application.id} sortOrder={stored.sortOrder} hasFile={false} />
                         </div>

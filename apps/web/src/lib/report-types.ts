@@ -93,7 +93,7 @@ export interface AnnualReportDetail {
   me: { canEdit: boolean; canAcknowledge: boolean; canViewClubReports: boolean };
 }
 
-// สถานะรายงานประจำปี (ผู้รับทราบคือเจ้าหน้าที่สโมสร)
+// สถานะรายงานประจำปี (ผู้รับทราบคือกรรมการสโมสร)
 export const ANNUAL_STATUS_LABELS: Record<MonthlyReportStatus, string> = {
   draft: 'ร่าง',
   submitted: 'รอสโมสรรับทราบ',

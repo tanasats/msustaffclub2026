@@ -93,9 +93,9 @@ async function openRound(s: Awaited<ReturnType<typeof setup>>) {
 }
 
 describe('สิทธิ์', () => {
-  it('เฉพาะ super_admin และ role คณะกรรมการคัดเลือก ใช้ได้ → เจ้าหน้าที่สโมสร/บุคลากร 403', async () => {
+  it('เฉพาะ super_admin และ role คณะกรรมการคัดเลือก ใช้ได้ → กรรมการสโมสร/บุคลากร 403', async () => {
     const s = await setup();
-    const officer = await actor(['user', 'staff', 'club_officer']);
+    const officer = await actor(['user', 'staff', 'club_committee']);
     const body = { kind: 'representative', title: 'x', sportId: s.running, fiscalYear: FY };
     expect((await post(officer, '/selection-rounds', body)).status).toBe(403);
     expect((await get(s.a, '/selection-rounds')).status).toBe(403);

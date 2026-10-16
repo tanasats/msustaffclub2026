@@ -53,7 +53,7 @@ async function resolveStaffAudience(auth: AuthContext, input: AudienceInput): Pr
   return recipients;
 }
 
-// route ตรวจ permission staff_announcement:send แล้ว (ผูกกับเจ้าหน้าที่สโมสร/นายกสโมสร) — จำนวนผู้รับก่อนส่ง
+// route ตรวจ permission staff_announcement:send แล้ว (ผูกกับกรรมการสโมสร/นายกสโมสร) — จำนวนผู้รับก่อนส่ง
 export async function countStaffAnnouncementRecipients(auth: AuthContext, input: AudienceInput) {
   return { count: (await resolveStaffAudience(auth, input)).length };
 }

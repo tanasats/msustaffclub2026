@@ -3,7 +3,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { apiGetJson } from '@/lib/api-server';
 import type { ApplicationListItem } from '@/lib/club-application-types';
 
-// กล่องงานเจ้าหน้าที่สโมสร/นายกสโมสร (API เลือกสถานะตามสิทธิ์ของผู้ใช้ และตอบ 403 ถ้าไม่มีสิทธิ์)
+// กล่องงานกรรมการสโมสร/นายกสโมสร (API เลือกสถานะตามสิทธิ์ของผู้ใช้ และตอบ 403 ถ้าไม่มีสิทธิ์)
 export default async function QueuePage() {
   const { items } = await apiGetJson<{ items: ApplicationListItem[] }>('/club-applications/queue');
   return (

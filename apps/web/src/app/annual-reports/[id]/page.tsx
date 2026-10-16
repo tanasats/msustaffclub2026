@@ -29,7 +29,7 @@ export default async function AnnualReportPage({ params }: { params: Promise<{ i
         eyebrow="Annual Report"
         title={`รายงานประจำปีงบประมาณ ${r.fiscalYear}`}
         description={`${r.clubName} · กำหนดส่งสโมสร ${formatDate(r.dueDate)} (ก่อนสิ้นวาระ 30 วัน)`}
-        // เจ้าหน้าที่สโมสรไม่มีสิทธิ์ดูหน้ารายงานภายในของชมรม จึงย้อนกลับไปหน้าภาพรวมแทน
+        // กรรมการสโมสรไม่มีสิทธิ์ดูหน้ารายงานภายในของชมรม จึงย้อนกลับไปหน้าภาพรวมแทน
         back={
           r.me.canViewClubReports
             ? { href: `/clubs/${r.clubId}/reports?fiscalYear=${r.fiscalYear}`, label: 'รายงานของชมรม' }

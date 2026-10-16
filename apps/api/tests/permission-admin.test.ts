@@ -47,7 +47,7 @@ async function logActions(): Promise<string[]> {
 describe('ภาพรวมสิทธิ์ในระบบ (role_permission:manage)', () => {
   it('super_admin เห็นทุกสิทธิ์พร้อมคำอธิบาย role ที่ได้ และจำนวนผู้ถือ; ผู้มีแค่ user_role:assign / บุคลากร 403; ไม่ login 401', async () => {
     const admin = await actor(['user', 'super_admin']);
-    const officer = await actor(['user', 'staff', 'club_officer']);
+    const officer = await actor(['user', 'staff', 'club_committee']);
     const assigner = await actor(['user', await testRole('test_assigner', ['user_role:assign'])]);
     const staff = await actor(['user', 'staff']);
 
@@ -55,14 +55,14 @@ describe('ภาพรวมสิทธิ์ในระบบ (role_permissio
     expect(res.status).toBe(200);
     const announce = res.body.permissions.find((p: { code: string }) => p.code === 'staff_announcement:send');
     expect(announce.descriptionTh).toContain('ส่งประกาศ');
-    expect(announce.roles.map((r: { code: string }) => r.code)).toEqual(['club_officer', 'club_president']);
+    expect(announce.roles.map((r: { code: string }) => r.code)).toEqual(['club_committee', 'club_president']);
     expect(announce.holderCount).toBe(1);
     expect(res.body.superAdminCount).toBe(1);
     expect(res.body.clubPositions.find((p: { code: string }) => p.code === 'treasurer').permissions).toContain('club_finance:manage');
     expect(res.body.clubPermissions.length).toBeGreaterThan(5);
 
     const holders = (await get(admin, '/admin/permissions/staff_announcement:send/holders')).body;
-    expect(holders.holders).toMatchObject([{ id: officer.id, roles: ['เจ้าหน้าที่สโมสร'] }]);
+    expect(holders.holders).toMatchObject([{ id: officer.id, roles: ['กรรมการสโมสร'] }]);
     expect((await get(admin, '/admin/permissions/nope:nope/holders')).status).toBe(404);
 
     expect((await get(assigner, '/admin/permissions')).status).toBe(403);

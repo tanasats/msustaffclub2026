@@ -56,8 +56,8 @@ async function orgUnitId(code: string): Promise<string> {
 const MESSAGE = { title: 'ประชุมสามัญประจำปี', body: 'ขอเชิญบุคลากรร่วมประชุม\nวันศุกร์ เวลา 13.30 น.' };
 
 describe('ประกาศจากสโมสรบุคลากร (staff_announcement:send)', () => {
-  it('เจ้าหน้าที่สโมสร/นายกสโมสร/super_admin ส่งได้; บุคลากรทั่วไปและผู้ไม่ login ไม่ได้', async () => {
-    const officer = await actor(['user', 'staff', 'club_officer']);
+  it('กรรมการสโมสร/นายกสโมสร/super_admin ส่งได้; บุคลากรทั่วไปและผู้ไม่ login ไม่ได้', async () => {
+    const officer = await actor(['user', 'staff', 'club_committee']);
     const president = await actor(['user', 'staff', 'club_president']);
     const admin = await actor(['user', 'super_admin']);
     const staff = await actor();
@@ -74,7 +74,7 @@ describe('ประกาศจากสโมสรบุคลากร (staff
 
   it('บุคลากรทุกคน: เฉพาะบัญชีบุคลากรที่ใช้งานอยู่ ไม่รวมผู้ส่ง/นิสิต/บัญชีที่ปิด; ได้กระดิ่งทุกคน อีเมลเฉพาะผู้ที่ไม่ปิดรับ; บันทึกประวัติ', async () => {
     await enableEmail();
-    const officer = await actor(['user', 'staff', 'club_officer']);
+    const officer = await actor(['user', 'staff', 'club_committee']);
     const a = await actor();
     const b = await actor();
     await actor(['user', 'student']);
@@ -98,7 +98,7 @@ describe('ประกาศจากสโมสรบุคลากร (staff
   });
 
   it('กรรมการชมรม / สมาชิกชมรม (เฉพาะชมรมที่ดำเนินการอยู่) / ตามหน่วยงาน', async () => {
-    const officer = await actor(['user', 'staff', 'club_officer']);
+    const officer = await actor(['user', 'staff', 'club_committee']);
     const club = await createTestClub();
     const suspended = await createTestClub({ name: 'ชมรมที่ถูกระงับ', status: 'suspended' });
     const chair = await actor();
@@ -132,7 +132,7 @@ describe('ประกาศจากสโมสรบุคลากร (staff
   });
 
   it('ไม่มีผู้รับ → 422 ไม่บันทึก; หัวข้อว่าง/ข้อความยาวเกิน/กลุ่มผู้รับไม่รู้จัก → 400', async () => {
-    const officer = await actor(['user', 'staff', 'club_officer']);
+    const officer = await actor(['user', 'staff', 'club_committee']);
     const res = await post(officer, '/staff-announcements', { audience: 'club_members', ...MESSAGE });
     expect(res.status).toBe(422);
     expect(res.body.error.code).toBe('NO_RECIPIENTS');
@@ -167,14 +167,14 @@ describe('ข้อความจากกรรมการชมรมถึ�
     expect((await get(treasurer, `/clubs/${club}/messages`)).body.items[0]).toMatchObject({ audience: 'club', recipientCount: 1 });
   });
 
-  it('สมาชิกทั่วไป/กรรมการชมรมอื่น 403; ชมรมที่ถูกระงับ 403; ชมรมไม่มี 404; เจ้าหน้าที่สโมสร (ไม่ใช่กรรมการชมรม) 403', async () => {
+  it('สมาชิกทั่วไป/กรรมการชมรมอื่น 403; ชมรมที่ถูกระงับ 403; ชมรมไม่มี 404; กรรมการสโมสร (ไม่ใช่กรรมการชมรม) 403', async () => {
     const club = await createTestClub();
     const other = await createTestClub({ name: 'ชมรมอื่น' });
     const suspended = await createTestClub({ name: 'ชมรมระงับ', status: 'suspended' });
     const member = await actor();
     const otherChair = await actor();
     const suspendedChair = await actor();
-    const officer = await actor(['user', 'staff', 'club_officer']);
+    const officer = await actor(['user', 'staff', 'club_committee']);
     await addMembership(club, member.id);
     await addCommittee(other, otherChair.id, 'president');
     await addCommittee(suspended, suspendedChair.id, 'president');
@@ -204,7 +204,7 @@ describe('ข้อความจากกรรมการชมรมถึ�
 describe('ข้อความจากสโมสรถึงรายบุคคล (audience = individual, 1 คนต่อครั้ง)', () => {
   it('ส่งถึงบุคลากรหรือนิสิต 1 คน: กระดิ่ง + อีเมล หัวเรื่อง [สโมสรบุคลากร]; ประวัติแสดงชื่อผู้รับ', async () => {
     await enableEmail();
-    const officer = await actor(['user', 'staff', 'club_officer']);
+    const officer = await actor(['user', 'staff', 'club_committee']);
     const student = await actor(['user', 'student']);
     await pool.query("UPDATE users SET name = 'นิสิตทดสอบ ตัวอย่าง' WHERE id = $1", [student.id]);
     const other = await actor();
@@ -237,7 +237,7 @@ describe('ข้อความจากสโมสรถึงรายบุ�
   });
 
   it('ฐานข้อมูลบังคับ: รายบุคคลต้องมีผู้รับ และกลุ่มอื่นต้องไม่ระบุผู้รับ', async () => {
-    const officer = await actor(['user', 'staff', 'club_officer']);
+    const officer = await actor(['user', 'staff', 'club_committee']);
     await expect(
       pool.query(
         `INSERT INTO broadcast_messages (kind, sender_user_id, audience, title, body, recipient_count) VALUES ('staff_announcement', $1, 'individual', 'x', 'x', 1)`,

@@ -28,7 +28,7 @@ const send = (method: 'post' | 'put', who: Actor, path: string, body: object = {
   request(app)[method](path).set('Cookie', who.cookie).set('Origin', WEB_ORIGIN).send(body);
 const get = (who: Actor, path: string) => request(app).get(path).set('Cookie', who.cookie);
 
-// ชมรม (ก่อตั้ง 2026-01-01) ที่มีเลขานุการ เหรัญญิก ที่ปรึกษา สมาชิก + เจ้าหน้าที่สโมสร (role club_officer)
+// ชมรม (ก่อตั้ง 2026-01-01) ที่มีเลขานุการ เหรัญญิก ที่ปรึกษา สมาชิก + กรรมการสโมสร (role club_committee)
 async function setup() {
   const clubId = await createTestClub();
   const [secretary, treasurer, advisor, member] = [await actor(), await actor(), await actor(), await actor()];
@@ -38,7 +38,7 @@ async function setup() {
   }
   await addAdvisor(clubId, advisor.id);
   await addMembership(clubId, member.id, 'active');
-  const officer = await actor(['user', 'staff', 'club_officer']);
+  const officer = await actor(['user', 'staff', 'club_committee']);
   return { clubId, secretary, treasurer, advisor, member, officer };
 }
 
@@ -101,7 +101,7 @@ describe('รายงานประจำปี', () => {
     expect((await send('put', secretary, `/annual-reports/${id}`, { summary: 'แก้' })).body.error.code).toBe('REPORT_NOT_EDITABLE');
   });
 
-  it('เจ้าหน้าที่สโมสร (club_report:review) ดูได้และรับทราบ; ที่ปรึกษา/กรรมการรับทราบไม่ได้; สมาชิกไม่เห็น', async () => {
+  it('กรรมการสโมสร (club_report:review) ดูได้และรับทราบ; ที่ปรึกษา/กรรมการรับทราบไม่ได้; สมาชิกไม่เห็น', async () => {
     const { clubId, secretary, advisor, member, officer } = await setup();
     const id = await createAnnual(secretary, clubId);
     await send('put', secretary, `/annual-reports/${id}`, { summary: 'สรุป' });

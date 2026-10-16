@@ -14,7 +14,7 @@ import { PageHeader } from '@/components/ui/PageHeader';
 import { getCurrentUser } from '@/lib/auth';
 import { ROLE_LABELS } from '@/lib/navigation';
 
-const PRIVILEGED = ['super_admin', 'club_officer', 'club_president'];
+const PRIVILEGED = ['super_admin', 'club_committee', 'club_president'];
 
 export default async function SettingsPage() {
   const current = await getCurrentUser();

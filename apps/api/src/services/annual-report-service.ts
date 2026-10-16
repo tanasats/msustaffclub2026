@@ -116,11 +116,11 @@ export async function submitAnnual(auth: AuthContext, id: string): Promise<void>
   });
 }
 
-// ---------- เจ้าหน้าที่สโมสร (club_report:review) ----------
+// ---------- กรรมการสโมสร (club_report:review) ----------
 
 export async function acknowledgeAnnual(auth: AuthContext, id: string, note: string | null): Promise<void> {
   if (!hasPermission(auth, PERMISSIONS.CLUB_REPORT_REVIEW)) {
-    throw new AppError(403, 'FORBIDDEN', 'รับทราบรายงานประจำปีได้เฉพาะเจ้าหน้าที่สโมสร');
+    throw new AppError(403, 'FORBIDDEN', 'รับทราบรายงานประจำปีได้เฉพาะกรรมการสโมสร');
   }
   await withTransaction(async (client) => {
     const report = await lockAnnualReport(id, client);
@@ -172,7 +172,7 @@ export async function getAnnualReport(auth: AuthContext, id: string) {
     me: {
       canEdit: detail.status === 'draft' && canSubmit,
       canAcknowledge: detail.status === 'submitted' && hasPermission(auth, PERMISSIONS.CLUB_REPORT_REVIEW),
-      // เข้าหน้ารายงานภายในของชมรมได้หรือไม่ (เจ้าหน้าที่สโมสรที่ไม่ใช่คนในชมรม = ไม่ได้)
+      // เข้าหน้ารายงานภายในของชมรมได้หรือไม่ (กรรมการสโมสรที่ไม่ใช่คนในชมรม = ไม่ได้)
       canViewClubReports,
     },
   };

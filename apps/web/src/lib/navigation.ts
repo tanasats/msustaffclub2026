@@ -90,7 +90,7 @@ export const ROLE_LABELS: Record<string, string> = {
   staff: 'บุคลากร',
   student: 'นิสิต',
   super_admin: 'ผู้ดูแลระบบสูงสุด',
-  club_officer: 'เจ้าหน้าที่สโมสร',
+  club_committee: 'กรรมการสโมสร',
   club_president: 'นายกสโมสร',
   sport_selection_committee: 'คณะกรรมการคัดเลือก',
 };

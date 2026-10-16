@@ -125,7 +125,7 @@ reportsRouter.post('/annual-reports/:id/submit', requireAuth, async (req, res) =
   res.status(204).end();
 });
 
-// ต้องมี permission club_report:review (ตรวจใน service): เจ้าหน้าที่สโมสรรับทราบ
+// ต้องมี permission club_report:review (ตรวจใน service): กรรมการสโมสรรับทราบ
 reportsRouter.post('/annual-reports/:id/acknowledge', requireAuth, async (req, res) => {
   const { note } = noteSchema.parse(req.body ?? {});
   await acknowledgeAnnual(getRequiredAuth(req), reportIdOf(req.params.id), note ?? null);

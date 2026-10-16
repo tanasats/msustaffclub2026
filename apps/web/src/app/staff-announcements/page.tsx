@@ -10,7 +10,7 @@ import type { BroadcastPage, OrgUnitOption } from '@/lib/broadcast-types';
 
 const PAGE_SIZE = 20;
 
-// ส่งประกาศจากสโมสรบุคลากรถึงบุคลากร — permission staff_announcement:send (เจ้าหน้าที่สโมสร/นายกสโมสร) ซ่อนหน้าเพื่อ UX API ตรวจซ้ำ
+// ส่งประกาศจากสโมสรบุคลากรถึงบุคลากร — permission staff_announcement:send (กรรมการสโมสร/นายกสโมสร) ซ่อนหน้าเพื่อ UX API ตรวจซ้ำ
 export default async function StaffAnnouncementsPage({ searchParams }: { searchParams: Promise<{ page?: string }> }) {
   const current = await getCurrentUser();
   if (!current) redirect('/login');

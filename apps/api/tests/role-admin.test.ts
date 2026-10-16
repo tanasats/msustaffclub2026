@@ -81,7 +81,7 @@ describe('สิทธิ์เข้าถึง /admin', () => {
     const grantable = Object.fromEntries(items.map((r: { code: string; grantable: boolean }) => [r.code, r.grantable]));
     expect(grantable).toMatchObject({
       super_admin: false,
-      club_officer: false,
+      club_committee: false,
       club_president: false,
       sport_selection_committee: false,
       user: false,
@@ -92,23 +92,23 @@ describe('สิทธิ์เข้าถึง /admin', () => {
 });
 
 describe('ให้ role', () => {
-  it('super_admin ให้ role สิทธิ์สูง (เจ้าหน้าที่สโมสร) ได้ พร้อม log และมีผลทันที', async () => {
+  it('super_admin ให้ role สิทธิ์สูง (กรรมการสโมสร) ได้ พร้อม log และมีผลทันที', async () => {
     const admin = await actor(['user', 'super_admin']);
     const target = await actor();
 
-    const res = await grant(admin, target.id, 'club_officer', 'แต่งตั้งตามคำสั่งที่ 1/2569');
+    const res = await grant(admin, target.id, 'club_committee', 'แต่งตั้งตามคำสั่งที่ 1/2569');
 
     expect(res.status).toBe(204);
-    expect(await rolesOf(target.id)).toEqual(['club_officer', 'staff', 'user']);
+    expect(await rolesOf(target.id)).toEqual(['club_committee', 'staff', 'user']);
     const { rows } = await pool.query(
       `SELECT l.action, l.reason, l.actor_user_id, r.code FROM role_change_logs l JOIN roles r ON r.id = l.role_id
         WHERE l.target_user_id = $1`,
       [target.id],
     );
     expect(rows).toEqual([
-      { action: 'grant', reason: 'แต่งตั้งตามคำสั่งที่ 1/2569', actor_user_id: admin.id, code: 'club_officer' },
+      { action: 'grant', reason: 'แต่งตั้งตามคำสั่งที่ 1/2569', actor_user_id: admin.id, code: 'club_committee' },
     ]);
-    const { rows: granted } = await pool.query('SELECT granted_by FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE r.code = $1', ['club_officer']);
+    const { rows: granted } = await pool.query('SELECT granted_by FROM user_roles ur JOIN roles r ON r.id = ur.role_id WHERE r.code = $1', ['club_committee']);
     expect(granted[0].granted_by).toBe(admin.id);
 
     // สิทธิ์ใหม่มีผลทันทีโดยไม่ต้อง login ใหม่
@@ -122,7 +122,7 @@ describe('ให้ role', () => {
     await testRole();
     expect((await grant(who, target.id, 'test_helper')).status).toBe(204);
 
-    for (const code of ['club_officer', 'club_president', 'sport_selection_committee', 'super_admin']) {
+    for (const code of ['club_committee', 'club_president', 'sport_selection_committee', 'super_admin']) {
       const res = await grant(who, target.id, code);
       expect(res.status).toBe(403);
       expect(res.body.error.code).toBe('SUPER_ADMIN_ONLY');
@@ -141,7 +141,7 @@ describe('ให้ role', () => {
 
   it('ห้ามให้ role แก่ตนเอง', async () => {
     const admin = await actor(['user', 'super_admin']);
-    const res = await grant(admin, admin.id, 'club_officer');
+    const res = await grant(admin, admin.id, 'club_committee');
     expect(res.status).toBe(403);
     expect(res.body.error.code).toBe('CANNOT_CHANGE_OWN_ROLES');
   });
@@ -151,11 +151,11 @@ describe('ให้ role', () => {
     const target = await actor();
     const inactive = await createTestUser({ isActive: false });
 
-    expect((await grant(admin, '01900000-0000-7000-8000-000000000000', 'club_officer')).status).toBe(404);
-    expect((await grant(admin, inactive.id, 'club_officer')).body.error.code).toBe('USER_INACTIVE');
+    expect((await grant(admin, '01900000-0000-7000-8000-000000000000', 'club_committee')).status).toBe(404);
+    expect((await grant(admin, inactive.id, 'club_committee')).body.error.code).toBe('USER_INACTIVE');
     expect((await grant(admin, target.id, 'no_such_role')).body.error.code).toBe('ROLE_NOT_FOUND');
-    await grant(admin, target.id, 'club_officer');
-    expect((await grant(admin, target.id, 'club_officer')).body.error.code).toBe('ROLE_ALREADY_GRANTED');
+    await grant(admin, target.id, 'club_committee');
+    expect((await grant(admin, target.id, 'club_committee')).body.error.code).toBe('ROLE_ALREADY_GRANTED');
     expect((await grant(admin, target.id, 'club_president', '   ')).status).toBe(400);
   });
 });
@@ -182,12 +182,12 @@ describe('ถอน role', () => {
     const admin = await actor(['user', 'super_admin']);
     const who = await assigner();
     const target = await actor();
-    await grant(admin, target.id, 'club_officer');
+    await grant(admin, target.id, 'club_committee');
 
     expect((await revoke(admin, target.id, 'user')).body.error.code).toBe('ROLE_AUTO_ASSIGNED');
     expect((await revoke(admin, target.id, 'club_president')).body.error.code).toBe('ROLE_NOT_HELD');
-    expect((await revoke(who, target.id, 'club_officer')).body.error.code).toBe('SUPER_ADMIN_ONLY');
-    expect(await rolesOf(target.id)).toContain('club_officer');
+    expect((await revoke(who, target.id, 'club_committee')).body.error.code).toBe('SUPER_ADMIN_ONLY');
+    expect(await rolesOf(target.id)).toContain('club_committee');
   });
 
   it('super_admin ถอน super_admin คนอื่นได้ แต่ถอนตัวเองไม่ได้', async () => {
