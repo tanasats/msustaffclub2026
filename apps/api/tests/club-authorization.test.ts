@@ -72,12 +72,12 @@ describe('ข้อมูลตั้งต้นของชมรม', () => {
       president: [view, achievement, activity, 'club_committee:manage', 'club_finance:manage', 'club_member:approve', message, 'club_profile:edit', 'club_report:submit', sport],
       vice_president: [view, achievement, activity, 'club_member:approve', message, 'club_profile:edit', sport],
       secretary: [view, achievement, activity, 'club_member:approve', message, 'club_profile:edit', 'club_report:submit', sport],
-      assistant_secretary: [view, achievement, activity, message],
-      treasurer: [view, achievement, activity, 'club_finance:manage', message],
-      assistant_treasurer: [view, achievement, activity, message],
-      public_relations: [view, achievement, activity, message, 'club_profile:edit'],
-      committee_member: [view, achievement, activity, message],
-      team_manager: [view, activity, message, sport],
+      assistant_secretary: [view, achievement, activity, 'club_member:approve', message],
+      treasurer: [view, achievement, activity, 'club_finance:manage', 'club_member:approve', message],
+      assistant_treasurer: [view, achievement, activity, 'club_member:approve', message],
+      public_relations: [view, achievement, activity, 'club_member:approve', message, 'club_profile:edit'],
+      committee_member: [view, achievement, activity, 'club_member:approve', message],
+      team_manager: [view, activity, 'club_member:approve', message, sport],
       advisor: [view, 'club_report:acknowledge'],
       member: [],
     });
@@ -140,6 +140,7 @@ describe('getClubPermissions', () => {
     await addAdvisor(clubId, auth.user.id);
     expect(await getClubPermissions(auth, clubId)).toEqual([
       CLUB_PERMISSIONS.VIEW_INTERNAL,
+      CLUB_PERMISSIONS.MEMBER_APPROVE,
       CLUB_PERMISSIONS.ACTIVITY_MANAGE,
       CLUB_PERMISSIONS.ACHIEVEMENT_MANAGE,
       CLUB_PERMISSIONS.FINANCE_MANAGE,
@@ -240,13 +241,14 @@ describe('requireClubPermission', () => {
 
   it('ไม่มีสิทธิ์ในชมรมนี้ → 403, มีสิทธิ์ → 200', async () => {
     const clubId = await createTestClub();
-    const treasurer = await authFor();
+    // กรรมการทุกตำแหน่งอนุมัติสมาชิกได้ — ที่ปรึกษาไม่มีสิทธิ์นี้
+    const advisor = await authFor();
     const secretary = await authFor();
-    await addCommittee(clubId, treasurer.user.id, 'treasurer');
+    await addAdvisor(clubId, advisor.user.id);
     await addCommittee(clubId, secretary.user.id, 'secretary');
     const app = createClubApp();
 
-    expect((await request(app).post(`/clubs/${clubId}/members/approve`).set('Cookie', treasurer.cookie)).status).toBe(403);
+    expect((await request(app).post(`/clubs/${clubId}/members/approve`).set('Cookie', advisor.cookie)).status).toBe(403);
     expect((await request(app).post(`/clubs/${clubId}/members/approve`).set('Cookie', secretary.cookie)).status).toBe(200);
   });
 });

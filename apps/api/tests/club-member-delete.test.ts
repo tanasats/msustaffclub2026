@@ -3,7 +3,7 @@ import { createApp } from '../src/app.js';
 import { pool } from '../src/db/pool.js';
 import { createTestUser, resetDatabase } from './helpers/db.js';
 import { createSessionCookie, grantRole, WEB_ORIGIN } from './helpers/auth.js';
-import { addCommittee, addMembership, createTestClub } from './helpers/clubs.js';
+import { addAdvisor, addCommittee, addMembership, createTestClub } from './helpers/clubs.js';
 import { request } from './helpers/http.js';
 
 beforeEach(resetDatabase);
@@ -102,15 +102,16 @@ describe('กรรมการลบรายชื่อที่บันท�
     expect((await del((await memberRow(clubId, president.id)).id)).status).toBe(403); // ตัวเอง
   });
 
-  it('ไม่มีสิทธิ์ club_member:approve (เหรัญญิก/สมาชิก) → 403', async () => {
+  it('ไม่มีสิทธิ์ club_member:approve (ที่ปรึกษา/สมาชิก) → 403', async () => {
     const { clubId } = await setup();
-    const treasurer = await actor();
-    await addMembership(clubId, treasurer.id, 'active');
-    await addCommittee(clubId, treasurer.id, 'treasurer');
+    // กรรมการทุกตำแหน่งมีสิทธิ์นี้แล้ว — ที่ปรึกษาเห็นข้อมูลภายในแต่จัดการสมาชิกไม่ได้
+    const advisor = await actor();
+    await addAdvisor(clubId, advisor.id);
     const member = await actor();
     await addMembership(clubId, member.id, 'active');
     const { id } = await memberRow(clubId, member.id);
-    expect((await post(treasurer, `/clubs/${clubId}/memberships/${id}/delete`, { note: 'x' })).status).toBe(403);
+    expect((await post(advisor, `/clubs/${clubId}/memberships/${id}/delete`, { note: 'x' })).status).toBe(403);
+    expect((await post(member, `/clubs/${clubId}/memberships/${id}/delete`, { note: 'x' })).status).toBe(403);
   });
 });
 

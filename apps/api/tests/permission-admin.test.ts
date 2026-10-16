@@ -124,25 +124,25 @@ describe('แก้การผูก role ↔ สิทธิ์', () => {
 });
 
 describe('สิทธิ์ตามตำแหน่งในชมรม', () => {
-  it('ให้เหรัญญิกอนุมัติสมาชิกได้ → มีผลทันทีทุกชมรม; ถอนคืน', async () => {
+  it('ให้เหรัญญิกส่งรายงานได้ → มีผลทันทีทุกชมรม; ถอนคืน', async () => {
     const admin = await actor(['user', 'super_admin']);
     const club = await createTestClub();
     const treasurer = await createTestUser();
     await addCommittee(club, treasurer.id, 'treasurer');
     const auth = async () => (await resolveSession((await createSessionCookie(treasurer.id)).split('=')[1]!))!;
 
-    expect(await getClubPermissions(await auth(), club)).not.toContain('club_member:approve');
-    const res = await post(admin, '/admin/club-positions/treasurer/permissions', { clubPermissionCode: 'club_member:approve', reason: 'ชมรมขนาดเล็ก' });
+    expect(await getClubPermissions(await auth(), club)).not.toContain('club_report:submit');
+    const res = await post(admin, '/admin/club-positions/treasurer/permissions', { clubPermissionCode: 'club_report:submit', reason: 'เหรัญญิกช่วยส่งรายงาน' });
     try {
       expect(res.status).toBe(204);
-      expect(await getClubPermissions(await auth(), club)).toContain('club_member:approve');
-      expect((await post(admin, '/admin/club-positions/treasurer/permissions', { clubPermissionCode: 'club_member:approve', reason: 'ซ้ำ' })).status).toBe(409);
+      expect(await getClubPermissions(await auth(), club)).toContain('club_report:submit');
+      expect((await post(admin, '/admin/club-positions/treasurer/permissions', { clubPermissionCode: 'club_report:submit', reason: 'ซ้ำ' })).status).toBe(409);
     } finally {
-      await post(admin, '/admin/club-positions/treasurer/permissions/club_member:approve/revoke', { reason: 'คืนค่า' });
+      await post(admin, '/admin/club-positions/treasurer/permissions/club_report:submit/revoke', { reason: 'คืนค่า' });
     }
-    expect(await getClubPermissions(await auth(), club)).not.toContain('club_member:approve');
+    expect(await getClubPermissions(await auth(), club)).not.toContain('club_report:submit');
     expect(await logActions()).toEqual(['position_grant', 'position_revoke']);
-    expect((await post(admin, '/admin/club-positions/nope/permissions', { clubPermissionCode: 'club_member:approve', reason: 'x' })).status).toBe(404);
+    expect((await post(admin, '/admin/club-positions/nope/permissions', { clubPermissionCode: 'club_report:submit', reason: 'x' })).status).toBe(404);
     expect((await post(admin, '/admin/club-positions/treasurer/permissions', { clubPermissionCode: 'nope:nope', reason: 'x' })).status).toBe(404);
   });
 });
