@@ -30,7 +30,7 @@ const userSearchSchema = z.object({ q: z.string().trim().min(2).max(100) });
 const clubMessageSchema = z.object(messageFields).strict();
 const pageSchema = z.object({ page: z.coerce.number().int().min(1).max(1000).default(1) });
 
-// ---------- ประกาศจากสโมสรบุคลากร: ต้องมี staff_announcement:send (เจ้าหน้าที่สโมสร / นายกสโมสร) ----------
+// ---------- ประกาศจากสโมสรบุคลากร: ต้องมี staff_announcement:send (กรรมการสโมสร / นายกสโมสร) ----------
 const requireAnnouncer = requirePermission(PERMISSIONS.STAFF_ANNOUNCEMENT_SEND);
 
 broadcastsRouter.get('/staff-announcements', requireAnnouncer, async (req, res) => {

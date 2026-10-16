@@ -246,7 +246,7 @@ export default async function ApplicationPage({ params }: { params: Promise<{ id
         )}
 
         {canReview && (
-          <Section title="ตรวจคำขอ (ขั้นที่ 1 — เจ้าหน้าที่สโมสร)">
+          <Section title="ตรวจคำขอ (ขั้นที่ 1 — กรรมการสโมสร)">
             {(documentAdvisors.length > 0 || presidentDocument) && (
               <div className="mb-4 grid gap-2">
                 <p className="text-sm text-stone">

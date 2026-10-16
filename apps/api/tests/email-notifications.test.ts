@@ -258,9 +258,9 @@ describe('worker ส่งอีเมลจากคิว', () => {
 });
 
 describe('หน้าตั้งค่าอีเมล (system_setting:manage)', () => {
-  it('เฉพาะ super_admin (permission ยังไม่ผูก role ใด) — บุคลากร/เจ้าหน้าที่สโมสร 403, ไม่ login 401', async () => {
+  it('เฉพาะ super_admin (permission ยังไม่ผูก role ใด) — บุคลากร/กรรมการสโมสร 403, ไม่ login 401', async () => {
     const staff = await actor();
-    const officer = await actor({ roles: ['user', 'staff', 'club_officer'] });
+    const officer = await actor({ roles: ['user', 'staff', 'club_committee'] });
     const admin = await actor({ roles: ['user', 'staff', 'super_admin'] });
     expect((await request(app).get('/admin/email-settings')).status).toBe(401);
     expect((await request(app).get('/admin/email-settings').set('Cookie', staff.cookie)).status).toBe(403);

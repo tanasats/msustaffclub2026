@@ -92,7 +92,7 @@ export default async function ConsentFormPage({ params }: { params: Promise<{ id
           <p className="font-bold">สำหรับผู้ยื่นคำขอ</p>
           <p>
             เมื่อลงนามแล้ว ให้สแกนหรือถ่ายภาพเอกสารนี้ (PDF / JPG / PNG ไม่เกิน 10 MB) แล้วแนบในระบบที่คำขอ{action}
-            {club} {advisor ? `ช่องที่ปรึกษาลำดับที่ ${thaiDigits(advisor.sortOrder)}` : 'ช่องประธานชมรม'} — เจ้าหน้าที่สโมสรบุคลากรจะตรวจ{noun}ก่อนพิจารณาคำขอ
+            {club} {advisor ? `ช่องที่ปรึกษาลำดับที่ ${thaiDigits(advisor.sortOrder)}` : 'ช่องประธานชมรม'} — กรรมการสโมสรบุคลากรจะตรวจ{noun}ก่อนพิจารณาคำขอ
           </p>
           <p className="mt-1">
             เสนอชื่อโดย {d.applicant.name} · เลขอ้างอิงคำขอ {d.id.slice(-8).toUpperCase()}

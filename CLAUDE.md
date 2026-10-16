@@ -187,7 +187,7 @@ Role และ permission เฉพาะระบบนี้ (**เริ่�
 |---|---|---|---|
 | `student` | นิสิต | false | (ยังไม่ผูก) — `is_system`, ระบบให้อัตโนมัติตอน login |
 | `staff` | บุคลากร | false | `club_application:create` — `is_system`, ระบบให้อัตโนมัติตอน login |
-| `club_officer` | เจ้าหน้าที่สโมสร | true | `club_application:review`, `club_report:review`, `sport:manage`, `staff_announcement:send` |
+| `club_committee` | กรรมการสโมสร | true | `club_application:review`, `club_report:review`, `sport:manage`, `staff_announcement:send` |
 | `club_president` | นายกสโมสร | true | `club_application:approve`, `staff_announcement:send` |
 | `sport_selection_committee` | คณะกรรมการคัดเลือก | true | `sport_selection:manage` (สร้างไว้ก่อน super_admin มอบให้ผู้ใช้ภายหลัง) |
 
@@ -201,9 +201,9 @@ Permission ที่ลงทะเบียนแล้ว (ยังไม่�
 | `club_application:approve` | อนุมัติขั้นที่ 2: อนุมัติ / ไม่อนุมัติ / ส่งกลับแก้ไข |
 | `club:read_all` | ดูข้อมูลทุกชมรมและทุกคำขอ (อ่านอย่างเดียว) |
 | `club:manage_all` | จัดการทุกชมรมและข้อมูลหลักของชมรม และผ่านสิทธิ์ระดับชมรมทุกข้อ |
-| `club_report:review` | รับทราบรายงานประจำปีของทุกชมรม และดูภาพรวมการส่งรายงาน (ผูกกับ `club_officer`) |
-| `sport:manage` | เพิ่ม/แก้ไข/ปิดใช้งานรายการชนิดกีฬา (ผูกกับ `club_officer`) |
-| `staff_announcement:send` | ส่งประกาศจากสโมสรบุคลากรถึงบุคลากร (ทุกคน / กรรมการชมรม / สมาชิกชมรม / ตามหน่วยงาน) และส่งข้อความถึงผู้ใช้รายบุคคล (1 คนต่อครั้ง ค้นได้ทุกบัญชีรวมนิสิต) (ผูกกับ `club_officer`, `club_president`) |
+| `club_report:review` | รับทราบรายงานประจำปีของทุกชมรม และดูภาพรวมการส่งรายงาน (ผูกกับ `club_committee`) |
+| `sport:manage` | เพิ่ม/แก้ไข/ปิดใช้งานรายการชนิดกีฬา (ผูกกับ `club_committee`) |
+| `staff_announcement:send` | ส่งประกาศจากสโมสรบุคลากรถึงบุคลากร (ทุกคน / กรรมการชมรม / สมาชิกชมรม / ตามหน่วยงาน) และส่งข้อความถึงผู้ใช้รายบุคคล (1 คนต่อครั้ง ค้นได้ทุกบัญชีรวมนิสิต) (ผูกกับ `club_committee`, `club_president`) |
 | `sport_selection:manage` | เปิดรอบคัดเลือกตัวแทน/พิจารณารางวัลนักกีฬา และบันทึกผลการตัดสิน (ผูกกับ `sport_selection_committee`) |
 | `system_setting:manage` | ตั้งค่าระบบ รวมถึงเปิด/ปิดการส่งอีเมลแจ้งเตือน (ไม่ผูก role → เฉพาะ `super_admin`) |
 | `club_application:manage_deleted` | ดูคำขอที่ผู้ยื่นลบแล้ว และกู้คืนคำขอที่ยกเลิก/ลบแล้วเป็นฉบับร่าง (ไม่ผูก role → เฉพาะ `super_admin`) |

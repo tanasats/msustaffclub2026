@@ -83,15 +83,15 @@ describe('ข้อมูลตั้งต้นของชมรม', () => {
     });
   });
 
-  it('role เจ้าหน้าที่สโมสร/นายกสโมสร มีสิทธิ์ตรวจ/อนุมัติ และให้ได้เฉพาะ super_admin', async () => {
+  it('role กรรมการสโมสร/นายกสโมสร มีสิทธิ์ตรวจ/อนุมัติ และให้ได้เฉพาะ super_admin', async () => {
     const { rows } = await pool.query(
       `SELECT r.code, r.name_th, r.is_system, r.is_privileged,
               ARRAY(SELECT p.code FROM role_permissions rp JOIN permissions p ON p.id = rp.permission_id
                      WHERE rp.role_id = r.id ORDER BY p.code) AS permissions
-         FROM roles r WHERE r.code IN ('club_officer', 'club_president') ORDER BY r.code`,
+         FROM roles r WHERE r.code IN ('club_committee', 'club_president') ORDER BY r.code`,
     );
     expect(rows).toEqual([
-      { code: 'club_officer', name_th: 'เจ้าหน้าที่สโมสร', is_system: false, is_privileged: true, permissions: ['club_application:review', 'club_report:review', 'sport:manage', 'staff_announcement:send'] },
+      { code: 'club_committee', name_th: 'กรรมการสโมสร', is_system: false, is_privileged: true, permissions: ['club_application:review', 'club_report:review', 'sport:manage', 'staff_announcement:send'] },
       { code: 'club_president', name_th: 'นายกสโมสร', is_system: false, is_privileged: true, permissions: ['club_application:approve', 'staff_announcement:send'] },
     ]);
   });

@@ -98,7 +98,7 @@ export function CommitteeEditor({ application, positions }: { application: Appli
                         <div className="mt-2 grid gap-2 rounded-lg bg-cream p-3">
                           <p className="text-xs text-stone">
                             กด &quot;พิมพ์ใบตอบรับ&quot; ให้ผู้ถูกเสนอลงนาม แล้วแนบไฟล์ที่ลงนามแล้ว — ถือว่าตอบรับโดยไม่ต้องเข้าระบบ
-                            และเจ้าหน้าที่สโมสรจะตรวจเอกสารก่อนอนุมัติ
+                            และกรรมการสโมสรจะตรวจเอกสารก่อนอนุมัติ
                           </p>
                           <ConsentUpload applicationId={application.id} kind="president" hasFile={false} />
                         </div>

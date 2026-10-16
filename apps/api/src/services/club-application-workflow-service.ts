@@ -254,7 +254,7 @@ export async function listMyAdvisorRequests(auth: AuthContext): Promise<AdvisorR
   return listApplicationsForAdvisor(auth.user.id, auth.user.email);
 }
 
-// ---------- เจ้าหน้าที่สโมสร (ขั้นที่ 1) ----------
+// ---------- กรรมการสโมสร (ขั้นที่ 1) ----------
 
 export async function reviewApplication(
   auth: AuthContext,

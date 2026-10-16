@@ -34,7 +34,7 @@ async function sportId(code: string): Promise<string> {
 
 /**
  * ชมรมวิ่ง: ผู้จัดการทีม (club_sport:manage) + นักวิ่ง 2 คน (a, b) + สมาชิกที่ไม่ใช่นักกีฬา
- * ค่าสถิติวิ่ง: เวลา (นาที, ค่าน้อยดีกว่า) สร้างโดยเจ้าหน้าที่สโมสร (sport:manage)
+ * ค่าสถิติวิ่ง: เวลา (นาที, ค่าน้อยดีกว่า) สร้างโดยกรรมการสโมสร (sport:manage)
  */
 async function setup() {
   const clubId = await createTestClub({ name: 'ชมรมวิ่งเพื่อสุขภาพ' });
@@ -47,7 +47,7 @@ async function setup() {
   await send('put', manager, `/clubs/${clubId}/sports`, { sportIds: [running] });
   for (const who of [a, b]) await send('post', who, `/clubs/${clubId}/athletes`, { sportId: running, eventOrPosition: '10 กม.' });
 
-  const officer = await actor(['user', 'staff', 'club_officer']);
+  const officer = await actor(['user', 'staff', 'club_committee']);
   const stat = await send('post', officer, `/sports/${running}/stats`, { code: 'test_time', nameTh: 'เวลา', unit: 'นาที', better: 'lower' });
   expect(stat.status).toBe(201);
   return { clubId, manager, a, b, plain, officer, running, timeStat: stat.body.id as string };
@@ -71,7 +71,7 @@ function competition(s: Awaited<ReturnType<typeof setup>>, overrides: object = {
 }
 
 describe('ค่าสถิติของชนิดกีฬา', () => {
-  it('เจ้าหน้าที่สโมสรกำหนดได้ (รหัสซ้ำไม่ได้), คนอื่น → 403, ทุกคนที่ login เห็นรายการ', async () => {
+  it('กรรมการสโมสรกำหนดได้ (รหัสซ้ำไม่ได้), คนอื่น → 403, ทุกคนที่ login เห็นรายการ', async () => {
     const s = await setup();
     expect((await send('post', s.manager, `/sports/${s.running}/stats`, { code: 'test_pace', nameTh: 'เพซ', better: 'lower' })).status).toBe(403);
     expect((await send('post', s.officer, `/sports/${s.running}/stats`, { code: 'test_time', nameTh: 'ซ้ำ', better: 'lower' })).body.error.code).toBe(

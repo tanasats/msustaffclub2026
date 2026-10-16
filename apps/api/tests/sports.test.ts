@@ -45,8 +45,8 @@ async function setup() {
 }
 
 describe('ชนิดกีฬา (ข้อมูลหลัก)', () => {
-  it('ทุกคนที่ login เห็นรายการ; เจ้าหน้าที่สโมสร (sport:manage) เพิ่ม/ปิดใช้งานได้; คนอื่น → 403', async () => {
-    const officer = await actor(['user', 'staff', 'club_officer']);
+  it('ทุกคนที่ login เห็นรายการ; กรรมการสโมสร (sport:manage) เพิ่ม/ปิดใช้งานได้; คนอื่น → 403', async () => {
+    const officer = await actor(['user', 'staff', 'club_committee']);
     const staff = await actor();
     expect((await get(staff, '/sports')).body.items.map((s: { code: string }) => s.code)).toContain('football');
 
